@@ -151,7 +151,7 @@ class ImageAndPath {
     static boolean isUrl(String path) {
         String prefix = path.substring(0,Math.min(9, path.length())).toLowerCase();
         var res = prefix.startsWith("http:/") || prefix.startsWith("https:/") || prefix.startsWith("file:/");
-        System.out.println("prefix="+prefix+"] => "+res+" "+Thread.currentThread());
+        //System.out.println("prefix=["+prefix+"] => "+res+" "+Thread.currentThread());
         return res;
     }
 }
