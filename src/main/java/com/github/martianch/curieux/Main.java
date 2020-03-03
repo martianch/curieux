@@ -13,11 +13,13 @@ button from the raw images index on the NASA site.
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.event.MouseInputAdapter;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -384,6 +386,8 @@ class X3DViewer {
             // synchronize them: make them share the same model
             compL.getHorizontalScrollBar().setModel(compR.getHorizontalScrollBar().getModel());
             compL.getVerticalScrollBar().setModel(compR.getVerticalScrollBar().getModel());
+            new DragMover(lblL);
+            new DragMover(lblR);
         }
 
         GridBagLayout gbl = new GridBagLayout();
@@ -761,6 +765,64 @@ class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     @Override
     String getAsString() {
         return String.format ("%.3f", value);
+    }
+}
+
+class DragMover extends MouseInputAdapter {
+    private JComponent m_view            = null;
+    private Point      m_holdPointOnView = null;
+
+    public DragMover(JComponent view) {
+        m_view = view;
+        m_view.addMouseListener(this);
+        m_view.addMouseMotionListener(this);
+    }
+    @Override
+    public void mousePressed(MouseEvent e) {
+        m_view.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+        m_holdPointOnView = e.getPoint();
+    }
+    @Override
+    public void mouseReleased(MouseEvent e) {
+        m_view.setCursor(null);
+    }
+    @Override
+    public void mouseDragged(MouseEvent e) {
+        Point dragEventPoint = e.getPoint();
+        JViewport viewport = (JViewport) m_view.getParent();
+        Point viewPos = viewport.getViewPosition();
+        int maxViewPosX = m_view.getWidth() - viewport.getWidth();
+        int maxViewPosY = m_view.getHeight() - viewport.getHeight();
+
+        if(m_view.getWidth() > viewport.getWidth()) {
+            viewPos.x -= dragEventPoint.x - m_holdPointOnView.x;
+
+            if(viewPos.x < 0) {
+                viewPos.x = 0;
+                m_holdPointOnView.x = dragEventPoint.x;
+            }
+
+            if(viewPos.x > maxViewPosX) {
+                viewPos.x = maxViewPosX;
+                m_holdPointOnView.x = dragEventPoint.x;
+            }
+        }
+
+        if(m_view.getHeight() > viewport.getHeight()) {
+            viewPos.y -= dragEventPoint.y - m_holdPointOnView.y;
+
+            if(viewPos.y < 0) {
+                viewPos.y = 0;
+                m_holdPointOnView.y = dragEventPoint.y;
+            }
+
+            if(viewPos.y > maxViewPosY) {
+                viewPos.y = maxViewPosY;
+                m_holdPointOnView.y = dragEventPoint.y;
+            }
+        }
+
+        viewport.setViewPosition(viewPos);
     }
 }
 

@@ -36,7 +36,7 @@ application {
     mainClassName = 'com.github.martianch.curieux.Main'
 }
 
-sourceCompatibility = 12 // for the IDE support
+sourceCompatibility = 13 // for the IDE support
 
 compileJava {
     options.compilerArgs = [
