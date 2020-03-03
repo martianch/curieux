@@ -440,10 +440,10 @@ class X3DViewer {
                 String helpText =
                         "When either of the images has the input focus:\n\n" +
                         "LEFT, RIGHT, UP, DOWN: scroll both images\n" +
-                        "Alt+I: zoom in +10%\n" +
-                        "Ctrl+I: zoom in +100%\n" +
-                        "Alt+O: zoom out -10%\n" +
-                        "Ctrl+O: zoom out -100%\n" +
+                        "Alt+I, Ctrl+'=': zoom in +10%\n" +
+                        "Ctrl+I, Ctrl+Shift+'+': zoom in +100%\n" +
+                        "Alt+O, Clrl+'-': zoom out -10%\n" +
+                        "Ctrl+O, Ctrl+Shift+'_': zoom out -100%\n" +
                         "Shift+LEFT, Shift+RIGHT: change horizontal offset by 3\n" +
                         "Ctrl+LEFT, Ctrl+RIGHT: change horizontal offset by 30\n" +
                         "Shift+UP, Shift+DOWN: change vertical offset by 3\n" +
@@ -514,6 +514,12 @@ class X3DViewer {
                 lbl.getInputMap().put(KeyStroke.getKeyStroke("alt O"), "zoomout");
                 lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl I"), "zoomin2");
                 lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl O"), "zoomout2");
+//                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl PLUS"), "zoomin2");
+//                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl shift PLUS"), "zoomin2");
+                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl EQUALS"), "zoomin");
+                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl shift EQUALS"), "zoomin2");
+                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl MINUS"), "zoomout");
+                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl shift MINUS"), "zoomout2");
                 lbl.getActionMap().put("zoomin", toAction(e->dcZoom.buttonPlus.doClick()));
                 lbl.getActionMap().put("zoomout", toAction(e->dcZoom.buttonMinus.doClick()));
                 lbl.getActionMap().put("zoomin2", toAction(e->dcZoom.buttonPlus2.doClick()));
