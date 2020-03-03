@@ -18,6 +18,7 @@ repositories {
     // Use jcenter for resolving dependencies.
     // You can declare any Maven/Ivy/file repository here.
     jcenter()
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
@@ -26,9 +27,19 @@ dependencies {
 
     // Use JUnit test framework
     testImplementation 'junit:junit:4.12'
+
+    annotationProcessor 'com.github.bsideup.jabel:jabel-javac-plugin:0.2.0'
 }
 
 application {
     // Define the main class for the application.
     mainClassName = 'com.github.martianch.curieux.Main'
+}
+
+sourceCompatibility = 12 // for the IDE support
+
+compileJava {
+    options.compilerArgs = [
+            "--release", "8" // Avoid using Java 12 APIs
+    ]
 }
