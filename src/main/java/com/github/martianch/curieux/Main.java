@@ -45,8 +45,8 @@ public class Main {
             {
                 //paths = Arrays.asList("","");
                 paths = Arrays.asList(
-                        "https://mars.jpl.nasa.gov/msl-raw-images/msss/02667/mhli/2667MH0001630001001643R00_DXXX.jpg",
-                        "https://mars.jpl.nasa.gov/msl-raw-images/msss/02667/mhli/2667MH0001630001001645R00_DXXX.jpg"
+                    "https://mars.jpl.nasa.gov/msl-raw-images/msss/02667/mhli/2667MH0001630001001643R00_DXXX.jpg",
+                    "https://mars.jpl.nasa.gov/msl-raw-images/msss/02667/mhli/2667MH0001630001001645R00_DXXX.jpg"
                 );
             }
             break;
@@ -306,8 +306,8 @@ class UiController implements UiEventListener {
             dir = Paths.get(".");
         }
         var file = fullPath.getFileName().toString();
-        System.out.println("dir=["+dir+"]");
-        System.out.println("file=["+file+"]");
+//        System.out.println("dir=["+dir+"]");
+//        System.out.println("file=["+file+"]");
         if (isMarkedRL(file)) {
             StringBuilder sb = new StringBuilder(file);
             if (sb.charAt(1) == 'R') {
