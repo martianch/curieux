@@ -26,8 +26,11 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -51,12 +54,12 @@ public class Main {
             }
             break;
             case 1: {
-                paths = UiController.twoPaths(args[0]);
+                paths = FileLocations.twoPaths(args[0]);
             }
             break;
             default:
             case 2: {
-                paths = UiController.twoPaths(args[0], args[1]);
+                paths = FileLocations.twoPaths(args[0], args[1]);
             }
             break;
         }
@@ -131,7 +134,7 @@ class ImageAndPath {
                         ? new Color(0, 128, 255)
                         : new Color(0, 0, 0);
             res = dummyImage(color);
-        } else if(isUrl(path)) {
+        } else if(FileLocations.isUrl(path)) {
             System.out.println("downloading "+path+ IN_PROGRESS_PATH);
             try {
                 res = ImageIO.read(new URL(path));
@@ -149,12 +152,6 @@ class ImageAndPath {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-    static boolean isUrl(String path) {
-        String prefix = path.substring(0,Math.min(9, path.length())).toLowerCase();
-        var res = prefix.startsWith("http:/") || prefix.startsWith("https:/") || prefix.startsWith("file:/");
-        //System.out.println("prefix=["+prefix+"] => "+res+" "+Thread.currentThread());
-        return res;
     }
 }
 class RawData {
@@ -223,7 +220,7 @@ class UiController implements UiEventListener {
                 return;
             case 1: {
                 if (dndOneToBoth) {
-                    paths = twoPaths(urls.get(0));
+                    paths = FileLocations.twoPaths(urls.get(0));
                 } else {
                     if (isRight) {
                         paths = Arrays.asList(rawData.left.path, urls.get(0));
@@ -235,7 +232,7 @@ class UiController implements UiEventListener {
             break;
             default:
             case 2: {
-                paths = twoPaths(urls.get(0), urls.get(1));
+                paths = FileLocations.twoPaths(urls.get(0), urls.get(1));
             }
             break;
         }
@@ -273,76 +270,6 @@ class UiController implements UiEventListener {
         // the two above ui updates are synchronized via the invokeLater() queue
         // the 2nd one, whichever it is, shows both images
     }
-    static String getFileName(String urlOrPath) {
-        String fullPath = urlOrPath;
-        if (ImageAndPath.isUrl(urlOrPath)) {
-            try {
-                URL url = new URL(urlOrPath);
-                fullPath = url.getFile();
-            } catch (MalformedURLException e) {
-                // do nothing, go on assuming it's a file
-            }
-        }
-        return Paths.get(fullPath).getFileName().toString();
-    }
-    static List<String> twoPaths(String path0) {
-        if (ImageAndPath.isUrl(path0)) {
-            try {
-                URL url = new URL(path0);
-                String urlFile = url.getFile();
-                String urlBeforeFile = path0.substring(0, path0.length() - urlFile.length());
-                return _twoPaths(urlFile).stream().map(s -> urlBeforeFile+s).collect(Collectors.toList());
-            } catch (MalformedURLException e) {
-                // do nothing, go on assuming it's a file
-            }
-        }
-        return _twoPaths(path0);
-    }
-    static List<String> _twoPaths(String path0) {
-        String fullPath1 = "", fullPath2 = "";
-        var fullPath = Paths.get(path0);
-        var dir = fullPath.getParent();
-        if (dir == null) {
-            dir = Paths.get(".");
-        }
-        var file = fullPath.getFileName().toString();
-//        System.out.println("dir=["+dir+"]");
-//        System.out.println("file=["+file+"]");
-        if (isMarkedRL(file)) {
-            StringBuilder sb = new StringBuilder(file);
-            if (sb.charAt(1) == 'R') {
-                sb.setCharAt(1, 'L');
-                fullPath1 = path0;
-                fullPath2 = Paths.get(dir.toString(),sb.toString()).toString();
-            } else {
-                sb.setCharAt(1, 'R');
-                fullPath1 = Paths.get(dir.toString(),sb.toString()).toString();
-                fullPath2 = path0;
-            }
-        } else {
-            fullPath1 = path0;
-        }
-        return Arrays.asList(fullPath1, fullPath2);
-    }
-    static List<String> twoPaths(String urlOrPath1, String urlOrPath2) {
-        String file1 = getFileName(urlOrPath1);
-        String file2 = getFileName(urlOrPath2);
-        if(isMarkedRL(file1) && isMarkedRL(file2)) {
-            if (isMarkedL(file1)) {
-                return Arrays.asList(urlOrPath2, urlOrPath1);
-            }
-        }
-        return Arrays.asList(urlOrPath1, urlOrPath2);
-    }
-    private static boolean isMarkedR(String file) {
-        return file.startsWith("NRB") || file.startsWith("RRB") || file.startsWith("FRB");
-    }
-    private static boolean isMarkedL(String file) {
-        return file.startsWith("NLB") || file.startsWith("RLB") || file.startsWith("FLB");
-    }
-    private static boolean isMarkedRL(String file) {
-        return isMarkedR(file) || isMarkedL(file);
-    }
 }
 
 class X3DViewer {
@@ -362,8 +289,19 @@ class X3DViewer {
             lblR.setBorder(null);
             lblL.setMargin(new Insets(0, 0, 0, 0));
             lblR.setMargin(new Insets(0, 0, 0, 0));
-            String title = Paths.get(rd.left.path).getFileName().toString()+" : "+Paths.get(rd.right.path).getFileName().toString();
-            frame.setTitle(title);
+            {
+                String leftFileName = FileLocations.getFileName(rd.left.path);
+                String rightFileName = FileLocations.getFileName(rd.right.path);
+                String leftTime = RoverTime.earthDateForFile(4, leftFileName);
+                String rightTime = RoverTime.earthDateForFile(4, rightFileName);
+                String times = "".equals(leftTime+rightTime)
+                             ? ""
+                             : leftTime.equals(rightTime)
+                             ? " (" + leftTime + ")"
+                             : " ("+leftTime+" : "+rightTime+")";
+                String title = leftFileName + " : " + rightFileName + times;
+                frame.setTitle(title);
+            }
         }
     }
     public void createViews(RawData rd, DisplayParameters dp, UiEventListener uiEventListener)
@@ -829,6 +767,120 @@ class DragMover extends MouseInputAdapter {
         }
 
         viewport.setViewPosition(viewPos);
+    }
+}
+
+abstract class FileLocations {
+    static String getFileName(String urlOrPath) {
+        String fullPath = urlOrPath;
+        if (isUrl(urlOrPath)) {
+            try {
+                URL url = new URL(urlOrPath);
+                fullPath = url.getFile();
+            } catch (MalformedURLException e) {
+                // do nothing, go on assuming it's a file
+            }
+        }
+        return Paths.get(fullPath).getFileName().toString();
+    }
+    static List<String> twoPaths(String path0) {
+        if (isUrl(path0)) {
+            try {
+                URL url = new URL(path0);
+                String urlFile = url.getFile();
+                String urlBeforeFile = path0.substring(0, path0.length() - urlFile.length());
+                return _twoPaths(urlFile).stream().map(s -> urlBeforeFile+s).collect(Collectors.toList());
+            } catch (MalformedURLException e) {
+                // do nothing, go on assuming it's a file
+            }
+        }
+        return _twoPaths(path0);
+    }
+    static List<String> _twoPaths(String path0) {
+        String fullPath1 = "", fullPath2 = "";
+        var fullPath = Paths.get(path0);
+        var dir = fullPath.getParent();
+        if (dir == null) {
+            dir = Paths.get(".");
+        }
+        var file = fullPath.getFileName().toString();
+//        System.out.println("dir=["+dir+"]");
+//        System.out.println("file=["+file+"]");
+        if (isMarkedRL(file)) {
+            StringBuilder sb = new StringBuilder(file);
+            if (sb.charAt(1) == 'R') {
+                sb.setCharAt(1, 'L');
+                fullPath1 = path0;
+                fullPath2 = Paths.get(dir.toString(),sb.toString()).toString();
+            } else {
+                sb.setCharAt(1, 'R');
+                fullPath1 = Paths.get(dir.toString(),sb.toString()).toString();
+                fullPath2 = path0;
+            }
+        } else {
+            fullPath1 = path0;
+        }
+        return Arrays.asList(fullPath1, fullPath2);
+    }
+    static List<String> twoPaths(String urlOrPath1, String urlOrPath2) {
+        String file1 = getFileName(urlOrPath1);
+        String file2 = getFileName(urlOrPath2);
+        if(isMarkedRL(file1) && isMarkedRL(file2)) {
+            if (isMarkedL(file1)) {
+                return Arrays.asList(urlOrPath2, urlOrPath1);
+            }
+        }
+        return Arrays.asList(urlOrPath1, urlOrPath2);
+    }
+    private static boolean isMarkedR(String file) {
+        return file.startsWith("NRB") || file.startsWith("RRB") || file.startsWith("FRB");
+    }
+    private static boolean isMarkedL(String file) {
+        return file.startsWith("NLB") || file.startsWith("RLB") || file.startsWith("FLB");
+    }
+    private static boolean isMarkedRL(String file) {
+        return isMarkedR(file) || isMarkedL(file);
+    }
+    static boolean isUrl(String path) {
+        String prefix = path.substring(0,Math.min(9, path.length())).toLowerCase();
+        var res = prefix.startsWith("http:/") || prefix.startsWith("https:/") || prefix.startsWith("file:/");
+        //System.out.println("prefix=["+prefix+"] => "+res+" "+Thread.currentThread());
+        return res;
+    }
+}
+
+abstract class RoverTime {
+    final static int MIN_CHARS_IN_TIMESTAMP = 6;
+    public static long toUtcMillis(long roverTimestamp) {
+        return Math.round(roverTimestamp*1.000009468 + 946724361)*1000L;
+    }
+    public static long parseTimestamp(int offset, String s) {
+        if (offset >= s.length()) {
+            return 0;
+        }
+        int charsParsed = 0;
+        long res = 0;
+        for (char c : s.substring(offset).toCharArray()) {
+            if (c < '0' || c > '9') {
+                break;
+            }
+            res = res*10 + (c - '0');
+            charsParsed++;
+        }
+        if(charsParsed < MIN_CHARS_IN_TIMESTAMP) {
+            return 0;
+        }
+        return res;
+    }
+    public static String earthDateForFile(int offset, String s) {
+        long ts = parseTimestamp(offset, s);
+        if (ts == 0) {
+            return "";
+        }
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        String res  = dateFormat.format(new Date(toUtcMillis(ts)));
+        return res;
     }
 }
 
