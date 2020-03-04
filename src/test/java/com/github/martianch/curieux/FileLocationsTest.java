@@ -130,4 +130,9 @@ public class FileLocationsTest {
         assertFalse(isUrl("../text.txt"));
         assertFalse(isUrl("dir/text.txt"));
     }
+
+    @Test
+    public void getRidOfBackslashesTest() {
+        assertThat(FileLocations.getRidOfBackslashes("c:\\test\\"), is("c:/test/"));
+    }
 }

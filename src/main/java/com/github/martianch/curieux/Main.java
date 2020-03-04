@@ -17,6 +17,7 @@ import javax.swing.event.MouseInputAdapter;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -470,24 +471,49 @@ class X3DViewer {
                 public boolean canImport(JComponent comp, DataFlavor[] transferFlavors) {
 //                    return super.canImport(comp, transferFlavors);
                     for (DataFlavor df : transferFlavors) {
-                        if (df.isFlavorTextType()) {
+                        if (df.isFlavorTextType() || df.isFlavorJavaFileListType()) {
+                            System.out.println("can accept: "+df);
                             return true;
                         }
                     }
+                    System.out.println("{ canImport");
+                    for (DataFlavor df : transferFlavors) {
+                        System.out.println(df);
+                    }
+                    System.out.println("} canImport");
                     return false;
                 }
 
                 @Override
                 public boolean importData(JComponent comp, Transferable t) {
-                    try {
-                        String toImport = (String) t.getTransferData(DataFlavor.stringFlavor);
-                        System.out.println("import: ["+toImport+"]");
-                        System.out.println("L:"+(comp==lblL));
-                        System.out.println("R:"+(comp==lblR));
-                        uiEventListener.dndImport(toImport, comp == lblR);
-                    } catch (Throwable e) {
-                        e.printStackTrace();
-                        return false;
+                    if (t.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                        try {
+                            String toImport = (String) t.getTransferData(DataFlavor.stringFlavor);
+//                            System.out.println("import: [" + toImport + "]");
+//                            System.out.println("L:" + (comp == lblL));
+//                            System.out.println("R:" + (comp == lblR));
+                            uiEventListener.dndImport(toImport, comp == lblR);
+                        } catch (Throwable e) {
+                            e.printStackTrace();
+                            return false;
+                        }
+                    } else {
+                        try {
+//                            System.out.println("==\n\n"+t.getTransferData(DataFlavor.javaFileListFlavor));
+//                            System.out.println(""+t.getTransferData(DataFlavor.javaFileListFlavor).getClass());
+//                            System.out.println(""+((List)t.getTransferData(DataFlavor.javaFileListFlavor)).get(0).getClass());
+                            var toImport = String.join(
+                                    "\n",
+                                    ((List<File>) t.getTransferData(DataFlavor.javaFileListFlavor))
+                                            .stream()
+                                            .map(x->x.toString())
+                                            .collect(Collectors.toList())
+                            );
+                            uiEventListener.dndImport(toImport, comp == lblR);
+                        } catch (Throwable e) {
+                            e.printStackTrace();
+                            return false;
+                        }
                     }
                     return true;
                 }
@@ -818,7 +844,12 @@ abstract class FileLocations {
         } else {
             fullPath1 = path0;
         }
+        fullPath1 = getRidOfBackslashes(fullPath1);
+        fullPath2 = getRidOfBackslashes(fullPath2);
         return Arrays.asList(fullPath1, fullPath2);
+    }
+    static String getRidOfBackslashes(String s) {
+        return s.replaceAll("\\\\","/");
     }
     static List<String> twoPaths(String urlOrPath1, String urlOrPath2) {
         String file1 = getFileName(urlOrPath1);
