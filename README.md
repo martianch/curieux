@@ -5,7 +5,7 @@ Designed to view the Curiosity Rover images from Mars in X3D, but can be used to
 Opens images from Internet or local drive, supports drag-and-drop, for example, you can drag-n-drop the red DOWNLOAD
 button from the raw images index on the NASA site.
 
-###What is X3D Stereo and How To View It
+### What is X3D Stereo and How To View It
 
 Blog post (explains how to make a viewing frame from an A4 sheet): https://corgegrault.blogspot.com/2020/02/what-is-x3d-and-how-to-view-it-just-on.html
 
@@ -21,7 +21,7 @@ To view it, conceal the right image from the right eye with the right hand, and 
 
 To make a stereo pair: make a photo, step right, make a photo.
 
-###Installation
+### Installation
 
 Unpack the file x3dview.zip to some directory. You will see a new directory, `x3dview`, with two subdirectories: `bin` and `lib`.
 If you use Linux or Darwin, 
@@ -31,9 +31,9 @@ chmod a+x x3dview/bin/x3dview
 
 You will need **Java 8+** to run it. If you use Linux and have Java 11+, you may run the file Main.java as a shebang script (if you know what is shebang).
 
-###Running
+### Running
 
-####Two Arguments: Specify Any Two Files
+#### Two Arguments: Specify Any Two Files
 
 `x3dview file1 file2` - show file1 and file2 as a stereo pair
 
@@ -45,7 +45,7 @@ A Windows example:
 
 `\soft\x3dview\bin\x3dview https://mars.jpl.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02693/opgs/edr/fcam/FLB_636566396EDR_F0790294FHAZ00302M_.JPG https://mars.jpl.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02693/opgs/edr/fcam/FRB_636566396EDR_F0790294FHAZ00302M_.JPG` - a Windows example where the full path of the executable is specified with two image URLs. Note that it is `x3dview.bat` that executes under Windows!
 
-####One Argument: Guess the Match
+#### One Argument: Guess the Match
 
 For Curiosity images, in many cases the second character in the image file name is either R or L, and the corresponding file exists in the same directory.
 
@@ -59,7 +59,7 @@ A Windows example:
 
 `\soft\x3dview\bin\x3dview https://mars.jpl.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02693/opgs/edr/fcam/FLB_636566396EDR_F0790294FHAZ00302M_.JPG` - guess the second URL, the only difference is R or L (the same two images as in the previous section).
 
-####No Arguments: Drag and Drop
+#### No Arguments: Drag and Drop
 
 When you start it as `x3dview`, two default images will be downloaded and shown.
 
