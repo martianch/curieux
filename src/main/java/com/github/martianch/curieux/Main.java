@@ -282,8 +282,8 @@ class X3DViewer {
         {
             BufferedImage imgL = rd.left.image;
             BufferedImage imgR = rd.right.image;
-            ImageIcon iconL = new ImageIcon(zoom(imgL, dp.zoom * dp.zoomL, dp.offsetX, dp.offsetY));
-            ImageIcon iconR = new ImageIcon(zoom(imgR, dp.zoom * dp.zoomR, -dp.offsetX, -dp.offsetY));
+            ImageIcon iconL = new ImageIcon(zoom(imgL, dp.zoom * dp.zoomL, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
+            ImageIcon iconR = new ImageIcon(zoom(imgR, dp.zoom * dp.zoomR, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY));
             lblL.setIcon(iconL);
             lblR.setIcon(iconR);
             lblL.setBorder(null);
@@ -520,20 +520,24 @@ class X3DViewer {
         };
     }
 
-    static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, int offX, int offY) {
+    static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, double otherZoomLevel, int offX, int offY) {
+        double maxZoomLevel = Math.max(zoomLevel, otherZoomLevel);
         int newImageWidth = zoomedSize(originalImage.getWidth(), zoomLevel);
         int newImageHeight = zoomedSize(originalImage.getHeight(), zoomLevel);
-        int canvasWidth = Math.abs(offX) + newImageWidth;
-        int canvasHeight = Math.abs(offY) + newImageHeight;
+        int canvasWidth = Math.abs(mult(offX, maxZoomLevel)) + newImageWidth;
+        int canvasHeight = Math.abs(mult(offY, maxZoomLevel)) + newImageHeight;
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
-        g.drawImage(originalImage, Math.max(0, offX), Math.max(0, offY), newImageWidth, newImageHeight, null);
+        g.drawImage(originalImage, Math.max(0, mult(offX,zoomLevel)), Math.max(0, mult(offY, zoomLevel)), newImageWidth, newImageHeight, null);
         g.dispose();
         return resizedImage;
     }
 
     static int zoomedSize(int orig, double zoom) {
         return (int) Math.round(orig * zoom);
+    }
+    static int mult(int x, double zoom) {
+        return (int)(x*zoom);
     }
 
 }
