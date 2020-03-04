@@ -486,34 +486,21 @@ class X3DViewer {
 
                 @Override
                 public boolean importData(JComponent comp, Transferable t) {
-                    if (t.isDataFlavorSupported(DataFlavor.stringFlavor)) {
-                        try {
-                            String toImport = (String) t.getTransferData(DataFlavor.stringFlavor);
-//                            System.out.println("import: [" + toImport + "]");
-//                            System.out.println("L:" + (comp == lblL));
-//                            System.out.println("R:" + (comp == lblR));
-                            uiEventListener.dndImport(toImport, comp == lblR);
-                        } catch (Throwable e) {
-                            e.printStackTrace();
-                            return false;
-                        }
-                    } else {
-                        try {
-//                            System.out.println("==\n\n"+t.getTransferData(DataFlavor.javaFileListFlavor));
-//                            System.out.println(""+t.getTransferData(DataFlavor.javaFileListFlavor).getClass());
-//                            System.out.println(""+((List)t.getTransferData(DataFlavor.javaFileListFlavor)).get(0).getClass());
-                            var toImport = String.join(
-                                    "\n",
-                                    ((List<File>) t.getTransferData(DataFlavor.javaFileListFlavor))
-                                            .stream()
-                                            .map(x->x.toString())
-                                            .collect(Collectors.toList())
-                            );
-                            uiEventListener.dndImport(toImport, comp == lblR);
-                        } catch (Throwable e) {
-                            e.printStackTrace();
-                            return false;
-                        }
+                    try {
+                        String toImport
+                            = t.isDataFlavorSupported(DataFlavor.stringFlavor)
+                            ? (String) t.getTransferData(DataFlavor.stringFlavor)
+                            : String.join(
+                                "\n",
+                                ((List<File>) t.getTransferData(DataFlavor.javaFileListFlavor))
+                                    .stream()
+                                    .map(x->x.toString())
+                                    .collect(Collectors.toList())
+                              );
+                        uiEventListener.dndImport(toImport, comp == lblR);
+                    } catch (Throwable e) {
+                        e.printStackTrace();
+                        return false;
                     }
                     return true;
                 }
