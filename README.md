@@ -9,7 +9,7 @@ button from the raw images index on the NASA site.
 
 Blog post (explains how to make a viewing frame from an A4 sheet): https://corgegrault.blogspot.com/2020/02/what-is-x3d-and-how-to-view-it-just-on.html
 
-Video: https://www.youtube.com/watch?v=kWWb8kU-stE 
+Video: https://www.youtube.com/watch?v=hxTMlDijDlU
 "Learn how to view upcoming images in 3D without using ANY special GLASSES! I would advise all to do this on nothing smaller than a laptop screen.  Especially when learning.  
 Bigger is usually Better." 
 
