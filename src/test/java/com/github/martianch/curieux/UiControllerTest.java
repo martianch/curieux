@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import java.util.List;
 
+import static com.github.martianch.curieux.FileLocations.isUrl;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
 
@@ -115,5 +116,18 @@ public class UiControllerTest {
             assertThat(r.get(0), is("RRB_635598676EDR_F0790000RHAZ00337M_.JPG"));
             assertThat(r.get(1), is("./RLB_635598676EDR_F0790000RHAZ00337M_.JPG"));
         }
+    }
+
+    @Test
+    public void isUrlTest() {
+        assertTrue(isUrl("http://google.com"));
+        assertTrue(isUrl("https://google.com"));
+        assertTrue(isUrl("file://my/file.txt"));
+        assertFalse(isUrl("text.txt"));
+        assertFalse(isUrl("/text.txt"));
+        assertFalse(isUrl("./text.txt"));
+        assertFalse(isUrl("/some/dir/text.txt"));
+        assertFalse(isUrl("../text.txt"));
+        assertFalse(isUrl("dir/text.txt"));
     }
 }

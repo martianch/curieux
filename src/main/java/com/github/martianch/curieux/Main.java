@@ -424,7 +424,7 @@ class X3DViewer {
 
         {
             frame.setLayout(gbl);
-            frame.setSize(1200,600);
+            frame.setSize(1360,800);
             frame.add(compR);
             frame.add(compL);
             frame.add(statusPanel);
@@ -804,8 +804,6 @@ abstract class FileLocations {
             dir = Paths.get(".");
         }
         var file = fullPath.getFileName().toString();
-//        System.out.println("dir=["+dir+"]");
-//        System.out.println("file=["+file+"]");
         if (isMarkedRL(file)) {
             StringBuilder sb = new StringBuilder(file);
             if (sb.charAt(1) == 'R') {
