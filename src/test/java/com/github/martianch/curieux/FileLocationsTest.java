@@ -8,7 +8,7 @@ import static com.github.martianch.curieux.FileLocations.isUrl;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
 
-public class UiControllerTest {
+public class FileLocationsTest {
     @Test
     public void testGetFileName() {
         {
