@@ -17,7 +17,6 @@ import javax.swing.event.MouseInputAdapter;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
-import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -120,7 +119,10 @@ class ImageAndPath {
     }
 
     static BufferedImage dummyImage(Color color) {
-        BufferedImage image = new BufferedImage(12, 12, BufferedImage.TYPE_INT_RGB);
+        return _dummyImage(color, 12, 12);
+    }
+    static BufferedImage _dummyImage(Color color, int width, int height) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics();
 
         graphics.setPaint(color);
@@ -282,8 +284,8 @@ class X3DViewer {
         {
             BufferedImage imgL = rd.left.image;
             BufferedImage imgR = rd.right.image;
-            ImageIcon iconL = new ImageIcon(zoom(imgL, dp.zoom * dp.zoomL, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
-            ImageIcon iconR = new ImageIcon(zoom(imgR, dp.zoom * dp.zoomR, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY));
+            ImageIcon iconL = new ImageIcon(zoom(imgL, dp.zoom * dp.zoomL, imgR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
+            ImageIcon iconR = new ImageIcon(zoom(imgR, dp.zoom * dp.zoomR, imgL, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY));
             lblL.setIcon(iconL);
             lblR.setIcon(iconR);
             lblL.setBorder(null);
@@ -520,12 +522,18 @@ class X3DViewer {
         };
     }
 
-    static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, double otherZoomLevel, int offX, int offY) {
-        double maxZoomLevel = Math.max(zoomLevel, otherZoomLevel);
+    static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, BufferedImage otherImage, double otherZoomLevel, int offX, int offY) {
+        //double maxZoomLevel = Math.max(zoomLevel, otherZoomLevel);
         int newImageWidth = zoomedSize(originalImage.getWidth(), zoomLevel);
         int newImageHeight = zoomedSize(originalImage.getHeight(), zoomLevel);
-        int canvasWidth = Math.abs(mult(offX, maxZoomLevel)) + newImageWidth;
-        int canvasHeight = Math.abs(mult(offY, maxZoomLevel)) + newImageHeight;
+        int otherImageWidth = zoomedSize(otherImage.getWidth(), otherZoomLevel);
+        int otherImageHeight = zoomedSize(otherImage.getHeight(), otherZoomLevel);
+        int thisCanvasWidth = Math.abs(mult(offX, zoomLevel)) + newImageWidth;
+        int thisCanvasHeight = Math.abs(mult(offY, zoomLevel)) + newImageHeight;
+        int otherCanvasWidth = Math.abs(mult(offX, otherZoomLevel)) + otherImageWidth;
+        int otherCanvasHeight = Math.abs(mult(offY, otherZoomLevel)) + otherImageHeight;
+        int canvasWidth = Math.max(thisCanvasWidth, otherCanvasWidth);
+        int canvasHeight = Math.max(thisCanvasHeight, otherCanvasHeight);
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
         g.drawImage(originalImage, Math.max(0, mult(offX,zoomLevel)), Math.max(0, mult(offY, zoomLevel)), newImageWidth, newImageHeight, null);
