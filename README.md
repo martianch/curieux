@@ -10,7 +10,7 @@ button from the raw images index on the NASA site.
 Blog post (explains how to make a viewing frame from an A4 sheet): https://corgegrault.blogspot.com/2020/02/what-is-x3d-and-how-to-view-it-just-on.html
 
 Video: https://www.youtube.com/watch?v=hxTMlDijDlU
-"Learn how to view upcoming images in 3D without using ANY special GLASSES! I would advise all to do this on nothing smaller than a laptop screen.  Especially when learning.  
+"Learn how to view upcoming images in 3D without using ANY special GLASSES! I would advise all to do this on nothing smaller than a laptop screen.  Especially when learning.
 Bigger is usually Better." 
 
 (In case of discomfort: the distance is wrong, find a comfortable distance)
@@ -29,7 +29,32 @@ If you use Linux or Darwin,
 chmod a+x x3dview/bin/x3dview
 ```
 
-You will need **Java 8+** to run it. If you use Linux and have Java 11+, you may run the file Main.java as a shebang script (if you know what is shebang).
+You will need **Java 8+** to run it. Run `java -version` to check it. 
+
+(For experienced users: If you use Linux and have Java 11+, you may run the file Main.java as a shebang script (if you know what is shebang and don't mind text instead of icons). Or you may use `java -jar` if you prefer this method. Or you may run the script. Any of these methods should work, no difference. Then why several methods of running? There are very exotic system configurations, like "the default java must be v6 in our bank", and it is easier to provide a workaround if there are multiple ways to run the program.)
+
+### (Optional) Registering X3DView as a Graphics Application
+#### Ubuntu Linux
+Create the file `~/.local/share/applications/x3dview.desktop` with the following contents:
+```
+[Desktop Entry]
+Version=0.1.2
+Type=Application
+Name=X3D Viewer
+#Icon=/full/path/xxx.svg
+# !!! specify the correct path below !!!
+Exec="/home/me/x/x3dview/bin/x3dview" %F
+Comment=View Images as Stereo Pairs
+Categories=Graphics;2DGraphics;3DGraphics;RasterGraphics;Viewer;
+Terminal=false
+```
+
+After that, you will be able to select one or two image files, click the right mouse button on the selection,
+select "Open With Other Application" from the menu, select "X3D Viewer", and have the application run.
+
+#### Windows, Mac
+TBD
+
 
 ### Running
 
@@ -40,6 +65,11 @@ You will need **Java 8+** to run it. If you use Linux and have Java 11+, you may
 `x3dview path1/file1 path2/file2` - show file1 and file2 as a stereo pair, using absolute or relative path
 
 `x3dview url1 url2` - show files at url1 and url2 as a stereo pair
+
+`java -jar ~/path/to/x3dview.jar file1 file2` - you can run it using `java -jar`, there is no difference
+
+Linux example:
+`java -jar ~/x/x3dview/lib/x3dview.jar NLB_633993124EDR_F0790000NCAM00289M_.JPG NRB_633993124EDR_F0790000NCAM00289M_.JPG`
 
 A Windows example:
 
