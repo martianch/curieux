@@ -502,6 +502,12 @@ class X3DViewer {
                         uiEventListener.dndImport(toImport, comp == lblR);
                     } catch (Throwable e) {
                         e.printStackTrace();
+                        System.out.println("DnD transfer failed");
+                        System.out.println("{ transfer offered in flavors");
+                        for (DataFlavor df : t.getTransferDataFlavors()) {
+                            System.out.println(df);
+                        }
+                        System.out.println("} transfer offered in flavors");
                         return false;
                     }
                     return true;
