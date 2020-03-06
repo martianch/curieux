@@ -43,3 +43,13 @@ compileJava {
             "--release", "8" // Avoid using Java 12 APIs
     ]
 }
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'com.github.martianch.curieux.Main'
+        )
+    }
+}
+
+
+
