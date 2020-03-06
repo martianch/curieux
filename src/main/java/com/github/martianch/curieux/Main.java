@@ -212,6 +212,7 @@ class UiController implements UiEventListener {
     public void swapImages() {
         System.out.println("swapImages "+Thread.currentThread());
         x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters = displayParameters.swapped());
+        x3dViewer.updateControls(displayParameters);
     }
 
     @Override
@@ -279,7 +280,19 @@ class X3DViewer {
     JButton lblL=new JButton();
     JButton lblR=new JButton();
     JFrame frame;
+    DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
+    DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
+    DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomR;
+    DigitalZoomControl<Integer, OffsetWrapper> dcOffX;
+    DigitalZoomControl<Integer, OffsetWrapper> dcOffY;
 
+    public void updateControls(DisplayParameters dp) {
+        dcZoom.setValueAndText(dp.zoom);
+        dcZoomL.setValueAndText(dp.zoomL);
+        dcZoomR.setValueAndText(dp.zoomR);
+        dcOffX.setValueAndText(dp.offsetX);
+        dcOffY.setValueAndText(dp.offsetY);
+    }
     public void updateViews(RawData rd, DisplayParameters dp) {
         {
             BufferedImage imgL = rd.left.image;
@@ -352,19 +365,16 @@ class X3DViewer {
         }
 
         JPanel statusPanel = new JPanel();
-        DigitalZoomControl dcZoom;
-        DigitalZoomControl dcOffX;
-        DigitalZoomControl dcOffY;
         {
             FlowLayout fl = new FlowLayout();
             statusPanel.setLayout(fl);
 
             statusPanel.add(dcZoom = new  DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoom:",4, new ZoomFactorWrapper(), d -> uiEventListener.zoomChanged(d)));
-            statusPanel.add(new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomL:",4, new ZoomFactorWrapper(), d -> uiEventListener.lZoomChanged(d)));
-            statusPanel.add(new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomR:",4, new ZoomFactorWrapper(), d -> uiEventListener.rZoomChanged(d)));
+            statusPanel.add(dcZoomL = new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomL:",4, new ZoomFactorWrapper(), d -> uiEventListener.lZoomChanged(d)));
+            statusPanel.add(dcZoomR = new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomR:",4, new ZoomFactorWrapper(), d -> uiEventListener.rZoomChanged(d)));
 
-            statusPanel.add(dcOffX = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetX:", 3, new OffsetWrapper(), i -> uiEventListener.xOffsetChanged(i)));
-            statusPanel.add(dcOffY = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetY:", 3, new OffsetWrapper(), i -> uiEventListener.yOffsetChanged(i)));
+            statusPanel.add(dcOffX = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetX:", 4, new OffsetWrapper(), i -> uiEventListener.xOffsetChanged(i)));
+            statusPanel.add(dcOffY = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetY:", 4, new OffsetWrapper(), i -> uiEventListener.yOffsetChanged(i)));
 
             {
                 //statusPanel.add(new JLabel(" "));
@@ -579,8 +589,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             loadIcon(buttonMinus2,"icons/minus12.png","––");
             buttonMinus2.addActionListener(e -> {
                 valueWrapper.decrement(1);
-                this.textField.setForeground(Color.BLACK);
-                this.textField.setText(valueWrapper.getAsString());
+                setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
             this.add(buttonMinus2);
@@ -590,8 +599,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             loadIcon(buttonMinus,"icons/minusa12.png","–");
             buttonMinus.addActionListener(e -> {
                 valueWrapper.decrement(0);
-                this.textField.setForeground(Color.BLACK);
-                this.textField.setText(valueWrapper.getAsString());
+                setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
             this.add(buttonMinus);
@@ -614,8 +622,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             loadIcon(buttonPlus,"icons/plusa12.png","+");
             buttonPlus.addActionListener(e -> {
                 valueWrapper.increment(0);
-                this.textField.setForeground(Color.BLACK);
-                this.textField.setText(valueWrapper.getAsString());
+                setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
             this.add(buttonPlus);
@@ -625,8 +632,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             loadIcon(buttonPlus2,"icons/plus12.png","++");
             buttonPlus2.addActionListener(e -> {
                 valueWrapper.increment(1);
-                this.textField.setForeground(Color.BLACK);
-                this.textField.setText(valueWrapper.getAsString());
+                setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
             this.add(buttonPlus2);
@@ -636,17 +642,27 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             loadIcon(buttonDefault,"icons/clear12.png","x");
             buttonDefault.addActionListener(e -> {
                 valueWrapper.reset();
-                this.textField.setForeground(Color.BLACK);
-                this.textField.setText(valueWrapper.getAsString());
+                setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
             this.add(buttonDefault);
         }
         return this;
     }
-    DigitalZoomControl kbShortcut(int key, int modifiers) {
+
+    DigitalZoomControl setTextFieldFromValue() {
+        this.textField.setForeground(Color.BLACK);
+        this.textField.setText(valueWrapper.getAsString());
         return this;
     }
+    DigitalZoomControl setValueAndText(T v) {
+        valueWrapper.setValue(v);
+        setTextFieldFromValue();
+        return this;
+    }
+//    DigitalZoomControl kbShortcut(int key, int modifiers) {
+//        return this;
+//    }
 
     static void loadIcon(JButton button, String resourcePath, String altText) {
         button.setMargin(new Insets(0, 0, 0, 0));
