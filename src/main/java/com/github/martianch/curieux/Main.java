@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -110,6 +111,8 @@ class DisplayParameters {
 }
 class ImageAndPath {
     public static final String IN_PROGRESS_PATH = "..."; // pseudo-path, means "download in progress"
+    public static final String NO_PATH = ""; // pseudo-path, means "no path"
+    public static final int DUMMY_SIZE = 12;
     final BufferedImage image;
     final String path;
 
@@ -119,7 +122,10 @@ class ImageAndPath {
     }
 
     static BufferedImage dummyImage(Color color) {
-        return _dummyImage(color, 12, 12);
+        return _dummyImage(color, DUMMY_SIZE, DUMMY_SIZE);
+    }
+    static boolean isDummyImage(BufferedImage img) {
+        return img.getWidth() == DUMMY_SIZE && img.getHeight() == DUMMY_SIZE;
     }
     static BufferedImage _dummyImage(Color color, int width, int height) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -132,7 +138,7 @@ class ImageAndPath {
     }
     static ImageAndPath imageIoRead(String path) throws IOException {
         BufferedImage res;
-        if("".equals(path) || IN_PROGRESS_PATH.equals(path)) {
+        if(isSpecialPath(path)) {
             Color color = IN_PROGRESS_PATH.equals(path)
                         ? new Color(0, 128, 255)
                         : new Color(0, 0, 0);
@@ -141,14 +147,28 @@ class ImageAndPath {
             System.out.println("downloading "+path+ IN_PROGRESS_PATH);
             try {
                 res = ImageIO.read(new URL(path));
-            } finally {
+                res.getWidth(); // throw an exception if null
                 System.out.println("downloaded "+path);
+            } catch (Throwable t) {
+                System.out.println("could not download "+path);
+                res = dummyImage(new Color(80,20,20));
             }
         } else {
-            res = ImageIO.read(new File(path));
+            try {
+                res = ImageIO.read(new File(path));
+                res.getWidth(); // throw an exception if null
+            } catch (Throwable t) {
+                System.out.println("could not read file "+path);
+                res = dummyImage(new Color(80,20,20));
+            }
         }
         return new ImageAndPath(res, path);
     }
+
+    public static boolean isSpecialPath(String path) {
+        return NO_PATH.equals(path) || IN_PROGRESS_PATH.equals(path);
+    }
+
     static ImageAndPath imageIoReadNoExc(String path) {
         try {
             return imageIoRead(path);
@@ -217,7 +237,7 @@ class UiController implements UiEventListener {
 
     @Override
     public void dndImport(String s, boolean isRight) {
-        List<String> urls = Arrays.asList(s.split("[\\r\\n]+"));
+        List<String> urls = Arrays.asList(s.trim().split("[\\r\\n]+"));
         List<String> paths;
         switch (urls.size()) {
             case 0:
@@ -240,7 +260,9 @@ class UiController implements UiEventListener {
             }
             break;
         }
-        updateRawDataAsync(paths.get(0), paths.get(1));
+        showInProgressViewsAndThen(
+            () ->  updateRawDataAsync(paths.get(0), paths.get(1))
+        );
     }
 
     @Override
@@ -254,6 +276,21 @@ class UiController implements UiEventListener {
     public void changeRawData(RawData newRawData) {
         x3dViewer.updateViews(rawData=newRawData, displayParameters);
     }
+    public void showInProgressViewsAndThen(Runnable next) {
+        try {
+            var rd0 = new RawData(ImageAndPath.IN_PROGRESS_PATH, ImageAndPath.IN_PROGRESS_PATH);
+            javax.swing.SwingUtilities.invokeLater(
+                    () -> {
+                        changeRawData(rd0);
+                        next.run();
+                    }
+            );
+        } catch (IOException e) {
+            System.err.println("an exception happened that could not happen even theoretically");
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
     public void updateRawDataAsync(String path1, String path2) {
         CompletableFuture<ImageAndPath> futureImage2 = CompletableFuture
                 .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path2))
@@ -266,7 +303,9 @@ class UiController implements UiEventListener {
         Runnable uiUpdateRunnableSync =
             () -> javax.swing.SwingUtilities.invokeLater(
                 () -> this.changeRawData(
-                        new RawData(futureImage1.getNow(inProgress),futureImage2.getNow(inProgress))
+                        new RawData(futureImage1.getNow(inProgress),
+                                    futureImage2.getNow(inProgress)
+                        )
                 )
             );
         futureImage1.thenRunAsync( uiUpdateRunnableSync );
@@ -539,6 +578,9 @@ class X3DViewer {
     }
 
     static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, BufferedImage otherImage, double otherZoomLevel, int offX, int offY) {
+        if (ImageAndPath.isDummyImage(originalImage)) {
+            return originalImage;
+        }
         //double maxZoomLevel = Math.max(zoomLevel, otherZoomLevel);
         int newImageWidth = zoomedSize(originalImage.getWidth(), zoomLevel);
         int newImageHeight = zoomedSize(originalImage.getHeight(), zoomLevel);
@@ -828,7 +870,8 @@ abstract class FileLocations {
                 // do nothing, go on assuming it's a file
             }
         }
-        return Paths.get(fullPath).getFileName().toString();
+        Path fileName = Paths.get(fullPath).getFileName();
+        return fileName == null ? "" : fileName.toString();
     }
     static List<String> twoPaths(String path0) {
         if (isUrl(path0)) {
@@ -836,7 +879,7 @@ abstract class FileLocations {
                 URL url = new URL(path0);
                 String urlFile = url.getFile();
                 String urlBeforeFile = path0.substring(0, path0.length() - urlFile.length());
-                return _twoPaths(urlFile).stream().map(s -> urlBeforeFile+s).collect(Collectors.toList());
+                return _twoPaths(urlFile).stream().map(s -> ImageAndPath.isSpecialPath(s)?s:urlBeforeFile+s).collect(Collectors.toList());
             } catch (MalformedURLException e) {
                 // do nothing, go on assuming it's a file
             }

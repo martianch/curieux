@@ -36,7 +36,17 @@ public class FileLocationsTest {
             assertThat(s, is("filename.ext"));
         }
     }
-
+    @Test
+    public void testGetFileName2() {
+        {
+            String s = FileLocations.getFileName("/");
+            assertThat(s, is(""));
+        }
+        {
+            String s = FileLocations.getFileName("https://google.com/");
+            assertThat(s, is(""));
+        }
+    }
     @Test
     public void testTwoPaths() {
         // expected order: R L
@@ -87,6 +97,12 @@ public class FileLocationsTest {
             assertThat(r.size(), is(2));
             assertThat(r.get(0), is("RRB_635598676EDR_F0790000RHAZ00337M_.JPG"));
             assertThat(r.get(1), is("./RLB_635598676EDR_F0790000RHAZ00337M_.JPG"));
+        }
+        {
+            List<String> r = FileLocations.twoPaths("https://mars.jpl.nasa.gov/msl-raw-images/msss/02693/mcam/2693MR0140890070604865C00_DXXX.jpg");
+            assertThat(r.size(), is(2));
+            assertThat(r.get(0), is("https://mars.jpl.nasa.gov/msl-raw-images/msss/02693/mcam/2693MR0140890070604865C00_DXXX.jpg"));
+            assertThat(r.get(1), is(""));
         }
     }
 
