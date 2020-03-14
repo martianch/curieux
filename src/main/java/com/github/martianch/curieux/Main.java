@@ -89,6 +89,8 @@ interface UiEventListener {
     void dndSingleToBothChanged(boolean newValue);
     void unthumbnailChanged(boolean newValue);
     void copyUrl(boolean isRight);
+    void copyUrls();
+    void loadMatchOfOther(boolean isRight);
 }
 
 class DisplayParameters {
@@ -318,6 +320,21 @@ class UiController implements UiEventListener {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(toCopy), null);
     }
 
+    @Override
+    public void copyUrls() {
+        String toCopy = rawData.right.path + "\n" + rawData.left.path + "\n";
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(toCopy), null);
+    }
+
+    @Override
+    public void loadMatchOfOther(boolean isRight) {
+        var paths = FileLocations.twoPaths((isRight ? rawData.left : rawData.right).path);
+        var uPaths = unThumbnailIfNecessary(paths);
+        showInProgressViewsAndThen(
+                () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
+        );
+    }
+
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
         if (unthumbnail) {
             return urlsOrFiles.stream().map(FileLocations::unThumbnail).collect(Collectors.toList());
@@ -427,28 +444,49 @@ class X3DViewer {
 
         var menuLR = new JPopupMenu();
         {
-            JMenuItem miCopy = new JMenuItem("Copy URL");
-            menuLR.add(miCopy);
-            miCopy.addActionListener(e ->
-                uiEventListener.copyUrl(
-                    lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
-            ));
-            JMenuItem miPaste1 = new JMenuItem("Paste & Go (This Pane)");
-            miPaste1.addActionListener(e ->
-                doPaste(
-                        uiEventListener,
-                        lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
-                        OneOrBothPanes.JUST_THIS
-            ));
-            menuLR.add(miPaste1);
-            JMenuItem miPaste2 = new JMenuItem("Paste & Go (Both Panes)");
-            miPaste2.addActionListener(e ->
-                    doPaste(
-                            uiEventListener,
-                            lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
-                            OneOrBothPanes.BOTH_PANES
-                    ));
-            menuLR.add(miPaste2);
+            {
+                JMenuItem miCopy = new JMenuItem("Copy URL");
+                menuLR.add(miCopy);
+                miCopy.addActionListener(e ->
+                        uiEventListener.copyUrl(
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                        ));
+            }
+            {
+                JMenuItem miCopyBoth = new JMenuItem("Copy Both URLs");
+                menuLR.add(miCopyBoth);
+                miCopyBoth.addActionListener(e ->
+                        uiEventListener.copyUrls()
+                );
+            }
+            {
+                JMenuItem miPaste1 = new JMenuItem("Paste & Go (This Pane)");
+                menuLR.add(miPaste1);
+                miPaste1.addActionListener(e ->
+                        doPaste(
+                                uiEventListener,
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                OneOrBothPanes.JUST_THIS
+                        ));
+            }
+            {
+                JMenuItem miPaste2 = new JMenuItem("Paste & Go (Both Panes)");
+                menuLR.add(miPaste2);
+                miPaste2.addActionListener(e ->
+                        doPaste(
+                                uiEventListener,
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                OneOrBothPanes.BOTH_PANES
+                        ));
+            }
+            {
+                JMenuItem miLoadMatch = new JMenuItem("Load Match of the Other");
+                menuLR.add(miLoadMatch);
+                miLoadMatch.addActionListener(e ->
+                        uiEventListener.loadMatchOfOther(
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                        ));
+            }
             lblR.setComponentPopupMenu(menuLR);
             lblL.setComponentPopupMenu(menuLR);
         }
