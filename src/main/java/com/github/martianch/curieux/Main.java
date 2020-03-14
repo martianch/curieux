@@ -16,6 +16,7 @@ import javax.swing.*;
 import javax.swing.event.MouseInputAdapter;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -83,8 +84,9 @@ interface UiEventListener {
     void xOffsetChanged(int newXOff);
     void yOffsetChanged(int newYOff);
     void swapImages();
-    void dndImport(String s, boolean isRight);
+    void dndImport(String s, boolean isRight, OneOrBothPanes oneOrBoth);
     void dndSingleToBothChanged(boolean newValue);
+    void copyUrl(boolean isRight);
 }
 
 class DisplayParameters {
@@ -176,6 +178,19 @@ class ImageAndPath {
             throw new RuntimeException(e);
         }
     }
+
+    @Override
+    public String toString() {
+        return "ImageAndPath{" +
+                "image=" + (image == null
+                           ? null
+                           : ""+image.hashCode()+
+                             "("+image.getWidth()+
+                             "x"+image.getHeight()+")"
+                           ) +
+                ", path='" + path + '\'' +
+                '}';
+    }
 }
 class RawData {
     final ImageAndPath left;
@@ -191,6 +206,14 @@ class RawData {
 
     RawData swapped() {
         return new RawData(right, left);
+    }
+
+    @Override
+    public String toString() {
+        return "RawData{" +
+                "left=" + left +
+                ", right=" + right +
+                '}';
     }
 }
 class UiController implements UiEventListener {
@@ -236,14 +259,18 @@ class UiController implements UiEventListener {
     }
 
     @Override
-    public void dndImport(String s, boolean isRight) {
+    public void dndImport(String s, boolean isRight, OneOrBothPanes oneOrBoth) {
         List<String> urls = Arrays.asList(s.trim().split("[\\r\\n]+"));
+        if (oneOrBoth == OneOrBothPanes.JUST_THIS) {
+            urls = Arrays.asList(urls.get(0)); // ignore others
+        }
         List<String> paths;
         switch (urls.size()) {
             case 0:
                 return;
             case 1: {
-                if (dndOneToBoth) {
+                if (oneOrBoth==OneOrBothPanes.BOTH_PANES
+                 || oneOrBoth==OneOrBothPanes.SEE_CHECKBOX && dndOneToBoth) {
                     paths = FileLocations.twoPaths(urls.get(0));
                 } else {
                     if (isRight) {
@@ -268,6 +295,18 @@ class UiController implements UiEventListener {
     @Override
     public void dndSingleToBothChanged(boolean newValue) {
         dndOneToBoth = newValue;
+    }
+
+    @Override
+    public void copyUrl(boolean isRight) {
+        String toCopy;
+        try {
+            toCopy = (isRight ? rawData.right : rawData.left).path;
+        } catch (NullPointerException e) {
+            System.out.println("nothing to copy: "+rawData);
+            return;
+        }
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(toCopy), null);
     }
 
     public void createAndShowViews() {
@@ -369,6 +408,33 @@ class X3DViewer {
             updateViews(rd,dp);
         }
 
+        var menuLR = new JPopupMenu();
+        {
+            JMenuItem miCopy = new JMenuItem("Copy URL");
+            menuLR.add(miCopy);
+            miCopy.addActionListener(e ->
+                uiEventListener.copyUrl(
+                    lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+            ));
+            JMenuItem miPaste1 = new JMenuItem("Paste & Go (This Pane)");
+            miPaste1.addActionListener(e ->
+                doPaste(
+                        uiEventListener,
+                        lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                        OneOrBothPanes.JUST_THIS
+            ));
+            menuLR.add(miPaste1);
+            JMenuItem miPaste2 = new JMenuItem("Paste & Go (Both Panes)");
+            miPaste2.addActionListener(e ->
+                    doPaste(
+                            uiEventListener,
+                            lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                            OneOrBothPanes.BOTH_PANES
+                    ));
+            menuLR.add(miPaste2);
+            lblR.setComponentPopupMenu(menuLR);
+            lblL.setComponentPopupMenu(menuLR);
+        }
         JScrollPane compL=new JScrollPane(lblL);
         JScrollPane compR=new JScrollPane(lblR);
         {
@@ -520,46 +586,12 @@ class X3DViewer {
             TransferHandler transferHandler = new TransferHandler("text") {
                 @Override
                 public boolean canImport(JComponent comp, DataFlavor[] transferFlavors) {
-//                    return super.canImport(comp, transferFlavors);
-                    for (DataFlavor df : transferFlavors) {
-                        if (df.isFlavorTextType() || df.isFlavorJavaFileListType()) {
-                            System.out.println("can accept: "+df);
-                            return true;
-                        }
-                    }
-                    System.out.println("{ canImport");
-                    for (DataFlavor df : transferFlavors) {
-                        System.out.println(df);
-                    }
-                    System.out.println("} canImport");
-                    return false;
+                    return doCanImport(transferFlavors);
                 }
 
                 @Override
                 public boolean importData(JComponent comp, Transferable t) {
-                    try {
-                        String toImport
-                            = t.isDataFlavorSupported(DataFlavor.stringFlavor)
-                            ? (String) t.getTransferData(DataFlavor.stringFlavor)
-                            : String.join(
-                                "\n",
-                                ((List<File>) t.getTransferData(DataFlavor.javaFileListFlavor))
-                                    .stream()
-                                    .map(x->x.toString())
-                                    .collect(Collectors.toList())
-                              );
-                        uiEventListener.dndImport(toImport, comp == lblR);
-                    } catch (Throwable e) {
-                        e.printStackTrace();
-                        System.out.println("DnD transfer failed");
-                        System.out.println("{ transfer offered in flavors");
-                        for (DataFlavor df : t.getTransferDataFlavors()) {
-                            System.out.println(df);
-                        }
-                        System.out.println("} transfer offered in flavors");
-                        return false;
-                    }
-                    return true;
+                    return doImportData(comp == lblR, OneOrBothPanes.SEE_CHECKBOX, t, uiEventListener);
                 }
             };
             lblL.setTransferHandler(transferHandler);
@@ -567,6 +599,55 @@ class X3DViewer {
         }
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
+    }
+    public boolean doPaste(UiEventListener uiEventListener, boolean isRight, OneOrBothPanes oneOrBoth) {
+        var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        var flavors = clipboard.getAvailableDataFlavors();
+        var transferable = clipboard.getContents(null);
+        if (doCanImport(flavors)) {
+            return doImportData(isRight, oneOrBoth, transferable, uiEventListener);
+        }
+        return false;
+    }
+    public boolean doCanImport(DataFlavor[] transferFlavors) {
+        for (DataFlavor df : transferFlavors) {
+            if (df.isFlavorTextType() || df.isFlavorJavaFileListType()) {
+                System.out.println("can accept: "+df);
+                return true;
+            }
+        }
+        System.out.println("{ canImport");
+        for (DataFlavor df : transferFlavors) {
+            System.out.println(df);
+        }
+        System.out.println("} canImport");
+        return false;
+    }
+    public boolean doImportData(boolean isRight, OneOrBothPanes oneOrBoth, Transferable t, UiEventListener uiEventListener) {
+        System.out.println("importData(\n"+isRight+",\n"+oneOrBoth+",\n"+t+"\n)");
+        try {
+            String toImport
+                    = t.isDataFlavorSupported(DataFlavor.stringFlavor)
+                    ? (String) t.getTransferData(DataFlavor.stringFlavor)
+                    : String.join(
+                    "\n",
+                    ((List<File>) t.getTransferData(DataFlavor.javaFileListFlavor))
+                            .stream()
+                            .map(x->x.toString())
+                            .collect(Collectors.toList())
+            );
+            uiEventListener.dndImport(toImport, isRight, oneOrBoth);
+        } catch (Throwable e) {
+            e.printStackTrace();
+            System.out.println("DnD transfer failed");
+            System.out.println("{ transfer offered in flavors");
+            for (DataFlavor df : t.getTransferDataFlavors()) {
+                System.out.println(df);
+            }
+            System.out.println("} transfer offered in flavors");
+            return false;
+        }
+        return true;
     }
     static Action toAction(Consumer<ActionEvent> lambda) {
         return new AbstractAction() {
@@ -607,6 +688,8 @@ class X3DViewer {
     }
 
 }
+
+enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
 
 class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> extends JPanel {
     TT valueWrapper;
