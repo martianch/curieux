@@ -73,6 +73,7 @@ public class Main {
         javax.swing.SwingUtilities.invokeLater(
                 () -> uic.createAndShowViews()
         );
+        paths = uic.unThumbnailIfNecessary(paths);
         uic.updateRawDataAsync(paths.get(0), paths.get(1));
     }
 }
@@ -86,6 +87,7 @@ interface UiEventListener {
     void swapImages();
     void dndImport(String s, boolean isRight, OneOrBothPanes oneOrBoth);
     void dndSingleToBothChanged(boolean newValue);
+    void unthumbnailChanged(boolean newValue);
     void copyUrl(boolean isRight);
 }
 
@@ -221,6 +223,7 @@ class UiController implements UiEventListener {
     DisplayParameters displayParameters;
     RawData rawData;
     boolean dndOneToBoth = true;
+    boolean unthumbnail = true;
     public UiController(X3DViewer xv, RawData rd, DisplayParameters dp) {
         x3dViewer = xv;
         displayParameters = dp;
@@ -287,14 +290,20 @@ class UiController implements UiEventListener {
             }
             break;
         }
+        var uPaths = unThumbnailIfNecessary(paths);
         showInProgressViewsAndThen(
-            () ->  updateRawDataAsync(paths.get(0), paths.get(1))
+            () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
         );
     }
 
     @Override
     public void dndSingleToBothChanged(boolean newValue) {
         dndOneToBoth = newValue;
+    }
+
+    @Override
+    public void unthumbnailChanged(boolean newValue) {
+        unthumbnail = newValue;
     }
 
     @Override
@@ -309,6 +318,14 @@ class UiController implements UiEventListener {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(toCopy), null);
     }
 
+    public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
+        if (unthumbnail) {
+            return urlsOrFiles.stream().map(FileLocations::unThumbnail).collect(Collectors.toList());
+        } else {
+            return urlsOrFiles;
+        }
+
+    }
     public void createAndShowViews() {
         x3dViewer.createViews(rawData, displayParameters, this);
     }
@@ -528,6 +545,14 @@ class X3DViewer {
                     e -> uiEventListener.dndSingleToBothChanged(dndToBothCheckox.isSelected())
                 );
                 statusPanel.add(dndToBothCheckox);
+            }
+            {
+                JCheckBox unThumbnailCheckox = new JCheckBox("Un-Thumbnail");
+                unThumbnailCheckox.setSelected(true);
+                unThumbnailCheckox.addActionListener(
+                    e -> uiEventListener.unthumbnailChanged(unThumbnailCheckox.isSelected())
+                );
+                statusPanel.add(unThumbnailCheckox);
             }
         }
 
@@ -943,6 +968,27 @@ class DragMover extends MouseInputAdapter {
 }
 
 abstract class FileLocations {
+    static String unThumbnail(String urlOrFile) {
+        final String thmSuffix = "-thm.jpg";
+        final String imgSuffix = ".JPG";
+        if (!urlOrFile.endsWith(thmSuffix)) {
+            return urlOrFile;
+        }
+        String base = urlOrFile.substring(0, urlOrFile.length()-thmSuffix.length());
+        String unthumbnailed = base + imgSuffix;
+        if (isUrl(urlOrFile)) {
+            return unthumbnailed;
+        } else {
+            try {
+                if (new File(unthumbnailed).isFile()) {
+                    return unthumbnailed;
+                }
+            } catch (Throwable e) {
+                // problems with the file, return the original
+            }
+            return urlOrFile;
+        }
+    }
     static String getFileName(String urlOrPath) {
         String fullPath = urlOrPath;
         if (isUrl(urlOrPath)) {
