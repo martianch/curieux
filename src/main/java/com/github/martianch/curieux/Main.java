@@ -928,12 +928,12 @@ class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
 
     @Override
     void increment(int incrementIndex) {
-        value += increments[incrementIndex];
+        value = x2zoom( zoom2x(value) + increments[incrementIndex] );
     }
 
     @Override
     void decrement(int decrementIndex) {
-        value -= increments[decrementIndex];
+        value = x2zoom( zoom2x(value) - increments[decrementIndex] );
     }
 
     @Override
@@ -944,6 +944,40 @@ class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     @Override
     String getAsString() {
         return String.format ("%.3f", value);
+    }
+
+    /* zoom maths */
+    final static double eps = 0.000001;
+    final static int smallestPowOf2 = -61;
+    final static double ln2 = Math.log(2.);
+    static double log2(double x) { return Math.log(x)/ln2; }
+    static double x2zoom(double x) {
+        if (x >= 1) return x;
+        x = Math.max(x, smallestPowOf2);
+        if (Math.abs(x - Math.round(x))<eps) {
+            return 1. / (1L<<(1-Math.round(x)));
+        }
+        double l = Math.floor(x);
+        double u = Math.ceil(x);
+        double fl = 1. / (1L<<(1-Math.round(l)));
+        double fu = 1. / (1L<<(1-Math.round(u)));
+        return fl + (fu-fl)*(x-l);
+    }
+    static double zoom2x(double y) {
+        if (y >= 1) return y;
+        if (y <= 1. / (1L<< 1-smallestPowOf2)) return y;
+        double yi = 1. / y;
+        long lyi = Math.round(yi);
+        if (Math.abs(yi - lyi) < eps
+         && 0 == (lyi & lyi-1)
+        ) {
+            return Math.round(log2(y)+1);
+        }
+        double xl = Math.floor(log2(y)+1.);
+        double xu = Math.ceil(log2(y)+1.);
+        double fl = 1. / (1L<<(1-Math.round(xl)));
+        double fu = 1. / (1L<<(1-Math.round(xu)));
+        return xl + (y-fl)/(fu-fl);
     }
 }
 
