@@ -85,6 +85,7 @@ interface UiEventListener {
     void zoomChanged(double newZoom);
     void lZoomChanged(double newLZoom);
     void rZoomChanged(double newRZoom);
+    void angleChanged(double newAngle);
     void lAngleChanged(double newLAngle);
     void rAngleChanged(double newRAngle);
     void xOffsetChanged(int newXOff);
@@ -101,25 +102,28 @@ interface UiEventListener {
 class DisplayParameters {
     double zoom, zoomL, zoomR;
     int offsetX, offsetY;
-    double angleR, angleL;
+    double angle, angleR, angleL;
 
     public DisplayParameters() {
         zoom = zoomL = zoomR = 1.;
         offsetX = offsetY = 0;
-        angleL = angleR = 0.;
+        angle = angleL = angleR = 0.;
     }
-    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY) {
+    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR) {
         this.zoom = zoom;
         this.zoomL = zoomL;
         this.zoomR = zoomR;
         this.offsetX = offsetX;
         this.offsetY = offsetY;
+        this.angle = angle;
+        this.angleL = angleL;
+        this.angleR = angleR;
     }
 //    public DisplayParameters copy() {
 //        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY);
 //    }
     public DisplayParameters swapped() {
-        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY);
+        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL);
     }
 }
 class ImageAndPath {
@@ -251,6 +255,11 @@ class UiController implements UiEventListener {
     @Override
     public void rZoomChanged(double newZoom) {
         displayParameters.zoomR = newZoom;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void angleChanged(double newAngle) {
+        displayParameters.angle = newAngle;
         x3dViewer.updateViews(rawData, displayParameters);
     }
     @Override
@@ -412,6 +421,7 @@ class X3DViewer {
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomR;
+    DigitalZoomControl<Double, RotationAngleWrapper> dcAngle;
     DigitalZoomControl<Double, RotationAngleWrapper> dcAngleL;
     DigitalZoomControl<Double, RotationAngleWrapper> dcAngleR;
     DigitalZoomControl<Integer, OffsetWrapper> dcOffX;
@@ -423,6 +433,7 @@ class X3DViewer {
         dcZoomR.setValueAndText(dp.zoomR);
         dcOffX.setValueAndText(dp.offsetX);
         dcOffY.setValueAndText(dp.offsetY);
+        dcAngle.setValueAndText(dp.angle);
         dcAngleL.setValueAndText(dp.angleL);
         dcAngleR.setValueAndText(dp.angleR);
     }
@@ -433,8 +444,8 @@ class X3DViewer {
             {
                 BufferedImage imgL = rd.left.image;
                 BufferedImage imgR = rd.right.image;
-                BufferedImage rotatedL = rotate(imgL, dp.angleL);
-                BufferedImage rotatedR = rotate(imgR, dp.angleR);
+                BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
+                BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
                 iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
                 iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY));
             }
@@ -564,6 +575,7 @@ class X3DViewer {
             statusPanel.add(dcOffX = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetX:", 4, new OffsetWrapper(), i -> uiEventListener.xOffsetChanged(i)));
             statusPanel.add(dcOffY = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetY:", 4, new OffsetWrapper(), i -> uiEventListener.yOffsetChanged(i)));
 
+            statusPanel2.add(dcAngle = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotate:",4, new RotationAngleWrapper(), d -> uiEventListener.angleChanged(d)));
             statusPanel2.add(dcAngleL = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateL:",4, new RotationAngleWrapper(), d -> uiEventListener.lAngleChanged(d)));
             statusPanel2.add(dcAngleR = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateR:",4, new RotationAngleWrapper(), d -> uiEventListener.rAngleChanged(d)));
 
