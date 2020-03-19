@@ -21,7 +21,10 @@ import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
+import java.awt.image.BufferedImageOp;
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -82,6 +85,8 @@ interface UiEventListener {
     void zoomChanged(double newZoom);
     void lZoomChanged(double newLZoom);
     void rZoomChanged(double newRZoom);
+    void lAngleChanged(double newLAngle);
+    void rAngleChanged(double newRAngle);
     void xOffsetChanged(int newXOff);
     void yOffsetChanged(int newYOff);
     void swapImages();
@@ -96,10 +101,12 @@ interface UiEventListener {
 class DisplayParameters {
     double zoom, zoomL, zoomR;
     int offsetX, offsetY;
+    double angleR, angleL;
 
     public DisplayParameters() {
         zoom = zoomL = zoomR = 1.;
         offsetX = offsetY = 0;
+        angleL = angleR = 0.;
     }
     private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY) {
         this.zoom = zoom;
@@ -244,6 +251,16 @@ class UiController implements UiEventListener {
     @Override
     public void rZoomChanged(double newZoom) {
         displayParameters.zoomR = newZoom;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void lAngleChanged(double newLAngle) {
+        displayParameters.angleL = newLAngle;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void rAngleChanged(double newRAngle) {
+        displayParameters.angleR = newRAngle;
         x3dViewer.updateViews(rawData, displayParameters);
     }
     @Override
@@ -395,6 +412,8 @@ class X3DViewer {
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomR;
+    DigitalZoomControl<Double, RotationAngleWrapper> dcAngleL;
+    DigitalZoomControl<Double, RotationAngleWrapper> dcAngleR;
     DigitalZoomControl<Integer, OffsetWrapper> dcOffX;
     DigitalZoomControl<Integer, OffsetWrapper> dcOffY;
 
@@ -404,13 +423,21 @@ class X3DViewer {
         dcZoomR.setValueAndText(dp.zoomR);
         dcOffX.setValueAndText(dp.offsetX);
         dcOffY.setValueAndText(dp.offsetY);
+        dcAngleL.setValueAndText(dp.angleL);
+        dcAngleR.setValueAndText(dp.angleR);
     }
     public void updateViews(RawData rd, DisplayParameters dp) {
         {
-            BufferedImage imgL = rd.left.image;
-            BufferedImage imgR = rd.right.image;
-            ImageIcon iconL = new ImageIcon(zoom(imgL, dp.zoom * dp.zoomL, imgR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
-            ImageIcon iconR = new ImageIcon(zoom(imgR, dp.zoom * dp.zoomR, imgL, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY));
+            ImageIcon iconL;
+            ImageIcon iconR;
+            {
+                BufferedImage imgL = rd.left.image;
+                BufferedImage imgR = rd.right.image;
+                BufferedImage rotatedL = rotate(imgL, dp.angleL);
+                BufferedImage rotatedR = rotate(imgR, dp.angleR);
+                iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
+                iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY));
+            }
             lblL.setIcon(iconL);
             lblR.setIcon(iconR);
             lblL.setBorder(null);
@@ -525,6 +552,7 @@ class X3DViewer {
         }
 
         JPanel statusPanel = new JPanel();
+        JPanel statusPanel2 = new JPanel();
         {
             FlowLayout fl = new FlowLayout();
             statusPanel.setLayout(fl);
@@ -535,6 +563,9 @@ class X3DViewer {
 
             statusPanel.add(dcOffX = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetX:", 4, new OffsetWrapper(), i -> uiEventListener.xOffsetChanged(i)));
             statusPanel.add(dcOffY = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetY:", 4, new OffsetWrapper(), i -> uiEventListener.yOffsetChanged(i)));
+
+            statusPanel2.add(dcAngleL = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateL:",4, new RotationAngleWrapper(), d -> uiEventListener.lAngleChanged(d)));
+            statusPanel2.add(dcAngleR = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateR:",4, new RotationAngleWrapper(), d -> uiEventListener.rAngleChanged(d)));
 
             {
                 //statusPanel.add(new JLabel(" "));
@@ -573,7 +604,7 @@ class X3DViewer {
                     JOptionPane.showMessageDialog(frame, helpText,
                             "help", JOptionPane.PLAIN_MESSAGE);
                 });
-                statusPanel.add(helpButton);
+                statusPanel2.add(helpButton);
             }
             {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
@@ -582,7 +613,7 @@ class X3DViewer {
                 dndToBothCheckox.addActionListener(
                     e -> uiEventListener.dndSingleToBothChanged(dndToBothCheckox.isSelected())
                 );
-                statusPanel.add(dndToBothCheckox);
+                statusPanel2.add(dndToBothCheckox);
             }
             {
                 JCheckBox unThumbnailCheckox = new JCheckBox("Un-Thumbnail");
@@ -590,7 +621,7 @@ class X3DViewer {
                 unThumbnailCheckox.addActionListener(
                     e -> uiEventListener.unthumbnailChanged(unThumbnailCheckox.isSelected())
                 );
-                statusPanel.add(unThumbnailCheckox);
+                statusPanel2.add(unThumbnailCheckox);
             }
         }
 
@@ -604,11 +635,21 @@ class X3DViewer {
         }
 
         {
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 2;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 2;
+            gbl.setConstraints(statusPanel2, gbc);
+        }
+
+        {
             frame.setLayout(gbl);
             frame.setSize(1360,800);
             frame.add(compR);
             frame.add(compL);
             frame.add(statusPanel);
+            frame.add(statusPanel2);
         }
         {
             // keyboard shortcuts
@@ -721,11 +762,31 @@ class X3DViewer {
         };
     }
 
+    static BufferedImage rotate(BufferedImage originalImage, double alphaDegrees) {
+        if (ImageAndPath.isDummyImage(originalImage)) {
+            return originalImage;
+        }
+        double alpha = Math.toRadians(alphaDegrees);
+        double sinA = Math.sin(alpha);
+        double cosA = Math.cos(alpha);
+        int width = originalImage.getWidth();
+        int height = originalImage.getHeight();
+        int newWidth = (int) Math.round(Math.abs(cosA*width) + Math.abs(sinA*height));
+        int newHeight = (int) Math.round(Math.abs(cosA*height) + Math.abs(sinA*width));
+
+        AffineTransform transform = new AffineTransform();
+        transform.translate(newWidth / 2.0, newHeight / 2.0);
+        transform.rotate(alpha);
+        transform.translate(-width / 2.0, -height / 2.0);
+
+        BufferedImageOp operation = new AffineTransformOp(transform, AffineTransformOp.TYPE_BILINEAR);
+
+        return operation.filter(originalImage, null);
+    }
     static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, BufferedImage otherImage, double otherZoomLevel, int offX, int offY) {
         if (ImageAndPath.isDummyImage(originalImage)) {
             return originalImage;
         }
-        //double maxZoomLevel = Math.max(zoomLevel, otherZoomLevel);
         int newImageWidth = zoomedSize(originalImage.getWidth(), zoomLevel);
         int newImageHeight = zoomedSize(originalImage.getHeight(), zoomLevel);
         int otherImageWidth = zoomedSize(otherImage.getWidth(), otherZoomLevel);
@@ -736,9 +797,18 @@ class X3DViewer {
         int otherCanvasHeight = Math.abs(mult(offY, otherZoomLevel)) + otherImageHeight;
         int canvasWidth = Math.max(thisCanvasWidth, otherCanvasWidth);
         int canvasHeight = Math.max(thisCanvasHeight, otherCanvasHeight);
+        int centeringOffX = Math.max(0, otherCanvasWidth - thisCanvasWidth)/2;
+        int centeringOffY = Math.max(0, otherCanvasHeight - thisCanvasHeight)/2;
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
-        g.drawImage(originalImage, Math.max(0, mult(offX,zoomLevel)), Math.max(0, mult(offY, zoomLevel)), newImageWidth, newImageHeight, null);
+        g.drawImage(
+                originalImage,
+                Math.max(0, centeringOffX + mult(offX, zoomLevel)),
+                Math.max(0, centeringOffY + mult(offY, zoomLevel)),
+                newImageWidth,
+                newImageHeight,
+                null
+        );
         g.dispose();
         return resizedImage;
     }
@@ -746,8 +816,8 @@ class X3DViewer {
     static int zoomedSize(int orig, double zoom) {
         return (int) Math.round(orig * zoom);
     }
-    static int mult(int x, double zoom) {
-        return (int)(x*zoom);
+    static int mult(int v, double zoom) {
+        return (int)(v*zoom);
     }
 
 }
@@ -906,6 +976,34 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
     @Override
     String getAsString() {
         return value.toString();
+    }
+}
+class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
+    double[] increments = {0.1, 1.0, 2.0};
+    @Override
+    boolean setFromString(String s) {
+        try {
+            value = Double.parseDouble(s);
+        } catch (NumberFormatException nfe) {
+            return false;
+        }
+        return true;
+    }
+    @Override
+    void increment(int incrementIndex) {
+        value = value + increments[incrementIndex];
+    }
+    @Override
+    void decrement(int decrementIndex) {
+        value = value - increments[decrementIndex];
+    }
+    @Override
+    void reset() {
+        value = 0.;
+    }
+    @Override
+    String getAsString() {
+        return String.format ("%.3f", value);
     }
 }
 class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
