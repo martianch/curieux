@@ -1152,13 +1152,15 @@ class DragMover extends MouseInputAdapter {
 abstract class FileLocations {
     static String unThumbnail(String urlOrFile) {
         final String thmSuffix = "-thm.jpg";
+        final String brSuffix = "-br.jpg";
         final String imgSuffix = ".JPG";
-        if (!urlOrFile.endsWith(thmSuffix)) {
-            return urlOrFile;
-        }
-        String base = urlOrFile.substring(0, urlOrFile.length()-thmSuffix.length());
-        String unthumbnailed = base + imgSuffix;
-        if (isUrl(urlOrFile)) {
+        String unthumbnailed =
+            replaceSuffix(thmSuffix, imgSuffix,
+                replaceSuffix(brSuffix, imgSuffix,
+                        urlOrFile
+                )
+            );
+        if (isUrl(urlOrFile) || !isProblemWithFile(unthumbnailed)) {
             return unthumbnailed;
         } else {
             try {
@@ -1170,6 +1172,23 @@ abstract class FileLocations {
             }
             return urlOrFile;
         }
+    }
+    static boolean isProblemWithFile(String path) {
+        try {
+            if (new File(path).isFile()) {
+                return false;
+            }
+        } catch (Throwable e) {
+            // there are problems, return true
+        }
+        return true;
+    }
+    static String replaceSuffix(String oldSuffix, String newSuffix, String orig) {
+        if (!orig.endsWith(oldSuffix)) {
+            return orig;
+        }
+        String base = orig.substring(0, orig.length()-oldSuffix.length());
+        return base + newSuffix;
     }
     static String getFileName(String urlOrPath) {
         String fullPath = urlOrPath;

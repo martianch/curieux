@@ -48,6 +48,13 @@ public class FileLocationsTest {
         }
     }
     @Test
+    public void testReplaceSuffix() {
+        assertThat(FileLocations.replaceSuffix("-thm.jpg", ".jpg", "file-thm.jpg"), is("file.jpg"));
+        assertThat(FileLocations.replaceSuffix("-tjm.jpg", ".jpg", "file-thm.jpg"), is("file-thm.jpg"));
+        assertThat(FileLocations.replaceSuffix("-thm.jpg", ".jpg", "hm.jpg"), is("hm.jpg"));
+        assertThat(FileLocations.replaceSuffix("-thm.jpg", ".jpg", ""), is(""));
+    }
+    @Test
     public void testTwoPaths() {
         // expected order: R L
         {
