@@ -784,7 +784,7 @@ class X3DViewer {
         return operation.filter(originalImage, null);
     }
     static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, BufferedImage otherImage, double otherZoomLevel, int offX, int offY) {
-        if (ImageAndPath.isDummyImage(originalImage)) {
+        if (ImageAndPath.isDummyImage(originalImage) && ImageAndPath.isDummyImage(otherImage)) {
             return originalImage;
         }
         int newImageWidth = zoomedSize(originalImage.getWidth(), zoomLevel);
