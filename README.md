@@ -13,6 +13,8 @@ Video: https://www.youtube.com/watch?v=hxTMlDijDlU
 "Learn how to view upcoming images in 3D without using ANY special GLASSES! I would advise all to do this on nothing smaller than a laptop screen.  Especially when learning.
 Bigger is usually Better." 
 
+"The finger method" of learning X3D viewing: https://www.whatsupinthesky.com/images/dgannett/3D_TUTORIALS/X3D.jpg
+
 (In case of discomfort: the distance is wrong, find a comfortable distance)
 
 The simplest explanation: an X3D stereo pair is a R L stereo pair (the right image is for the left eye).
