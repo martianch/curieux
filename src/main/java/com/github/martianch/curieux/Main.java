@@ -27,17 +27,18 @@ import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
 import java.io.File;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
+import java.util.*;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.awt.Image.SCALE_SMOOTH;
@@ -59,12 +60,12 @@ public class Main {
             }
             break;
             case 1: {
-                paths = FileLocations.twoPaths(args[0]);
+                paths = FileLocations.twoPaths(HttpLocations.unPage(args[0]));
             }
             break;
             default:
             case 2: {
-                paths = FileLocations.twoPaths(args[0], args[1]);
+                paths = FileLocations.twoPaths(HttpLocations.unPage(args[0]), HttpLocations.unPage(args[1]));
             }
             break;
         }
@@ -295,6 +296,12 @@ class UiController implements UiEventListener {
         if (oneOrBoth == OneOrBothPanes.JUST_THIS) {
             urls = Arrays.asList(urls.get(0)); // ignore others
         }
+        if (urls.size() > 2) {
+            urls = urls.subList(0,1);
+        }
+        if (unthumbnail) {
+            urls = HttpLocations.unPageAll(urls);
+        }
         List<String> paths;
         switch (urls.size()) {
             case 0:
@@ -367,7 +374,6 @@ class UiController implements UiEventListener {
         } else {
             return urlsOrFiles;
         }
-
     }
     public void createAndShowViews() {
         x3dViewer.createViews(rawData, displayParameters, this);
@@ -1163,13 +1169,6 @@ abstract class FileLocations {
         if (isUrl(urlOrFile) || !isProblemWithFile(unthumbnailed)) {
             return unthumbnailed;
         } else {
-            try {
-                if (new File(unthumbnailed).isFile()) {
-                    return unthumbnailed;
-                }
-            } catch (Throwable e) {
-                // problems with the file, return the original
-            }
             return urlOrFile;
         }
     }
@@ -1306,4 +1305,116 @@ abstract class RoverTime {
         return res;
     }
 }
+class HttpLocations {
+    /**
+     * Http HEAD Method to get URL content type
+     *
+     * @param urlString
+     * @return content type
+     * @throws IOException
+     */
+    public static String getContentType(String urlString) throws IOException{
+        URL url = new URL(urlString);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("HEAD");
+        if (isRedirect(connection.getResponseCode())) {
+            String newUrl = connection.getHeaderField("Location"); // get redirect url from "location" header field
+            System.out.println("Original request URL: "+urlString+" redirected to: "+ newUrl);
+            return getContentType(newUrl);
+        }
+        String contentType = connection.getContentType();
+        return contentType;
+    }
 
+    /**
+     * Check status code for redirects
+     *
+     * @param statusCode
+     * @return true if matched redirect group
+     */
+    protected static boolean isRedirect(int statusCode) {
+        if (statusCode != HttpURLConnection.HTTP_OK) {
+            if (statusCode == HttpURLConnection.HTTP_MOVED_TEMP
+                    || statusCode == HttpURLConnection.HTTP_MOVED_PERM
+                    || statusCode == HttpURLConnection.HTTP_SEE_OTHER) {
+                return true;
+            }
+        }
+        return false;
+    }
+    public static String readStringFromURL(String requestURL) throws IOException
+    {
+        try (Scanner scanner = new Scanner(new URL(requestURL).openStream(),
+                StandardCharsets.UTF_8.toString()))
+        {
+            scanner.useDelimiter("\\A");
+            return scanner.hasNext() ? scanner.next() : "";
+        }
+    }
+
+    static String unPage(String url) {
+        if (!FileLocations.isUrl(url)) {
+            return url;
+        }
+        String endOfUrl = url.substring(Math.max(0,url.length()-8)).toLowerCase();
+        if (endOfUrl.endsWith(".jpg") || endOfUrl.endsWith(".jpeg") || endOfUrl.endsWith(".png")) {
+            return url;
+        }
+        try {
+            String type = getContentType(url);
+            System.out.println("Content type: "+type +" -- "+url);
+            if (type.toLowerCase().startsWith("text/html")) {
+                var body = readStringFromURL(url);
+                var imageUrl = HtmlParserProfanation.getCuriosityRawImageUrl(body);
+                System.out.println("read & found: "+url +" => "+imageUrl);
+                return imageUrl;
+            }
+        } catch (IOException e) {
+            // do nothing
+        }
+        return url;
+    }
+    public static List<String> unPageAll(List<String> urls) {
+        return urls.stream().map(HttpLocations::unPage).collect(Collectors.toList());
+    }
+}
+class HtmlParserProfanation {
+    static String getNode(String body, String type, Function<String, String> extract) {
+        int i=0;
+        String pref = "<"+type;
+        while (-1 != (i=body.indexOf(pref, i))) {
+            int j = body.indexOf(">", i);
+            if (j==-1) {
+                return null;
+            }
+            j++;
+            String res = extract.apply(body.substring(i,j));
+            if (res != null) {
+                return res;
+            }
+            i=j;
+        }
+        return null;
+    }
+    static String getCuriosityRawImageUrl(String body) {
+        return getNode(body, "meta", s -> {
+            if("og:image".equals(getValue(s,"property="))) {
+                return getValue(s, "content=");
+            } else  {
+                return null;
+            }
+        });
+    }
+
+    static String getValue(String s, String c) {
+        if (!c.endsWith("=")) { c += "="; }
+        int i=s.indexOf(c);
+        if (i==-1) { return null; }
+        i += c.length();
+        char d = s.charAt(i);
+        if (d != '\'' && d != '"') { d=' '; } else { i++; }
+        int j = s.indexOf(d,i);
+        if (j==-1) { j=s.length()-1; }
+        return s.substring(i,j);
+    }
+}
