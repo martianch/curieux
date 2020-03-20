@@ -78,10 +78,16 @@ A Windows example:
 ##### Running from the source
 
 With Java 11+, you can run the program just from the source, providing the path if necessary:
-`java Main.java`
-`java src/main/java/com/github/martianch/curieux/Main.java`
-`/usr/lib/jvm/java-13-oracle/bin/java src/main/java/com/github/martianch/curieux/Main.java`
-The fle Main.java can be downloaded from github: https://raw.githubusercontent.com/martianch/curieux/master/src/main/java/com/github/martianch/curieux/Main.java
+
+```
+java Main.java
+
+java src/main/java/com/github/martianch/curieux/Main.java
+
+/usr/lib/jvm/java-13-oracle/bin/java src/main/java/com/github/martianch/curieux/Main.java
+```
+
+The fle Main.java can be downloaded from the source tree of this project: [direct link](https://raw.githubusercontent.com/martianch/curieux/master/src/main/java/com/github/martianch/curieux/Main.java).
 
 #### One Argument: Guess the Match
 
