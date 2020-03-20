@@ -75,6 +75,14 @@ A Windows example:
 
 `\soft\x3dview\bin\x3dview https://mars.jpl.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02693/opgs/edr/fcam/FLB_636566396EDR_F0790294FHAZ00302M_.JPG https://mars.jpl.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02693/opgs/edr/fcam/FRB_636566396EDR_F0790294FHAZ00302M_.JPG` - a Windows example where the full path of the executable is specified with two image URLs. Note that it is `x3dview.bat` that executes under Windows!
 
+##### Running from the source
+
+With Java 11+, you can run the program just from the source, providing the path if necessary:
+`java Main.java`
+`java src/main/java/com/github/martianch/curieux/Main.java`
+`/usr/lib/jvm/java-13-oracle/bin/java src/main/java/com/github/martianch/curieux/Main.java`
+The fle Main.java can be downloaded from github: https://raw.githubusercontent.com/martianch/curieux/master/src/main/java/com/github/martianch/curieux/Main.java
+
 #### One Argument: Guess the Match
 
 For Curiosity images, in many cases the second character in the image file name is either R or L, and the corresponding file exists in the same directory.
