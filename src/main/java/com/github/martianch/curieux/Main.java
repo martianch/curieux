@@ -98,6 +98,7 @@ interface UiEventListener {
     void copyUrl(boolean isRight);
     void copyUrls();
     void loadMatchOfOther(boolean isRight);
+    void newWindow();
 }
 
 class DisplayParameters {
@@ -129,7 +130,8 @@ class DisplayParameters {
 }
 class ImageAndPath {
     public static final String IN_PROGRESS_PATH = "..."; // pseudo-path, means "download in progress"
-    public static final String NO_PATH = ""; // pseudo-path, means "no path"
+    public static final String NO_PATH = "-"; // pseudo-path, means "no path"
+    public static final String ERROR_PATH = ""; // pseudo-path, means "error while loading path"
     public static final int DUMMY_SIZE = 12;
     final BufferedImage image;
     final String path;
@@ -159,10 +161,12 @@ class ImageAndPath {
         if(isSpecialPath(path)) {
             Color color = IN_PROGRESS_PATH.equals(path)
                         ? new Color(0, 128, 255)
-                        : new Color(0, 0, 0);
+                        : NO_PATH.equals(path)
+                        ? new Color(0, 0, 0)
+                        : new Color(80, 20, 20);
             res = dummyImage(color);
         } else if(FileLocations.isUrl(path)) {
-            System.out.println("downloading "+path+ IN_PROGRESS_PATH);
+            System.out.println("downloading "+path+ " ...");
             try {
                 res = ImageIO.read(new URL(path));
                 res.getWidth(); // throw an exception if null
@@ -184,7 +188,7 @@ class ImageAndPath {
     }
 
     public static boolean isSpecialPath(String path) {
-        return NO_PATH.equals(path) || IN_PROGRESS_PATH.equals(path);
+        return NO_PATH.equals(path) || IN_PROGRESS_PATH.equals(path) || ERROR_PATH.equals(path);
     }
 
     static ImageAndPath imageIoReadNoExc(String path) {
@@ -366,6 +370,11 @@ class UiController implements UiEventListener {
         showInProgressViewsAndThen(
                 () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
         );
+    }
+
+    @Override
+    public void newWindow() {
+        ProcessForker.fork();
     }
 
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
@@ -610,6 +619,8 @@ class X3DViewer {
                         "Ctrl+UP, Ctrl+DOWN: change vertical offset by 30\n" +
                         "Alt+B Toggle the \"drag-and-drop to both panes\" mode\n" +
                         "\n"+
+                        "Ctrl+N: new (empty) window\n" +
+                        "\n"+
                         "Command line: arguments may be either file paths or URLs\n" +
                         "Drag-and-Drop (DnD): opens one or two images;\n" +
                         "if only one image was dropped, if the \"DnD BOTH\" \n" +
@@ -702,7 +713,11 @@ class X3DViewer {
                 lbl.getActionMap().put("zoomout", toAction(e->dcZoom.buttonMinus.doClick()));
                 lbl.getActionMap().put("zoomin2", toAction(e->dcZoom.buttonPlus2.doClick()));
                 lbl.getActionMap().put("zoomout2", toAction(e->dcZoom.buttonMinus2.doClick()));
+                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl N"), "newWindow");
+                lbl.getActionMap().put("newWindow", toAction(e->uiEventListener.newWindow()));
             }
+            frame.getRootPane().getInputMap().put(KeyStroke.getKeyStroke("ctrl N"), "newWindow");
+            frame.getRootPane().getActionMap().put("newWindow", toAction(e->uiEventListener.newWindow()));
         }
         {
             TransferHandler transferHandler = new TransferHandler("text") {
@@ -1416,5 +1431,27 @@ class HtmlParserProfanation {
         int j = s.indexOf(d,i);
         if (j==-1) { j=s.length()-1; }
         return s.substring(i,j);
+    }
+}
+class ProcessForker {
+    static void fork() {
+        String jvm_location;
+        if (System.getProperty("os.name").startsWith("Win")) {
+            jvm_location = System.getProperties().getProperty("java.home") + File.separator + "bin" + File.separator + "java.exe";
+        } else {
+            jvm_location = System.getProperties().getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+        }
+        var fileBeingRun = Main.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+        ProcessBuilder pb = fileBeingRun.endsWith(".java")
+                          ? new ProcessBuilder(jvm_location, fileBeingRun, ImageAndPath.NO_PATH, ImageAndPath.NO_PATH)
+                          : new ProcessBuilder(jvm_location, "-jar", fileBeingRun, ImageAndPath.NO_PATH, ImageAndPath.NO_PATH);
+        pb.inheritIO();
+        try {
+            System.out.println("jvm: "+jvm_location+" file:"+fileBeingRun);
+            var p = pb.start();
+            System.out.println("new process: "+p);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
