@@ -140,6 +140,17 @@ class ImageAndPath {
         this.image = image;
         this.path = path;
     }
+    public boolean isPathEqual(String otherPath) {
+        boolean isThisPathSpecial = isSpecialPath(path);
+        boolean isOtherPathSpecial = isSpecialPath(otherPath);
+        if (isThisPathSpecial && isOtherPathSpecial) {
+            return path.equals(otherPath);
+        }
+        if (!isThisPathSpecial && !isOtherPathSpecial) {
+            return path.equals(otherPath) && !isDummyImage(image);
+        }
+        return false;
+    }
 
     static BufferedImage dummyImage(Color color) {
         return _dummyImage(color, DUMMY_SIZE, DUMMY_SIZE);
@@ -242,6 +253,8 @@ class UiController implements UiEventListener {
     RawData rawData;
     boolean dndOneToBoth = true;
     boolean unthumbnail = true;
+    volatile long lastLoadTimestampL;
+    volatile long lastLoadTimestampR;
     public UiController(X3DViewer xv, RawData rd, DisplayParameters dp) {
         x3dViewer = xv;
         displayParameters = dp;
@@ -330,7 +343,7 @@ class UiController implements UiEventListener {
             break;
         }
         var uPaths = unThumbnailIfNecessary(paths);
-        showInProgressViewsAndThen(
+        showInProgressViewsAndThen(uPaths,
             () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
         );
     }
@@ -367,7 +380,7 @@ class UiController implements UiEventListener {
     public void loadMatchOfOther(boolean isRight) {
         var paths = FileLocations.twoPaths((isRight ? rawData.left : rawData.right).path);
         var uPaths = unThumbnailIfNecessary(paths);
-        showInProgressViewsAndThen(
+        showInProgressViewsAndThen(uPaths,
                 () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
         );
     }
@@ -390,12 +403,18 @@ class UiController implements UiEventListener {
     public void changeRawData(RawData newRawData) {
         x3dViewer.updateViews(rawData=newRawData, displayParameters);
     }
-    public void showInProgressViewsAndThen(Runnable next) {
+    public void showInProgressViewsAndThen(List<String> paths, Runnable next) {
         try {
-            var rd0 = new RawData(ImageAndPath.IN_PROGRESS_PATH, ImageAndPath.IN_PROGRESS_PATH);
+            ImageAndPath l = rawData.left.isPathEqual(paths.get(0))
+                           ? rawData.left
+                           : ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH);
+            ImageAndPath r = rawData.right.isPathEqual(paths.get(1))
+                           ? rawData.right
+                           : ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH);
+            var rdWhileInProgress = new RawData(l, r);
             javax.swing.SwingUtilities.invokeLater(
                     () -> {
-                        changeRawData(rd0);
+                        changeRawData(rdWhileInProgress);
                         next.run();
                     }
             );
@@ -406,24 +425,61 @@ class UiController implements UiEventListener {
         }
     }
     public void updateRawDataAsync(String path1, String path2) {
-        CompletableFuture<ImageAndPath> futureImage2 = CompletableFuture
+        boolean sameLeftPath = rawData.left.isPathEqual(path1);
+        boolean sameRightPath = rawData.right.isPathEqual(path2);
+        long timestamp = System.currentTimeMillis();
+        if (!sameLeftPath) {
+            lastLoadTimestampL = timestamp;
+        }
+        if (!sameRightPath) {
+            lastLoadTimestampR = timestamp;
+        }
+//        System.out.println("path1: "+path1);
+//        System.out.println("path2: "+path2);
+//        System.out.println("path1: "+rawData.left.path);
+//        System.out.println("path2: "+rawData.right.path);
+//        System.out.println("path1: "+path1.equals(rawData.left.path) +"&&" + !ImageAndPath.isDummyImage(rawData.left.image));
+//        System.out.println("path2: "+path2.equals(rawData.right.path) +"&&"+ !ImageAndPath.isDummyImage(rawData.right.image));
+        CompletableFuture<ImageAndPath> futureImage2 =
+                sameRightPath
+              ? CompletableFuture.completedFuture(rawData.right)
+              : CompletableFuture
                 .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path2))
                 .exceptionally(t -> ImageAndPath.imageIoReadNoExc(""));
-        CompletableFuture<ImageAndPath> futureImage1 = CompletableFuture
+        CompletableFuture<ImageAndPath> futureImage1 =
+                sameLeftPath
+              ? CompletableFuture.completedFuture(rawData.left)
+              : CompletableFuture
                 .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path1))
                 .exceptionally(t -> ImageAndPath.imageIoReadNoExc(""));
         ImageAndPath inProgress = ImageAndPath.imageIoReadNoExc(ImageAndPath.IN_PROGRESS_PATH);
 
-        Runnable uiUpdateRunnableSync =
+        Runnable uiUpdateRunnableSyncL =
             () -> javax.swing.SwingUtilities.invokeLater(
-                () -> this.changeRawData(
-                        new RawData(futureImage1.getNow(inProgress),
-                                    futureImage2.getNow(inProgress)
-                        )
-                )
+                () -> {
+                    if (lastLoadTimestampL == timestamp) {
+                        this.changeRawData(
+                            new RawData(futureImage1.getNow(inProgress),
+                                        rawData.right
+                            )
+                        );
+                    }
+                }
             );
-        futureImage1.thenRunAsync( uiUpdateRunnableSync );
-        futureImage2.thenRunAsync( uiUpdateRunnableSync );
+        Runnable uiUpdateRunnableSyncR =
+            () -> javax.swing.SwingUtilities.invokeLater(
+                () -> {
+                    if (lastLoadTimestampR == timestamp) {
+                        this.changeRawData(
+                            new RawData(rawData.left,
+                                        futureImage2.getNow(inProgress)
+                            )
+                        );
+                    }
+                }
+            );
+        futureImage1.thenRunAsync( uiUpdateRunnableSyncL );
+        futureImage2.thenRunAsync( uiUpdateRunnableSyncR );
         // the two above ui updates are synchronized via the invokeLater() queue
         // the 2nd one, whichever it is, shows both images
     }
