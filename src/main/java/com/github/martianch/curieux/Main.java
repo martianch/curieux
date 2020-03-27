@@ -99,6 +99,7 @@ interface UiEventListener {
     void copyUrls();
     void loadMatchOfOther(boolean isRight);
     void newWindow();
+    void setShowUrls(boolean visible);
 }
 
 class DisplayParameters {
@@ -390,6 +391,11 @@ class UiController implements UiEventListener {
         ProcessForker.fork();
     }
 
+    @Override
+    public void setShowUrls(boolean visible) {
+        x3dViewer.addUrlViews(visible, true);
+    }
+
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
         if (unthumbnail) {
             return urlsOrFiles.stream().map(FileLocations::unThumbnail).collect(Collectors.toList());
@@ -486,8 +492,10 @@ class UiController implements UiEventListener {
 }
 
 class X3DViewer {
-    JButton lblL=new JButton();
-    JButton lblR=new JButton();
+    JButton lblL;
+    JButton lblR;
+    JLabel urlL;
+    JLabel urlR;
     JFrame frame;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
@@ -539,6 +547,10 @@ class X3DViewer {
                 String title = leftFileName + " : " + rightFileName + times;
                 frame.setTitle(title);
             }
+            {
+                urlL.setText(rd.left.path);
+                urlR.setText(rd.right.path);
+            }
         }
     }
     public void createViews(RawData rd, DisplayParameters dp, UiEventListener uiEventListener)
@@ -546,7 +558,20 @@ class X3DViewer {
         lblL=new JButton();
         lblR=new JButton();
         frame=new JFrame();
+        urlL=new JLabel("url1");
+        urlR=new JLabel("url2");
 
+        Font font = lblL.getFont();
+        {
+            String FONT_NAME = "Verdana";
+            var fl = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+            var exists = fl.contains(FONT_NAME);
+            if (exists) {
+                font = new Font(FONT_NAME, Font.BOLD, font.getSize());
+                urlL.setFont(font);
+                urlR.setFont(font);
+            }
+        }
         {
             updateViews(rd,dp);
         }
@@ -708,6 +733,14 @@ class X3DViewer {
                 );
                 statusPanel2.add(unThumbnailCheckox);
             }
+            {
+                JCheckBox showUrlsCheckox = new JCheckBox("Show URLs");
+                showUrlsCheckox.setSelected(false);
+                showUrlsCheckox.addActionListener(
+                        e -> uiEventListener.setShowUrls(showUrlsCheckox.isSelected())
+                );
+                statusPanel2.add(showUrlsCheckox);
+            }
         }
 
         {
@@ -790,8 +823,39 @@ class X3DViewer {
             lblL.setTransferHandler(transferHandler);
             lblR.setTransferHandler(transferHandler);
         }
+//        addUrlViews(true, false);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
+    }
+    void addUrlViews(boolean visible, boolean repaint) {
+        GridBagLayout gbl = (GridBagLayout) frame.getContentPane().getLayout();
+        if (visible) {
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = 3;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 2;
+                gbl.setConstraints(urlL, gbc);
+            }
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = 4;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 2;
+                gbl.setConstraints(urlR, gbc);
+            }
+            frame.add(urlL);
+            frame.add(urlR);
+        } else {
+            frame.remove(urlL);
+            frame.remove(urlR);
+        }
+        if (repaint) {
+            frame.validate();
+            frame.repaint();
+        }
     }
     public boolean doPaste(UiEventListener uiEventListener, boolean isRight, OneOrBothPanes oneOrBoth) {
         var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
