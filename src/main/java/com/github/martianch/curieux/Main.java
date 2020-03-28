@@ -548,8 +548,9 @@ class X3DViewer {
                 frame.setTitle(title);
             }
             {
-                urlL.setText(rd.left.path);
-                urlR.setText(rd.right.path);
+                List<String> coloredPaths = StringDiffs.coloredUrls(Arrays.asList(rd.left.path, rd.right.path));
+                urlL.setText(coloredPaths.get(0));
+                urlR.setText(coloredPaths.get(1));
             }
         }
     }
@@ -567,7 +568,7 @@ class X3DViewer {
             var fl = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
             var exists = fl.contains(FONT_NAME);
             if (exists) {
-                font = new Font(FONT_NAME, Font.BOLD, font.getSize());
+                font = new Font(FONT_NAME, Font.ITALIC + Font.BOLD, font.getSize());
                 urlL.setFont(font);
                 urlR.setFont(font);
             }
@@ -1572,6 +1573,121 @@ class ProcessForker {
             System.out.println("new process: "+p);
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+}
+
+class StringDiffs {
+    public static List<String> coloredUrls(List<String> urls) {
+        String l = urls.get(0);
+        String r = urls.get(1);
+        Pair<BitSet> diff = diff(l,r);
+        var dl = diff.first;
+        var dr = diff.second;
+        String cl = coloredString(l, dl);
+        String cr = coloredString(r, dr);
+        return Arrays.asList(cl,cr);
+    }
+    static String coloredString(String text, BitSet setOfRed) {
+        String START_RED = "<font color='red'>";
+        String END_RED = "</font>";
+        String START_BLUE = "<font color='blue'>";
+        String END_BLUE = "</font>";
+        StringBuilder res = new StringBuilder("<html><nobr>");
+        res.append(START_BLUE);
+        boolean isRed = false;
+        for (int i=0; i<text.length(); i++) {
+            boolean nowRed = setOfRed.get(i);
+            if (nowRed ^ isRed) {
+                if (nowRed) {
+                    res.append(START_RED);
+                } else {
+                    res.append(END_RED);
+                }
+            }
+            res.append(text.charAt(i));
+            isRed = nowRed;
+        }
+        if (isRed) {
+            res.append(END_RED);
+        }
+        res.append(END_BLUE);
+        res.append("</nobr></html>");
+        return res.toString();
+    }
+
+    static void printExample(String a, String b) {
+        var d = diff(a,b);
+        String a1 = "";
+        for (int i=0; i<a.length(); i++) {
+            a1 += d.first.get(i) ? a.charAt(i) : ' ';
+        }
+        String b1 = "";
+        for (int i=0; i<b.length(); i++) {
+            b1 += d.second.get(i) ? b.charAt(i) : ' ';
+        }
+        System.out.println("--vv--");
+        System.out.println(a1);
+        System.out.println(a);
+        System.out.println(b);
+        System.out.println(b1);
+        System.out.println("--^^--");
+    }
+
+    /**
+     * Returns a minimal set of characters that have to be removed from (or added to) the respective
+     * strings to make the strings equal.
+     */
+    public static Pair<BitSet> diff(String a, String b) {
+        return diffHelper(a, b, new HashMap<>(), a.length(), b.length());
+    }
+
+    /**
+     * Recursively compute a minimal set of characters while remembering already computed substrings.
+     * Runs in O(n^2).
+     */
+    private static Pair<BitSet> diffHelper(String a, String b, Map<Long, Pair<BitSet>> lookup, int a0len, int b0len) {
+        long key = ((long) a.length()) << 32 | b.length();
+        if (!lookup.containsKey(key)) {
+            Pair<BitSet> value;
+            if (a.isEmpty() || b.isEmpty()) {
+                BitSet aa = new BitSet();
+                aa.set(a0len - a.length(), a0len);
+                BitSet bb = new BitSet();
+                bb.set(b0len - b.length(), b0len);
+                value = new Pair<>(aa, bb);
+            } else if (a.charAt(0) == b.charAt(0)) {
+                value = diffHelper(a.substring(1), b.substring(1), lookup, a0len, b0len);
+            } else {
+                Pair<BitSet> aa = diffHelper(a.substring(1), b, lookup, a0len, b0len);
+                Pair<BitSet> bb = diffHelper(a, b.substring(1), lookup, a0len, b0len);
+                if (aa.first.cardinality() + aa.second.cardinality() < bb.first.cardinality() + bb.second.cardinality()) {
+                    BitSet aas = new BitSet();
+                    aas.or(aa.first);
+                    aas.set(a0len - a.length());
+                    value = new Pair<>(aas, aa.second);
+                } else {
+                    BitSet bbs = new BitSet();
+                    bbs.or(bb.second);
+                    bbs.set(b0len - b.length());
+                    value = new Pair<>(bb.first, bbs);
+                }
+            }
+            lookup.put(key, value);
+        }
+        return lookup.get(key);
+    }
+
+    public static class Pair<T> {
+        public Pair(T first, T second) {
+            this.first = first;
+            this.second = second;
+        }
+
+        public final T first, second;
+
+        public String toString() {
+            return "(" + first + "," + second + ")";
         }
     }
 }
