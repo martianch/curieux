@@ -505,6 +505,7 @@ class X3DViewer {
     DigitalZoomControl<Double, RotationAngleWrapper> dcAngleR;
     DigitalZoomControl<Integer, OffsetWrapper> dcOffX;
     DigitalZoomControl<Integer, OffsetWrapper> dcOffY;
+    JButton helpButton;
 
     public void updateControls(DisplayParameters dp) {
         dcZoom.setValueAndText(dp.zoom);
@@ -686,36 +687,52 @@ class X3DViewer {
             }
             {
                 //statusPanel.add(new JLabel(" help:"));
-                JButton helpButton = new JButton();
+                helpButton = new JButton();
                 DigitalZoomControl.loadIcon(helpButton,"icons/helpc12.png","?");
-                String helpText =
-                        "When either of the images has the input focus:\n\n" +
-                        "LEFT, RIGHT, UP, DOWN: scroll both images\n" +
-                        "Alt+I, Ctrl+'=': zoom in +10%\n" +
-                        "Ctrl+I, Ctrl+Shift+'+': zoom in +100%\n" +
-                        "Alt+O, Clrl+'-': zoom out -10%\n" +
-                        "Ctrl+O, Ctrl+Shift+'_': zoom out -100%\n" +
-                        "Shift+LEFT, Shift+RIGHT: change horizontal offset by 3\n" +
-                        "Ctrl+LEFT, Ctrl+RIGHT: change horizontal offset by 30\n" +
-                        "Shift+UP, Shift+DOWN: change vertical offset by 3\n" +
-                        "Ctrl+UP, Ctrl+DOWN: change vertical offset by 30\n" +
-                        "Alt+B Toggle the \"drag-and-drop to both panes\" mode\n" +
-                        "\n"+
-                        "Ctrl+N: new (empty) window\n" +
-                        "\n"+
-                        "Command line: arguments may be either file paths or URLs\n" +
-                        "Drag-and-Drop (DnD): opens one or two images;\n" +
-                        "if only one image was dropped, if the \"DnD BOTH\" \n" +
-                        "checkbox is checked, tries to also load\n" +
-                        "the corresponding right or left image.\n" +
-                        "If the \"DnD BOTH\" box is not checked, the dropped image/url\n" +
-                        "just replaces the image on which it was dropped.\n" +
-                        "";
+                JLabel helpText = new JLabel(
+                        "<html>" +
+                        "<h1>Curious: X3D Viewer</h1>" +
+                        "Use Drag-and-Drop or the right mouse click menu to open a file or URL.<br>" +
+                        "For example, you may Drag-and-Drop raw image thumbnails from the NASA site.<br>" +
+                        "<br>" +
+                        "When either of the images has the input focus: <br>" +
+                        "<b>LEFT</b>, <b>RIGHT</b>, <b>UP</b>, <b>DOWN</b>: scroll both images<br>" +
+                        "<b>Ctrl =</b>, <b>Alt I</b>: zoom in +10%<br>" +
+                        "<b>Ctrl Shift +</b>, <b>Ctrl I</b>: zoom in +100%<br>" +
+                        "<b>Clrl -</b>, <b>Alt O</b>: zoom out -10%<br>" +
+                        "<b>Ctrl Shift _</b>, <b>Ctrl O</b>: zoom out -100%<br>" +
+                        "<b>Shift LEFT</b>, <b>Shift RIGHT</b>: change horizontal offset by 3<br>" +
+                        "<b>Ctrl LEFT</b>, <b>Ctrl RIGHT</b>: change horizontal offset by 30<br>" +
+                        "<b>Shift UP</b>, <b>Shift DOWN</b>: change vertical offset by 3<br>" +
+                        "<b>Ctrl UP</b>, <b>Ctrl DOWN</b>: change vertical offset by 30<br>" +
+                        "<b>Alt B</b>: Toggle the \"drag-and-drop to both panes\" mode<br>" +
+//                        "<br>"+
+                        "<b>Ctrl N</b>: new (empty) window<br>" +
+                        "<b>F1</b>: this help<br>" +
+                        "<br>"+
+                        "Command line: arguments may be either file paths or URLs<br>" +
+                        "Drag-and-Drop (DnD): opens one or two images;<br>" +
+                        "if only one image was dropped, if the \"DnD BOTH\" <br>" +
+                        "checkbox is checked, tries to also load<br>" +
+                        "the corresponding right or left image.<br>" +
+                        "If the \"DnD BOTH\" box is not checked, the dropped image/url<br>" +
+                        "just replaces the image on which it was dropped.<br>" +
+                        "");
+                {
+                    Font f = helpText.getFont();
+                    String FONT_NAME = "Verdana";
+                    var fonts = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+                    var exists = fonts.contains(FONT_NAME);
+                    if (exists) {
+                        f = new Font(FONT_NAME, Font.PLAIN, f.getSize());
+                        helpText.setFont(f);
+                    }
+                }
                 helpButton.addActionListener(e -> {
                     JOptionPane.showMessageDialog(frame, helpText,
                             "help", JOptionPane.PLAIN_MESSAGE);
                 });
-                statusPanel2.add(helpButton);
+                statusPanel.add(helpButton);
             }
             {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
@@ -805,9 +822,13 @@ class X3DViewer {
                 lbl.getActionMap().put("zoomout2", toAction(e->dcZoom.buttonMinus2.doClick()));
                 lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl N"), "newWindow");
                 lbl.getActionMap().put("newWindow", toAction(e->uiEventListener.newWindow()));
+                lbl.getInputMap().put(KeyStroke.getKeyStroke("F1"), "help");
+                lbl.getActionMap().put("help", toAction(e->helpButton.doClick()));
             }
             frame.getRootPane().getInputMap().put(KeyStroke.getKeyStroke("ctrl N"), "newWindow");
             frame.getRootPane().getActionMap().put("newWindow", toAction(e->uiEventListener.newWindow()));
+            frame.getRootPane().getInputMap().put(KeyStroke.getKeyStroke("F1"), "help");
+            frame.getRootPane().getActionMap().put("help", toAction(e->helpButton.doClick()));
         }
         {
             TransferHandler transferHandler = new TransferHandler("text") {
