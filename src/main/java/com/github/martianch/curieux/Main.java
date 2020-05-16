@@ -184,6 +184,7 @@ class ImageAndPath {
                 res.getWidth(); // throw an exception if null
                 System.out.println("downloaded "+path);
             } catch (Throwable t) {
+                t.printStackTrace();
                 System.out.println("could not download "+path);
                 res = dummyImage(new Color(80,20,20));
             }
