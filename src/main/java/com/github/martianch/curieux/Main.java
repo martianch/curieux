@@ -1413,10 +1413,12 @@ abstract class FileLocations {
         return Arrays.asList(urlOrPath1, urlOrPath2);
     }
     private static boolean isMarkedR(String file) {
-        return file.startsWith("NRB") || file.startsWith("RRB") || file.startsWith("FRB");
+        return file.startsWith("NRB") || file.startsWith("RRB") || file.startsWith("FRB")
+            || file.startsWith("NRA") || file.startsWith("RRA") || file.startsWith("FRA");
     }
     private static boolean isMarkedL(String file) {
-        return file.startsWith("NLB") || file.startsWith("RLB") || file.startsWith("FLB");
+        return file.startsWith("NLB") || file.startsWith("RLB") || file.startsWith("FLB")
+            || file.startsWith("NLA") || file.startsWith("RLA") || file.startsWith("FLA");
     }
     private static boolean isMarkedRL(String file) {
         return isMarkedR(file) || isMarkedL(file);
