@@ -846,6 +846,15 @@ class X3DViewer {
 //        addUrlViews(true, false);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
+
+        if (!checkPaste()) {
+            String text = "Cannot access the clipboard." +
+                    " This may mean that your antivirus started this program" +
+                    " in an isolated container," +
+                    " and drag-and-drop and copy-and-paste do not work.";
+            JOptionPane.showMessageDialog(frame, text,
+                    "oops!", JOptionPane.PLAIN_MESSAGE);
+        }
     }
     void addUrlViews(boolean visible, boolean repaint) {
         GridBagLayout gbl = (GridBagLayout) frame.getContentPane().getLayout();
@@ -875,6 +884,22 @@ class X3DViewer {
         if (repaint) {
             frame.validate();
             frame.repaint();
+        }
+    }
+    public boolean checkPaste() {
+        try {
+            var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            var flavors = clipboard.getAvailableDataFlavors();
+            var transferable = clipboard.getContents(null);
+            if (flavors != null && flavors.length > 0 && transferable != null) {
+                Object data = transferable.getTransferData(flavors[0]);
+            }
+            System.out.println("checkPaste ok");
+            return true;
+        } catch (Throwable e) {
+            System.out.println("checkPaste failed");
+            e.printStackTrace();
+            return false;
         }
     }
     public boolean doPaste(UiEventListener uiEventListener, boolean isRight, OneOrBothPanes oneOrBoth) {
