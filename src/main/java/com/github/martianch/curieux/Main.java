@@ -790,46 +790,42 @@ class X3DViewer {
         }
         {
             // keyboard shortcuts
-            for (var lbl : Arrays.asList(lblL, lblR)) {
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("shift LEFT"), "xoffplus");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("shift RIGHT"), "xoffminus");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("shift UP"), "yoffplus");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("shift DOWN"), "yoffminus");
-                lbl.getActionMap().put("xoffplus", toAction(e->dcOffX.buttonPlus.doClick()));
-                lbl.getActionMap().put("xoffminus", toAction(e->dcOffX.buttonMinus.doClick()));
-                lbl.getActionMap().put("yoffplus", toAction(e->dcOffY.buttonPlus.doClick()));
-                lbl.getActionMap().put("yoffminus", toAction(e->dcOffY.buttonMinus.doClick()));
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl LEFT"), "xoffplus2");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl RIGHT"), "xoffminus2");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl UP"), "yoffplus2");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl DOWN"), "yoffminus2");
-                lbl.getActionMap().put("xoffplus2", toAction(e->dcOffX.buttonPlus2.doClick()));
-                lbl.getActionMap().put("xoffminus2", toAction(e->dcOffX.buttonMinus2.doClick()));
-                lbl.getActionMap().put("yoffplus2", toAction(e->dcOffY.buttonPlus2.doClick()));
-                lbl.getActionMap().put("yoffminus2", toAction(e->dcOffY.buttonMinus2.doClick()));
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("alt I"), "zoomin");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("alt O"), "zoomout");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl I"), "zoomin2");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl O"), "zoomout2");
-//                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl PLUS"), "zoomin2");
-//                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl shift PLUS"), "zoomin2");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl EQUALS"), "zoomin");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl shift EQUALS"), "zoomin2");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl MINUS"), "zoomout");
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl shift MINUS"), "zoomout2");
-                lbl.getActionMap().put("zoomin", toAction(e->dcZoom.buttonPlus.doClick()));
-                lbl.getActionMap().put("zoomout", toAction(e->dcZoom.buttonMinus.doClick()));
-                lbl.getActionMap().put("zoomin2", toAction(e->dcZoom.buttonPlus2.doClick()));
-                lbl.getActionMap().put("zoomout2", toAction(e->dcZoom.buttonMinus2.doClick()));
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("ctrl N"), "newWindow");
-                lbl.getActionMap().put("newWindow", toAction(e->uiEventListener.newWindow()));
-                lbl.getInputMap().put(KeyStroke.getKeyStroke("F1"), "help");
-                lbl.getActionMap().put("help", toAction(e->helpButton.doClick()));
-            }
-            frame.getRootPane().getInputMap().put(KeyStroke.getKeyStroke("ctrl N"), "newWindow");
-            frame.getRootPane().getActionMap().put("newWindow", toAction(e->uiEventListener.newWindow()));
-            frame.getRootPane().getInputMap().put(KeyStroke.getKeyStroke("F1"), "help");
-            frame.getRootPane().getActionMap().put("help", toAction(e->helpButton.doClick()));
+            InputMap frameInputMap = frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+            ActionMap frameActionMap = frame.getRootPane().getActionMap();
+            frameInputMap.put(KeyStroke.getKeyStroke("shift LEFT"), "xoffplus");
+            frameInputMap.put(KeyStroke.getKeyStroke("shift RIGHT"), "xoffminus");
+            frameInputMap.put(KeyStroke.getKeyStroke("shift UP"), "yoffplus");
+            frameInputMap.put(KeyStroke.getKeyStroke("shift DOWN"), "yoffminus");
+            frameActionMap.put("xoffplus", toAction(e->dcOffX.buttonPlus.doClick()));
+            frameActionMap.put("xoffminus", toAction(e->dcOffX.buttonMinus.doClick()));
+            frameActionMap.put("yoffplus", toAction(e->dcOffY.buttonPlus.doClick()));
+            frameActionMap.put("yoffminus", toAction(e->dcOffY.buttonMinus.doClick()));
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl LEFT"), "xoffplus2");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl RIGHT"), "xoffminus2");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl UP"), "yoffplus2");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl DOWN"), "yoffminus2");
+            frameActionMap.put("xoffplus2", toAction(e->dcOffX.buttonPlus2.doClick()));
+            frameActionMap.put("xoffminus2", toAction(e->dcOffX.buttonMinus2.doClick()));
+            frameActionMap.put("yoffplus2", toAction(e->dcOffY.buttonPlus2.doClick()));
+            frameActionMap.put("yoffminus2", toAction(e->dcOffY.buttonMinus2.doClick()));
+            frameInputMap.put(KeyStroke.getKeyStroke("alt I"), "zoomin");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt O"), "zoomout");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl I"), "zoomin2");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl O"), "zoomout2");
+//            frameInputMap.put(KeyStroke.getKeyStroke("ctrl PLUS"), "zoomin2");
+//            frameInputMap.put(KeyStroke.getKeyStroke("ctrl shift PLUS"), "zoomin2");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl EQUALS"), "zoomin");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl shift EQUALS"), "zoomin2");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl MINUS"), "zoomout");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl shift MINUS"), "zoomout2");
+            frameActionMap.put("zoomin", toAction(e->dcZoom.buttonPlus.doClick()));
+            frameActionMap.put("zoomout", toAction(e->dcZoom.buttonMinus.doClick()));
+            frameActionMap.put("zoomin2", toAction(e->dcZoom.buttonPlus2.doClick()));
+            frameActionMap.put("zoomout2", toAction(e->dcZoom.buttonMinus2.doClick()));
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl N"), "newWindow");
+            frameActionMap.put("newWindow", toAction(e->uiEventListener.newWindow()));
+            frameInputMap.put(KeyStroke.getKeyStroke("F1"), "help");
+            frameActionMap.put("help", toAction(e->helpButton.doClick()));
         }
         {
             TransferHandler transferHandler = new TransferHandler("text") {
