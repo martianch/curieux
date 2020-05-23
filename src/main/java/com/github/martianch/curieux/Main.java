@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -389,7 +390,7 @@ class UiController implements UiEventListener {
 
     @Override
     public void newWindow() {
-        ProcessForker.fork();
+        ProcessForker.forkWrapped();
     }
 
     @Override
@@ -1575,6 +1576,16 @@ class HtmlParserProfanation {
     }
 }
 class ProcessForker {
+    static void forkWrapped() {
+        System.out.println("forking this process...");
+        try {
+            fork();
+            System.out.println("forking this process: done");
+        } catch (Throwable t) {
+            System.out.println("exception while forking this process!");
+            t.printStackTrace();
+        }
+    }
     static void fork() {
         String jvm_location;
         if (System.getProperty("os.name").startsWith("Win")) {
@@ -1582,16 +1593,25 @@ class ProcessForker {
         } else {
             jvm_location = System.getProperties().getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         }
-        var fileBeingRun = Main.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+        String fileBeingRun = null;
+        URL fileBeingRunUrl = Main.class.getProtectionDomain().getCodeSource().getLocation();
+        try {
+            fileBeingRun = Paths.get(fileBeingRunUrl.toURI()).toString();
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+            fileBeingRun = fileBeingRunUrl.getPath();
+        }
+        System.out.println("jvm: "+jvm_location+" file: "+fileBeingRun);
         ProcessBuilder pb = fileBeingRun.endsWith(".java")
                           ? new ProcessBuilder(jvm_location, fileBeingRun, ImageAndPath.NO_PATH, ImageAndPath.NO_PATH)
                           : new ProcessBuilder(jvm_location, "-jar", fileBeingRun, ImageAndPath.NO_PATH, ImageAndPath.NO_PATH);
         pb.inheritIO();
+        System.out.println("command: "+pb.command());
         try {
-            System.out.println("jvm: "+jvm_location+" file:"+fileBeingRun);
             var p = pb.start();
             System.out.println("new process: "+p);
         } catch (IOException e) {
+            System.out.println("cannot start process");
             e.printStackTrace();
         }
     }
