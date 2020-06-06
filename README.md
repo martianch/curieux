@@ -121,6 +121,11 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 In general, the "semantic versioning" is evil because it makes software developers think that incompatibilities are permissible if you increment the leftmost digit,
 but in our case there is no API, only UI.
 
+### Building
+
+To build it as is, you need Java 13. At the moment, Gradle does not work with Java 14.
+Alternatively, you can compile it without Gradle, there is only one file: Main.java (or you may just run it as a script).
+But you need Gradle to run the unit tests.
 
 ### License
 
