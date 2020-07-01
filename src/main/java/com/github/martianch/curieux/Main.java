@@ -19,6 +19,7 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
@@ -90,6 +91,8 @@ interface UiEventListener {
     void angleChanged(double newAngle);
     void lAngleChanged(double newLAngle);
     void rAngleChanged(double newRAngle);
+    void lDebayerModeChanged(DebayerMode newLDebayerMode);
+    void rDebayerModeChanged(DebayerMode newRDebayerMode);
     void xOffsetChanged(int newXOff);
     void yOffsetChanged(int newYOff);
     void swapImages();
@@ -107,13 +110,15 @@ class DisplayParameters {
     double zoom, zoomL, zoomR;
     int offsetX, offsetY;
     double angle, angleR, angleL;
+    DebayerMode debayerL, debayerR;
 
     public DisplayParameters() {
         zoom = zoomL = zoomR = 1.;
         offsetX = offsetY = 0;
         angle = angleL = angleR = 0.;
+        debayerL = debayerR = DebayerMode.AUTO;
     }
-    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR) {
+    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR) {
         this.zoom = zoom;
         this.zoomL = zoomL;
         this.zoomR = zoomR;
@@ -122,12 +127,14 @@ class DisplayParameters {
         this.angle = angle;
         this.angleL = angleL;
         this.angleR = angleR;
+        this.debayerL = debayerL;
+        this.debayerR = debayerR;
     }
 //    public DisplayParameters copy() {
 //        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY);
 //    }
     public DisplayParameters swapped() {
-        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL);
+        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL);
     }
 }
 class ImageAndPath {
@@ -291,6 +298,16 @@ class UiController implements UiEventListener {
     @Override
     public void rAngleChanged(double newRAngle) {
         displayParameters.angleR = newRAngle;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void lDebayerModeChanged(DebayerMode newLDebayerMode) {
+        displayParameters.debayerL = newLDebayerMode;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void rDebayerModeChanged(DebayerMode newRDebayerMode) {
+        displayParameters.debayerR = newRDebayerMode;
         x3dViewer.updateViews(rawData, displayParameters);
     }
     @Override
@@ -507,6 +524,8 @@ class X3DViewer {
     DigitalZoomControl<Double, RotationAngleWrapper> dcAngleR;
     DigitalZoomControl<Integer, OffsetWrapper> dcOffX;
     DigitalZoomControl<Integer, OffsetWrapper> dcOffY;
+    DebayerModeChooser debayerL;
+    DebayerModeChooser debayerR;
     JButton helpButton;
 
     public void updateControls(DisplayParameters dp) {
@@ -518,14 +537,22 @@ class X3DViewer {
         dcAngle.setValueAndText(dp.angle);
         dcAngleL.setValueAndText(dp.angleL);
         dcAngleR.setValueAndText(dp.angleR);
+        debayerL.setValue(dp.debayerL);
+        debayerR.setValue(dp.debayerR);
     }
     public void updateViews(RawData rd, DisplayParameters dp) {
         {
             ImageIcon iconL;
             ImageIcon iconR;
             {
-                BufferedImage imgL = rd.left.image;
-                BufferedImage imgR = rd.right.image;
+                BufferedImage imgL = dp.debayerL == DebayerMode.FORCE
+                                  || dp.debayerL == DebayerMode.AUTO && FileLocations.isBayered(rd.left.path)
+                                   ? Debayer.debayer(rd.left.image)
+                                   : rd.left.image;
+                BufferedImage imgR = dp.debayerR == DebayerMode.FORCE
+                                  || dp.debayerR == DebayerMode.AUTO && FileLocations.isBayered(rd.right.path)
+                                   ? Debayer.debayer(rd.right.image)
+                                   : rd.right.image;
                 BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
                 BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
                 iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
@@ -678,6 +705,10 @@ class X3DViewer {
             statusPanel2.add(dcAngle = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotate:",4, new RotationAngleWrapper(), d -> uiEventListener.angleChanged(d)));
             statusPanel2.add(dcAngleL = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateL:",4, new RotationAngleWrapper(), d -> uiEventListener.lAngleChanged(d)));
             statusPanel2.add(dcAngleR = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateR:",4, new RotationAngleWrapper(), d -> uiEventListener.rAngleChanged(d)));
+
+            statusPanel2.add(new JLabel("Decode Color:"));
+            statusPanel2.add(debayerL = new DebayerModeChooser(v -> uiEventListener.lDebayerModeChanged(v)));
+            statusPanel2.add(debayerR = new DebayerModeChooser(v -> uiEventListener.rDebayerModeChanged(v)));
 
             {
                 //statusPanel.add(new JLabel(" "));
@@ -997,6 +1028,22 @@ class X3DViewer {
 
 enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
 
+enum DebayerMode {NEVER, AUTO, FORCE}
+class DebayerModeChooser extends JComboBox<DebayerMode> {
+    static DebayerMode[] modes = DebayerMode.values();
+    public DebayerModeChooser(Consumer<DebayerMode> valueListener) {
+        super(modes);
+        setValue(DebayerMode.AUTO);
+        addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                valueListener.accept((DebayerMode) itemEvent.getItem());
+            }
+        });
+    }
+    public void setValue(DebayerMode debayerMode) {
+        setSelectedItem(debayerMode);
+    }
+}
 class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> extends JPanel {
     TT valueWrapper;
     JLabel label;
@@ -1426,6 +1473,10 @@ abstract class FileLocations {
         //System.out.println("prefix=["+prefix+"] => "+res+" "+Thread.currentThread());
         return res;
     }
+    static boolean isBayered(String urlOrPath) {
+        String fname = getFileName(urlOrPath);
+        return fname.matches(".*\\d+M[RL]\\d+C00_DXXX.*");
+    }
 }
 
 abstract class RoverTime {
@@ -1730,4 +1781,48 @@ class StringDiffs {
             return "(" + first + "," + second + ")";
         }
     }
+}
+
+class Debayer {
+    static BufferedImage debayer(BufferedImage orig) {
+        int HEIGHT = orig.getHeight();
+        int WIDTH = orig.getWidth();
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        for (int i=0; i<WIDTH; i++) {
+            for (int j=0; j<HEIGHT; j++) {
+                int type = (i&1)*2 + (j&1); // RGGB
+                int R = getC(orig, i&-2, j&-2);
+                int Gr = getC(orig, i&-2, j|1);
+                int Gb = getC(orig, i|1, j&-2);
+                int B = getC(orig, i|1, j|1);
+                // R Gr R Gr
+                // Gb B Gb B
+                // R Gr R Gr
+                // Gb B Gb B
+                int r = R;
+                int g = Gb;
+                int b = B;
+                res.setRGB(i,j,(r<<16)|(g<<8)|b);
+            }
+        }
+        return res;
+    }
+
+    static int getC(BufferedImage bi, int x, int y) {
+        int res = 0;
+        if (x >= 0 && y >= 0 && x < bi.getWidth() && y < bi.getHeight()) {
+            res = r(bi.getRGB(x,y));
+        }
+        return res;
+    }
+    static int r(int argb) {
+        return (argb>>16) & 0xff;
+    }
+    static int g(int argb) {
+        return (argb>>8) & 0xff;
+    }
+    static int b(int argb) {
+        return argb & 0xff;
+    }
+
 }

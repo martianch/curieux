@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import java.util.List;
 
+import static com.github.martianch.curieux.FileLocations.isBayered;
 import static com.github.martianch.curieux.FileLocations.isUrl;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
@@ -195,5 +196,19 @@ public class FileLocationsTest {
     @Test
     public void getRidOfBackslashesTest() {
         assertThat(FileLocations.getRidOfBackslashes("c:\\test\\"), is("c:/test/"));
+    }
+    @Test
+    public void isBayeredTest() {
+        assertTrue(isBayered("0560ML0022630070204612C00_DXXX.jpg"));
+        assertFalse(isBayered("0560ML0022630070204612E01_DXXX.jpg"));
+        assertTrue(isBayered("/foo/bar/0560ML0022630070204612C00_DXXX.jpg"));
+        assertFalse(isBayered("/foo/bar/0560ML0022630070204612E01_DXXX.jpg"));
+        assertTrue(isBayered("file://foo/bar/0560ML0022630070204612C00_DXXX.jpg"));
+        assertFalse(isBayered("file://foo/bar/0560ML0022630070204612E01_DXXX.jpg"));
+        assertTrue(isBayered("https://mars.nasa.gov/foo/bar/0560ML0022630070204612C00_DXXX.jpg"));
+        assertFalse(isBayered("https://mars.nasa.gov/foo/bar/0560ML0022630070204612E01_DXXX.jpg"));
+        assertFalse(isBayered("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
+        assertFalse(isBayered("NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
+        assertFalse(isBayered("/tmp/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
     }
 }
