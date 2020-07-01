@@ -842,6 +842,8 @@ class X3DViewer {
             frameActionMap.put("yoffminus2", toAction(e->dcOffY.buttonMinus2.doClick()));
             frameInputMap.put(KeyStroke.getKeyStroke("alt I"), "zoomin");
             frameInputMap.put(KeyStroke.getKeyStroke("alt O"), "zoomout");
+            frameInputMap.put(KeyStroke.getKeyStroke("altGraph I"), "zoomin");
+            frameInputMap.put(KeyStroke.getKeyStroke("altGraph O"), "zoomout");
             frameInputMap.put(KeyStroke.getKeyStroke("ctrl I"), "zoomin2");
             frameInputMap.put(KeyStroke.getKeyStroke("ctrl O"), "zoomout2");
 //            frameInputMap.put(KeyStroke.getKeyStroke("ctrl PLUS"), "zoomin2");
