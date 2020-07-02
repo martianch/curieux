@@ -5,6 +5,8 @@ Designed to view the Curiosity Rover images from Mars in X3D, but can be used to
 Opens images from Internet or local drive, supports drag-and-drop, for example, you can drag-n-drop the red DOWNLOAD
 button from the raw images index on the NASA site.
 
+[Download this software.](https://github.com/martianch/curieux/releases)
+
 Direct link to Curiosity raw images: https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl
 
 ### What is X3D Stereo and How To View It
