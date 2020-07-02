@@ -14,13 +14,20 @@ button from the raw images index on the NASA site.
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.MouseInputAdapter;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Element;
+import javax.swing.text.html.HTML;
+import javax.swing.text.html.HTMLDocument;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.AffineTransformOp;
@@ -31,6 +38,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -47,6 +55,9 @@ import static java.awt.Image.SCALE_SMOOTH;
 
 /** The app runner class */
 public class Main {
+
+    public static final String NASA_RAW_IMAGES_URL =
+        "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl";
 
     public static void main(String[] args) throws Exception {
         System.out.println("args: "+ Arrays.toString(args));
@@ -719,14 +730,17 @@ class X3DViewer {
                 statusPanel.add(swapButton);
             }
             {
-                //statusPanel.add(new JLabel(" help:"));
                 helpButton = new JButton();
                 DigitalZoomControl.loadIcon(helpButton,"icons/helpc12.png","?");
-                JLabel helpText = new JLabel(
+                HyperTextPane helpText = new HyperTextPane(
                         "<html>" +
                         "<h1>Curious: X3D Viewer</h1>" +
                         "Use Drag-and-Drop or the right mouse click menu to open a file or URL.<br>" +
-                        "For example, you may Drag-and-Drop raw image thumbnails from the NASA site.<br>" +
+                        "For example, you may Drag-and-Drop raw image thumbnails "+
+                        "<a href=\""+ Main.NASA_RAW_IMAGES_URL+"\">"+
+                                "from the NASA site" +
+                        "</a>" +
+                        ".<br>" +
                         "<br>" +
                         "When either of the images has the input focus: <br>" +
                         "<b>LEFT</b>, <b>RIGHT</b>, <b>UP</b>, <b>DOWN</b>: scroll both images<br>" +
@@ -1826,5 +1840,82 @@ class Debayer {
     static int b(int argb) {
         return argb & 0xff;
     }
-
 }
+
+class HyperTextPane extends JTextPane {
+    HyperlinkClickListener hyperlinkClickListener;
+
+    public HyperTextPane(String htmlText) {
+        setContentType("text/html");
+        setEditable(false);
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                Element h = getHyperlinkElement(e);
+                if (h != null) {
+                    Object attribute = h.getAttributes().getAttribute(HTML.Tag.A);
+                    if (attribute instanceof AttributeSet) {
+                        AttributeSet set = (AttributeSet) attribute;
+                        String href = (String) set.getAttribute(HTML.Attribute.HREF);
+                        if (href != null) {
+                            hyperlinkClickListener.onHyperlinkClicked(h, href, e.getButton());
+                        }
+                    }
+                }
+            }
+        });
+        setText(htmlText);
+        setHyperlinkClickListener(
+                (e,href,button) -> {
+                    if (button == MouseEvent.BUTTON1) {
+                        HyperTextPane.openHyperlink(href);
+                    } else if (button == MouseEvent.BUTTON3) {
+                        showHyperlinkCopyMenu(e,href);
+                    }
+        });
+    }
+    public void setHyperlinkClickListener(HyperlinkClickListener hyperlinkClickListener) {
+        this.hyperlinkClickListener = hyperlinkClickListener;
+    }
+    private Element getHyperlinkElement(MouseEvent event) {
+        JEditorPane editor = (JEditorPane) event.getSource();
+        int pos = editor.getUI().viewToModel(editor, event.getPoint());
+        if (pos >= 0 && editor.getDocument() instanceof HTMLDocument) {
+            HTMLDocument hdoc = (HTMLDocument) editor.getDocument();
+            Element elem = hdoc.getCharacterElement(pos);
+            if (elem.getAttributes().getAttribute(HTML.Tag.A) != null) {
+                return elem;
+            }
+        }
+        return null;
+    }
+    public static boolean openHyperlink(String href) {
+        try {
+            Desktop.getDesktop().browse(new URI(href));
+            return true;
+        } catch (IOException | URISyntaxException e1) {
+            e1.printStackTrace();
+        }
+        return false;
+    }
+    public void showHyperlinkCopyMenu(Element elem, String href) {
+        JPopupMenu popup = new JPopupMenu();
+        popup.add("Copy URL");
+        ((JMenuItem)popup.getComponent(0)).addActionListener(e -> {
+            StringSelection selection = new StringSelection(href);
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(selection, selection);            }
+        );
+        try {
+            Rectangle rec = modelToView(elem.getStartOffset());
+            popup.show(this, rec.x, rec.y+rec.height);
+        } catch (BadLocationException e) {
+            e.printStackTrace();
+        }
+    }
+    public interface HyperlinkClickListener {
+        void onHyperlinkClicked(Element element, String href, int mouseButton);
+    }
+}
+
+
