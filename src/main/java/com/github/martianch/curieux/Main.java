@@ -663,6 +663,13 @@ class X3DViewer {
                                 lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
                         ));
             }
+            {
+                JMenuItem miNnewEmptyWindow = new JMenuItem("New Empty Window");
+                menuLR.add(miNnewEmptyWindow);
+                miNnewEmptyWindow.addActionListener(e ->
+                                uiEventListener.newWindow()
+                        );
+            }
             lblR.setComponentPopupMenu(menuLR);
             lblL.setComponentPopupMenu(menuLR);
         }
