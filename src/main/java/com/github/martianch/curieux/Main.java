@@ -115,6 +115,7 @@ interface UiEventListener {
     void loadMatchOfOther(boolean isRight);
     void newWindow();
     void setShowUrls(boolean visible);
+    void resetToDefaults();
 }
 
 class DisplayParameters {
@@ -124,6 +125,9 @@ class DisplayParameters {
     DebayerMode debayerL, debayerR;
 
     public DisplayParameters() {
+        setDefaults();
+    }
+    void setDefaults() {
         zoom = zoomL = zoomR = 1.;
         offsetX = offsetY = 0;
         angle = angleL = angleR = 0.;
@@ -426,6 +430,13 @@ class UiController implements UiEventListener {
         x3dViewer.addUrlViews(visible, true);
     }
 
+    @Override
+    public void resetToDefaults() {
+        displayParameters.setDefaults();
+        x3dViewer.updateControls(displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
         if (unthumbnail) {
             return urlsOrFiles.stream().map(FileLocations::unThumbnail).collect(Collectors.toList());
@@ -712,6 +723,14 @@ class X3DViewer {
         {
             FlowLayout fl = new FlowLayout();
             statusPanel.setLayout(fl);
+
+            {
+                JButton resetAllControlsButton = new JButton();
+                DigitalZoomControl.loadIcon(resetAllControlsButton,"icons/clearAll25.png","xx"); // "<->" "<=>"
+                resetAllControlsButton.addActionListener(e -> uiEventListener.resetToDefaults());
+                resetAllControlsButton.setToolTipText("Reset All Controls");
+                statusPanel.add(resetAllControlsButton);
+            }
 
             statusPanel.add(dcZoom = new  DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoom:",4, new ZoomFactorWrapper(), d -> uiEventListener.zoomChanged(d)));
             statusPanel.add(dcZoomL = new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomL:",4, new ZoomFactorWrapper(), d -> uiEventListener.lZoomChanged(d)));
