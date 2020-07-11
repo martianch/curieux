@@ -753,6 +753,7 @@ class X3DViewer {
                 JButton swapButton = new JButton();
                 DigitalZoomControl.loadIcon(swapButton,"icons/swap12.png","⇄"); // "<->" "<=>"
                 swapButton.addActionListener(e -> uiEventListener.swapImages());
+                swapButton.setToolTipText("Swap Left and Right");
                 statusPanel.add(swapButton);
             }
             {
@@ -779,6 +780,7 @@ class X3DViewer {
                         "<b>Shift UP</b>, <b>Shift DOWN</b>: change vertical offset by 3<br>" +
                         "<b>Ctrl UP</b>, <b>Ctrl DOWN</b>: change vertical offset by 30<br>" +
                         "<b>Alt B</b>: Toggle the \"drag-and-drop to both panes\" mode<br>" +
+                        "<b>Ctrl U</b>: Swap the left and right images<br>" +
 //                        "<br>"+
                         "<b>Ctrl N</b>: new (empty) window<br>" +
                         "<b>F1</b>: this help<br>" +
@@ -900,6 +902,8 @@ class X3DViewer {
             frameActionMap.put("newWindow", toAction(e->uiEventListener.newWindow()));
             frameInputMap.put(KeyStroke.getKeyStroke("F1"), "help");
             frameActionMap.put("help", toAction(e->helpButton.doClick()));
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl U"), "swapLeftRight");
+            frameActionMap.put("swapLeftRight", toAction(e -> uiEventListener.swapImages()));
         }
         {
             TransferHandler transferHandler = new TransferHandler("text") {
