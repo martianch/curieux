@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.awt.Image.SCALE_SMOOTH;
@@ -131,7 +132,7 @@ class DisplayParameters {
         zoom = zoomL = zoomR = 1.;
         offsetX = offsetY = 0;
         angle = angleL = angleR = 0.;
-        debayerL = debayerR = DebayerMode.AUTO;
+        debayerL = debayerR = DebayerMode.AUTO3;
     }
     private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR) {
         this.zoom = zoom;
@@ -567,14 +568,9 @@ class X3DViewer {
             ImageIcon iconL;
             ImageIcon iconR;
             {
-                BufferedImage imgL = dp.debayerL == DebayerMode.FORCE
-                                  || dp.debayerL == DebayerMode.AUTO && FileLocations.isBayered(rd.left.path)
-                                   ? Debayer.debayer(rd.left.image)
-                                   : rd.left.image;
-                BufferedImage imgR = dp.debayerR == DebayerMode.FORCE
-                                  || dp.debayerR == DebayerMode.AUTO && FileLocations.isBayered(rd.right.path)
-                                   ? Debayer.debayer(rd.right.image)
-                                   : rd.right.image;
+                BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
+                BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
+
                 BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
                 BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
                 iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
@@ -1074,12 +1070,28 @@ class X3DViewer {
 
 enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
 
-enum DebayerMode {NEVER, AUTO, FORCE}
+enum DebayerMode {
+    NEVER(false,-1),
+    AUTO1(false,0), AUTO2(false,1), AUTO3(false,2), AUTO4(false,3),
+    FORCE1(true,0), FORCE2(true,1), FORCE3(true,2), FORCE4(true,3);
+    boolean force;
+    int algo;
+    DebayerMode(boolean force, int algo) {
+        this.force = force;
+        this.algo = algo;
+    }
+    <T> T doAlgo(T data, Supplier<Boolean> autoCheck, List<Function<T,T>> algorithms) {
+        return (algo >= 0 && (force || autoCheck.get()))
+                ? algorithms.get(algo).apply(data)
+                : data
+                ;
+    }
+}
 class DebayerModeChooser extends JComboBox<DebayerMode> {
     static DebayerMode[] modes = DebayerMode.values();
     public DebayerModeChooser(Consumer<DebayerMode> valueListener) {
         super(modes);
-        setValue(DebayerMode.AUTO);
+        setValue(DebayerMode.AUTO3);
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
                 valueListener.accept((DebayerMode) itemEvent.getItem());
@@ -1830,13 +1842,18 @@ class StringDiffs {
 }
 
 class Debayer {
-    static BufferedImage debayer(BufferedImage orig) {
+    static List<Function<BufferedImage, BufferedImage>> debayering_methods = Arrays.asList(
+            Debayer::debayer_squares,
+            Debayer::debayer_avg,
+            Debayer::debayer_closest_match_square,
+            Debayer::debayer_closest_match_WNSE_clockwise
+    );
+    static BufferedImage debayer_squares(BufferedImage orig) {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         for (int i=0; i<WIDTH; i++) {
             for (int j=0; j<HEIGHT; j++) {
-                int type = (i&1)*2 + (j&1); // RGGB
                 int R = getC(orig, i&-2, j&-2);
                 int Gr = getC(orig, i&-2, j|1);
                 int Gb = getC(orig, i|1, j&-2);
@@ -1854,6 +1871,185 @@ class Debayer {
         return res;
     }
 
+    static BufferedImage debayer_closest_match_square(BufferedImage orig) {
+        int HEIGHT = orig.getHeight();
+        int WIDTH = orig.getWidth();
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        for (int i=0; i<WIDTH; i++) {
+            for (int j=0; j<HEIGHT; j++) {
+                int type = (j&1)*2 + (i&1); // RGGB
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                int r,g,b;
+                switch (type) {
+                    case 0: { // R
+                        r = getC(orig, i, j);
+                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.E, Direction.S, Direction.W, Direction.N);
+                        g = getC(orig, dirG.x1(i), dirG.y1(j));
+                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.SE, Direction.SW, Direction.NW, Direction.NE);
+                        b = getC(orig, dirB.x1(i), dirB.y1(j));
+                    } break;
+                    case 1: { // Gr
+                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
+                        r = getC(orig, dirR.x1(i), dirR.y1(j));
+                        g = getC(orig, i, j);
+                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.S, Direction.N);
+                        b = getC(orig, dirB.x1(i), dirB.y1(j));
+                    } break;
+                    case 2: { // Gb
+                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
+                        r = getC(orig, dirR.x1(i), dirR.y1(j));
+                        g = getC(orig, i, j);
+                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.E, Direction.W);
+                        b = getC(orig, dirB.x1(i), dirB.y1(j));
+                    } break;
+                    case 3: { // B
+                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.SE, Direction.NE);
+                        r = getC(orig, dirR.x1(i), dirR.y1(j));
+                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.E, Direction.S);
+                        g = getC(orig, dirG.x1(i), dirG.y1(j));
+                        b = getC(orig,i,j);
+                    } break;
+                    default: // stupid Java, this is impossible! type is 0..3!
+                        r=g=b=0;
+                }
+                res.setRGB(i,j,(r<<16)|(g<<8)|b);
+            }
+        }
+        return res;
+    }
+    static BufferedImage debayer_closest_match_WNSE_clockwise(BufferedImage orig) {
+        int HEIGHT = orig.getHeight();
+        int WIDTH = orig.getWidth();
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        for (int i=0; i<WIDTH; i++) {
+            for (int j=0; j<HEIGHT; j++) {
+                int type = (j&1)*2 + (i&1); // RGGB
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                int r,g,b;
+                switch (type) {
+                    case 0: { // R
+                        r = getC(orig, i, j);
+                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                        g = getC(orig, dirG.x1(i), dirG.y1(j));
+                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                        b = getC(orig, dirB.x1(i), dirB.y1(j));
+                    } break;
+                    case 1: { // Gr
+                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
+                        r = getC(orig, dirR.x1(i), dirR.y1(j));
+                        g = getC(orig, i, j);
+                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
+                        b = getC(orig, dirB.x1(i), dirB.y1(j));
+                    } break;
+                    case 2: { // Gb
+                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
+                        r = getC(orig, dirR.x1(i), dirR.y1(j));
+                        g = getC(orig, i, j);
+                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
+                        b = getC(orig, dirB.x1(i), dirB.y1(j));
+                    } break;
+                    case 3: { // B
+                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                        r = getC(orig, dirR.x1(i), dirR.y1(j));
+                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                        g = getC(orig, dirG.x1(i), dirG.y1(j));
+                        b = getC(orig,i,j);
+                    } break;
+                    default: // stupid Java, this is impossible! type is 0..3!
+                        r=g=b=0;
+                }
+                res.setRGB(i,j,(r<<16)|(g<<8)|b);
+            }
+        }
+        return res;
+    }
+    static Direction findClosestMatchDist2(BufferedImage bi, int i, int j, Direction... directions) {
+        int c0 = getC(bi, i, j);
+        int diff = Integer.MAX_VALUE;
+        Direction bestDirection = null;
+        for (Direction d : directions) {
+            int c = getC(bi, d.x2(i), d.y2(j));
+            if (c==c0) {
+                return d;
+            }
+            int newDiff = Math.abs(c - c0);
+            if (newDiff < diff) {
+                diff = newDiff;
+                bestDirection = d;
+            }
+        }
+        return bestDirection;
+    }
+    enum Direction {
+        N(0,1),E(1,0),S(0,-1),W(-1,0),
+        NW(-1,1), NE(1, 1),SE(1,-1),SW(-1,-1);
+        int dx; int dy;
+        Direction(int x, int y) { dx=x; dy=y; }
+        int x1(int x0) { return x0+dx; }
+        int y1(int y0) { return y0+dy; }
+        int x2(int x0) { return x0+2*dx; }
+        int y2(int y0) { return y0+2*dy; }
+    }
+    static int averageDist1(BufferedImage bi, int i, int j, Direction... directions) {
+        int sum = 0;
+        for (Direction dir : directions) {
+            sum += getC(bi, dir.x1(i), dir.y1(j));
+        }
+        return sum / directions.length;
+    }
+    static BufferedImage debayer_avg(BufferedImage orig) {
+        int HEIGHT = orig.getHeight();
+        int WIDTH = orig.getWidth();
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        for (int i=0; i<WIDTH; i++) {
+            for (int j=0; j<HEIGHT; j++) {
+                int type = (j&1)*2 + (i&1); // RGGB
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                int r,g,b;
+                switch (type) {
+                    case 0: { // R
+                        r = getC(orig, i, j);
+                        g = averageDist1(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                        b = averageDist1(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                    } break;
+                    case 1: { // Gr
+                        r = averageDist1(orig, i, j, Direction.W, Direction.E);
+                        g = getC(orig, i, j);
+                        b = averageDist1(orig, i, j, Direction.N, Direction.S);
+                    } break;
+                    case 2: { // Gb
+                        r = averageDist1(orig, i, j, Direction.N, Direction.S);
+                        g = getC(orig, i, j);
+                        b = averageDist1(orig, i, j, Direction.W, Direction.E);
+                    } break;
+                    case 3: { // B
+                        r = averageDist1(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                        g = averageDist1(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                        b = getC(orig,i,j);
+                    } break;
+                    default: // stupid Java, this is impossible! type is 0..3!
+                        r=g=b=0;
+                }
+                res.setRGB(i,j,(r<<16)|(g<<8)|b);
+            }
+        }
+        return res;
+    }
     static int getC(BufferedImage bi, int x, int y) {
         int res = 0;
         if (x >= 0 && y >= 0 && x < bi.getWidth() && y < bi.getHeight()) {
