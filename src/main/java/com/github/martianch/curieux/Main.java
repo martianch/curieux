@@ -11,7 +11,14 @@ button from the raw images index on the NASA site.
 */
 
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageOutputStream;
 import javax.swing.*;
 import javax.swing.event.MouseInputAdapter;
 import javax.swing.text.AttributeSet;
@@ -34,18 +41,27 @@ import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
-import java.net.URISyntaxException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -117,6 +133,7 @@ interface UiEventListener {
     void newWindow();
     void setShowUrls(boolean visible);
     void resetToDefaults();
+    void saveScreenshot();
 }
 
 class DisplayParameters {
@@ -438,6 +455,11 @@ class UiController implements UiEventListener {
         x3dViewer.updateViews(rawData, displayParameters);
     }
 
+    @Override
+    public void saveScreenshot() {
+        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame,rawData);
+    }
+
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
         if (unthumbnail) {
             return urlsOrFiles.stream().map(FileLocations::unThumbnail).collect(Collectors.toList());
@@ -550,6 +572,7 @@ class X3DViewer {
     DebayerModeChooser debayerL;
     DebayerModeChooser debayerR;
     JButton helpButton;
+    ScreenshotSaver screenshotSaver = new ScreenshotSaver(new JFileChooser());
 
     public void updateControls(DisplayParameters dp) {
         dcZoom.setValueAndText(dp.zoom);
@@ -714,11 +737,20 @@ class X3DViewer {
             gbl.setConstraints(compR, gbc);
         }
 
+        JCheckBox showUrlsCheckox;
         JPanel statusPanel = new JPanel();
         JPanel statusPanel2 = new JPanel();
         {
             FlowLayout fl = new FlowLayout();
             statusPanel.setLayout(fl);
+
+            {
+                JButton saveButton = new JButton();
+                DigitalZoomControl.loadIcon(saveButton,"icons/save12.png","⤓"); //
+                saveButton.addActionListener(e -> uiEventListener.saveScreenshot());
+                saveButton.setToolTipText("Save Screenshot");
+                statusPanel.add(saveButton);
+            }
 
             {
                 JButton resetAllControlsButton = new JButton();
@@ -778,7 +810,12 @@ class X3DViewer {
                         "<b>Alt B</b>: Toggle the \"drag-and-drop to both panes\" mode<br>" +
                         "<b>Ctrl U</b>: Swap the left and right images<br>" +
 //                        "<br>"+
-                        "<b>Ctrl N</b>: new (empty) window<br>" +
+                        "<b>Ctrl N</b>: New (empty) window<br>" +
+                        "<b>Ctrl S</b>: Save the stereo pair (saves a screenshot of the application plus <br>" +
+                        "a file that ends with <i>.source</i> and describes the right and left images in the pair)<br>" +
+                        "Note: it may be confusing but Enter selects the default action rather than the currently<br>" +
+                        "selected one; please use Space instead if you select buttons with the keyboard<br>" +
+                        "rather than the mouse.<br>" +
                         "<b>F1</b>: this help<br>" +
                         "<br>"+
                         "Command line: arguments may be either file paths or URLs<br>" +
@@ -823,8 +860,8 @@ class X3DViewer {
                 statusPanel2.add(unThumbnailCheckox);
             }
             {
-                JCheckBox showUrlsCheckox = new JCheckBox("Show URLs");
-                showUrlsCheckox.setSelected(false);
+                showUrlsCheckox = new JCheckBox("Show URLs");
+                showUrlsCheckox.setSelected(true);
                 showUrlsCheckox.addActionListener(
                         e -> uiEventListener.setShowUrls(showUrlsCheckox.isSelected())
                 );
@@ -900,6 +937,8 @@ class X3DViewer {
             frameActionMap.put("help", toAction(e->helpButton.doClick()));
             frameInputMap.put(KeyStroke.getKeyStroke("ctrl U"), "swapLeftRight");
             frameActionMap.put("swapLeftRight", toAction(e -> uiEventListener.swapImages()));
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl S"), "saveScreenshot");
+            frameActionMap.put("saveScreenshot", toAction(e->uiEventListener.saveScreenshot()));
         }
         {
             TransferHandler transferHandler = new TransferHandler("text") {
@@ -916,7 +955,9 @@ class X3DViewer {
             lblL.setTransferHandler(transferHandler);
             lblR.setTransferHandler(transferHandler);
         }
-//        addUrlViews(true, false);
+        if (showUrlsCheckox.isSelected()) {
+            addUrlViews(true, false);
+        }
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
     }
@@ -2141,6 +2182,106 @@ class HyperTextPane extends JTextPane {
     }
     public interface HyperlinkClickListener {
         void onHyperlinkClicked(Element element, String href, int mouseButton);
+    }
+}
+
+class ScreenshotSaver {
+    JFileChooser fileChooser;
+
+    public ScreenshotSaver(JFileChooser fileChooser) {
+        this.fileChooser = fileChooser;
+    }
+
+    public interface SaveAction {
+        public void apply(File imgFile, File srcFile) throws Exception;
+    }
+    public void takeAndSaveScreenshot(JFrame frame, RawData rawData) {
+        try {
+            BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
+            showSaveDialog(
+                    frame,
+                    (imgFile, srcFile) -> {
+                        String description = "Left: " + rawData.left.path + "\nRight: " + rawData.right.path + "\n";
+                        ScreenshotSaver.writePng(imgFile, bi,
+                            "Software", "Curious: X3D Viewer",
+                            "Description", description);
+                        ScreenshotSaver.writeText(srcFile, description);
+                    }
+            );
+        } catch (Exception exc) {
+            exc.printStackTrace();
+        }
+
+    }
+    void showSaveDialog(JFrame frame, SaveAction howToSave) throws Exception {
+        fileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
+        fileChooser.setSelectedFile(new File("stereo.png"));
+//        File imgFile;
+        while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
+            File imgFile = fileChooser.getSelectedFile();
+            File srcFile = new File(imgFile.getAbsolutePath()+".source");
+            if (!endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
+                JOptionPane.showMessageDialog(frame, "File name must end with \"png\"");
+            } else if (
+                        (  !imgFile.exists()
+                        || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + imgFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
+                    ) && ( !srcFile.exists()
+                        || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + srcFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
+                    )
+            ) {
+                System.out.println("Saving to " + imgFile);
+                howToSave.apply(imgFile, srcFile);
+                break;
+            }
+        }
+    }
+    static boolean endsWithIgnoreCase(String text, String suffix) {
+        if (text.length() < suffix.length()) {
+            return false;
+        }
+        String textSuffix = text.substring(text.length() - suffix.length());
+        return textSuffix.equalsIgnoreCase(suffix);
+    }
+    public static void writePng(Object output, BufferedImage buffImg, String... keysAndValues) throws Exception {
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
+
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+        ImageTypeSpecifier typeSpecifier = ImageTypeSpecifier.createFromBufferedImageType(BufferedImage.TYPE_INT_RGB);
+
+        //adding metadata
+        IIOMetadata metadata = writer.getDefaultImageMetadata(typeSpecifier, writeParam);
+
+        IIOMetadataNode text = new IIOMetadataNode("tEXt");
+        for (int i=0; i<keysAndValues.length/2; i++) {
+            IIOMetadataNode textEntry = new IIOMetadataNode("tEXtEntry");
+            textEntry.setAttribute("keyword", keysAndValues[i*2]);
+            textEntry.setAttribute("value", keysAndValues[i*2+1]);
+
+            text.appendChild(textEntry);
+        }
+
+        IIOMetadataNode root = new IIOMetadataNode("javax_imageio_png_1.0");
+        root.appendChild(text);
+
+        metadata.mergeTree("javax_imageio_png_1.0", root);
+
+        //writing the data
+        //output - an Object to be used as an output destination, such as a File, writable RandomAccessFile, or OutputStream.
+        ImageOutputStream stream = ImageIO.createImageOutputStream(output);
+        writer.setOutput(stream);
+        writer.write(metadata, new IIOImage(buffImg, null, metadata), writeParam);
+        stream.close();
+    }
+    public static void writeText(File file, String text) throws FileNotFoundException {
+        try (PrintStream out = new PrintStream(new FileOutputStream(file))) {
+            out.print(text);
+        }
+    }
+    public static BufferedImage getScreenshot(JFrame frame) throws AWTException {
+        Robot robot = new Robot();
+        Rectangle appRect = new Rectangle(frame.getX(), frame.getY(), frame.getWidth(), frame.getHeight());
+        BufferedImage bi = robot.createScreenCapture(appRect);
+        return bi;
     }
 }
 
