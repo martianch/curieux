@@ -811,11 +811,11 @@ class X3DViewer {
                         "<b>Ctrl U</b>: Swap the left and right images<br>" +
 //                        "<br>"+
                         "<b>Ctrl N</b>: New (empty) window<br>" +
-                        "<b>Ctrl S</b>: Save the stereo pair (saves a screenshot of the application plus <br>" +
-                        "a file that ends with <i>.source</i> and describes the right and left images in the pair)<br>" +
-                        "Note: it may be confusing but Enter selects the default action rather than the currently<br>" +
-                        "selected one; please use Space instead if you select buttons with the keyboard<br>" +
-                        "rather than the mouse.<br>" +
+                        "<b>Ctrl S</b>: Save the stereo pair (saves a screenshot of this application plus <br>" +
+                        "a file that ends with <i>.source</i> and contains the URLs of images in the stereo pair)<br>" +
+                        "Note: it may be confusing but if you prefer the keyboard to the mouse,<br>" +
+                        "in Java dialogs the Enter key selects the default action rather than<br>" +
+                        "the currently selected one; please use Space to select the current action.<br>" +
                         "<b>F1</b>: this help<br>" +
                         "<br>"+
                         "Command line: arguments may be either file paths or URLs<br>" +
@@ -825,6 +825,30 @@ class X3DViewer {
                         "the corresponding right or left image.<br>" +
                         "If the \"DnD BOTH\" box is not checked, the dropped image/url<br>" +
                         "just replaces the image on which it was dropped.<br>" +
+                        "<br>"+
+                        "This project's " +
+                        "<a href=\"https://github.com/martianch/curieux\">"+
+                        "home page" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\"https://github.com/martianch/curieux/releases\">"+
+                        "download page" +
+                        "</a>" +
+                        "." +
+                        "<br>"+
+                        "Learn X3D: " +
+                        "<a href=\"https://corgegrault.blogspot.com/2020/02/what-is-x3d-and-how-to-view-it-just-on.html\">"+
+                        "blog post" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\"https://www.youtube.com/watch?v=hxTMlDijDlU\">"+
+                        "video" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\"https://www.whatsupinthesky.com/images/dgannett/3D_TUTORIALS/X3D.jpg\">"+
+                        "image with text" +
+                        "</a>" +
+                        " (these are three completely different methods)." +
                         "");
                 {
                     Font f = helpText.getFont();
