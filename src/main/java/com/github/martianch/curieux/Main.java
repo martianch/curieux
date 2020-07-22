@@ -2225,7 +2225,7 @@ class ScreenshotSaver {
             showSaveDialog(
                     frame,
                     (imgFile, srcFile) -> {
-                        String description = "Left: " + rawData.left.path + "\nRight: " + rawData.right.path + "\n";
+                        String description = "Left, Right:\n" + rawData.left.path + "\n" + rawData.right.path + "\n";
                         ScreenshotSaver.writePng(imgFile, bi,
                             "Software", "Curious: X3D Viewer",
                             "Description", description);
