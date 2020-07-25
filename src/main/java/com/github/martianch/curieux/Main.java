@@ -1137,8 +1137,8 @@ enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
 
 enum DebayerMode {
     NEVER(false,-1),
-    AUTO1(false,0), AUTO2(false,1), AUTO3(false,2), AUTO4(false,3),
-    FORCE1(true,0), FORCE2(true,1), FORCE3(true,2), FORCE4(true,3);
+    AUTO0(false,0), AUTO1(false,1), AUTO2(false,2), AUTO3(false,3), AUTO4(false,4),
+    FORCE0(true,0), FORCE1(true,1), FORCE2(true,2), FORCE3(true,3), FORCE4(true,4);
     boolean force;
     int algo;
     DebayerMode(boolean force, int algo) {
@@ -1908,11 +1908,38 @@ class StringDiffs {
 
 class Debayer {
     static List<Function<BufferedImage, BufferedImage>> debayering_methods = Arrays.asList(
+            Debayer::debayer_dotted,
             Debayer::debayer_squares,
             Debayer::debayer_avg,
             Debayer::debayer_closest_match_square,
             Debayer::debayer_closest_match_WNSE_clockwise
     );
+
+    static BufferedImage debayer_dotted(BufferedImage orig) {
+        int HEIGHT = orig.getHeight();
+        int WIDTH = orig.getWidth();
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        for (int i=0; i<WIDTH; i++) {
+            for (int j=0; j<HEIGHT; j++) {
+                int type = (j&1)*2 + (i&1); // RGGB
+                int r=0, g=0, b=0;
+                switch (type) {
+                    case 0: { // R
+                        r = getC(orig, i, j);
+                    } break;
+                    case 1: case 2: { // G
+                        g = getC(orig, i, j);
+                    } break;
+                    case 3: { // B
+                        b = getC(orig,i,j);
+                    } break;
+                }
+                res.setRGB(i,j,(r<<16)|(g<<8)|b);
+            }
+        }
+        return res;
+    }
+
     static BufferedImage debayer_squares(BufferedImage orig) {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
