@@ -17,6 +17,14 @@ public class FileLocationsTest {
             assertThat(s, is("filename.ext"));
         }
         {
+            String s = FileLocations.getFileName("http://my.site/some/global/path/filename.ext?foo=bar&l=en");
+            assertThat(s, is("filename.ext"));
+        }
+        {
+            String s = FileLocations.getFileName("http://my.site/some/global/path/filename?foo=bar&l=en");
+            assertThat(s, is("filename"));
+        }
+        {
             String s = FileLocations.getFileName("http://my.site/some/global/path/filename.ext");
             assertThat(s, is("filename.ext"));
         }
@@ -38,6 +46,41 @@ public class FileLocationsTest {
         }
     }
     @Test
+    public void testGetFileNameNoExt() {
+        {
+            String s = FileLocations.getFileNameNoExt("/some/global/path/filename.ext");
+            assertThat(s, is("filename"));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("http://my.site/some/global/path/filename.ext?foo=bar&l=en");
+            assertThat(s, is("filename"));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("http://my.site/some/global/path/filename?foo=bar&l=en");
+            assertThat(s, is("filename"));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("http://my.site/some/global/path/filename.ext");
+            assertThat(s, is("filename"));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("https://my.site/some/global/path/filename.ext");
+            assertThat(s, is("filename"));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("file://some/global/path/filename.ext");
+            assertThat(s, is("filename"));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("filename.ext");
+            assertThat(s, is("filename"));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("/filename.ext");
+            assertThat(s, is("filename"));
+        }
+    }
+    @Test
     public void testGetFileName2() {
         {
             String s = FileLocations.getFileName("/");
@@ -47,6 +90,21 @@ public class FileLocationsTest {
             String s = FileLocations.getFileName("https://google.com/");
             assertThat(s, is(""));
         }
+    }
+    public void testGetFileNameNoExt2() {
+        {
+            String s = FileLocations.getFileNameNoExt("/");
+            assertThat(s, is(""));
+        }
+        {
+            String s = FileLocations.getFileNameNoExt("https://google.com/");
+            assertThat(s, is(""));
+        }
+    }
+    @Test
+    public void idFromUrlTest () {
+        String stringUrl = "https://mars.nasa.gov/msl-raw-images/msss/02840/mcam/2840MR0148590720704886C00_DXXX.JPG";
+        assertTrue("2840MR0148590720704886C00_DXXX".equals(FileLocations.getFileNameNoExt(stringUrl)));
     }
     @Test
     public void testReplaceSuffix() {

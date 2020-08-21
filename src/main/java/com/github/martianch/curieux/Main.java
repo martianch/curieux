@@ -40,28 +40,37 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Scanner;
 import java.util.TimeZone;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -103,7 +112,8 @@ public class Main {
         var rd0 = new RawData(ImageAndPath.IN_PROGRESS_PATH, ImageAndPath.IN_PROGRESS_PATH);
         var dp = new DisplayParameters();
         var xv = new X3DViewer();
-        var uic = new UiController(xv, rd0, dp);
+        var lrn = new LRNavigator();
+        var uic = new UiController(xv, lrn, rd0, dp);
         javax.swing.SwingUtilities.invokeLater(
                 () -> uic.createAndShowViews()
         );
@@ -134,6 +144,7 @@ interface UiEventListener {
     void setShowUrls(boolean visible);
     void resetToDefaults();
     void saveScreenshot();
+    void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
 }
 
 class DisplayParameters {
@@ -294,14 +305,16 @@ class UiController implements UiEventListener {
     X3DViewer x3dViewer;
     DisplayParameters displayParameters;
     RawData rawData;
+    LRNavigator lrNavigator;
     boolean dndOneToBoth = true;
     boolean unthumbnail = true;
     volatile long lastLoadTimestampL;
     volatile long lastLoadTimestampR;
-    public UiController(X3DViewer xv, RawData rd, DisplayParameters dp) {
+    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp) {
         x3dViewer = xv;
         displayParameters = dp;
         rawData = rd;
+        lrNavigator = lrn;
     }
     @Override
     public void zoomChanged(double newZoom) {
@@ -358,6 +371,7 @@ class UiController implements UiEventListener {
         System.out.println("swapImages "+Thread.currentThread());
         x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters = displayParameters.swapped());
         x3dViewer.updateControls(displayParameters);
+        lrNavigator.swap();
     }
 
     @Override
@@ -396,6 +410,9 @@ class UiController implements UiEventListener {
             break;
         }
         var uPaths = unThumbnailIfNecessary(paths);
+        lrNavigator
+            .onSetLeft(rawData.left.path, uPaths.get(0))
+            .onSetRight(rawData.right.path, uPaths.get(1));
         showInProgressViewsAndThen(uPaths,
             () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
         );
@@ -433,6 +450,9 @@ class UiController implements UiEventListener {
     public void loadMatchOfOther(boolean isRight) {
         var paths = FileLocations.twoPaths((isRight ? rawData.left : rawData.right).path);
         var uPaths = unThumbnailIfNecessary(paths);
+        lrNavigator
+                .onSetLeft(rawData.left.path, uPaths.get(0))
+                .onSetRight(rawData.right.path, uPaths.get(1));
         showInProgressViewsAndThen(uPaths,
                 () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
         );
@@ -458,6 +478,11 @@ class UiController implements UiEventListener {
     @Override
     public void saveScreenshot() {
         x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame,rawData);
+    }
+
+    @Override
+    public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo) {
+        lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byOneOrTwo, rawData.left.path, rawData.right.path);
     }
 
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
@@ -694,11 +719,35 @@ class X3DViewer {
                         ));
             }
             {
-                JMenuItem miNnewEmptyWindow = new JMenuItem("New Empty Window");
-                menuLR.add(miNnewEmptyWindow);
-                miNnewEmptyWindow.addActionListener(e ->
+                JMenuItem miNewEmptyWindow = new JMenuItem("New Empty Window");
+                menuLR.add(miNewEmptyWindow);
+                miNewEmptyWindow.addActionListener(e ->
                                 uiEventListener.newWindow()
                         );
+            }
+            {
+                JMenuItem miPrevImage = new JMenuItem("Go To Previous");
+                menuLR.add(miPrevImage);
+                miPrevImage.addActionListener(e ->
+                        uiEventListener.navigate(
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                lblL == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                false,
+                                1
+                        )
+                );
+            }
+            {
+                JMenuItem miNextImage = new JMenuItem("Go To Next");
+                menuLR.add(miNextImage);
+                miNextImage.addActionListener(e ->
+                        uiEventListener.navigate(
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                lblL == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                true,
+                                1
+                        )
+                );
             }
             lblR.setComponentPopupMenu(menuLR);
             lblL.setComponentPopupMenu(menuLR);
@@ -865,6 +914,34 @@ class X3DViewer {
                             "help", JOptionPane.PLAIN_MESSAGE);
                 });
                 statusPanel.add(helpButton);
+            }
+            {
+                JButton bButton = new JButton();
+                DigitalZoomControl.loadIcon(bButton,null,"⇇"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 2));
+                bButton.setToolTipText("load two images taken earlier");
+                statusPanel.add(bButton);
+            }
+            {
+                JButton bButton = new JButton();
+                DigitalZoomControl.loadIcon(bButton,null,"↢"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 1));
+                bButton.setToolTipText("load one image taken earlier");
+                statusPanel.add(bButton);
+            }
+            {
+                JButton fButton = new JButton();
+                DigitalZoomControl.loadIcon(fButton,null,"↣"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 1));
+                fButton.setToolTipText("load one image taken later");
+                statusPanel.add(fButton);
+            }
+            {
+                JButton ffButton = new JButton();
+                DigitalZoomControl.loadIcon(ffButton,null,"⇉"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 2));
+                ffButton.setToolTipText("load two images taken later");
+                statusPanel.add(ffButton);
             }
             {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
@@ -1519,13 +1596,22 @@ abstract class FileLocations {
         if (isUrl(urlOrPath)) {
             try {
                 URL url = new URL(urlOrPath);
-                fullPath = url.getFile();
+                fullPath = url.getPath();
             } catch (MalformedURLException e) {
                 // do nothing, go on assuming it's a file
             }
         }
         Path fileName = Paths.get(fullPath).getFileName();
         return fileName == null ? "" : fileName.toString();
+    }
+    static String getFileNameNoExt(String urlOrPath) {
+        String fileNameExt = getFileName(urlOrPath);
+        int indexOfDot = fileNameExt.lastIndexOf('.');
+        if (indexOfDot < 0) {
+            return fileNameExt;
+        } else {
+            return fileNameExt.substring(0,indexOfDot);
+        }
     }
     static List<String> twoPaths(String path0) {
         if (isUrl(path0)) {
@@ -2333,6 +2419,552 @@ class ScreenshotSaver {
         Rectangle appRect = new Rectangle(frame.getX(), frame.getY(), frame.getWidth(), frame.getHeight());
         BufferedImage bi = robot.createScreenCapture(appRect);
         return bi;
+    }
+}
+
+class JsonDiy {
+    public static final boolean IGNORE_NULL_IN_MAPS = true;
+    static Object get(Object root, String... indexes) {
+        Object obj = root;
+        for (String index : indexes) {
+            if (obj instanceof Map) {
+                Map map = (Map)obj;
+                obj = map.get(index);
+            } else if (obj instanceof List) {
+                try {
+                    int i = Integer.valueOf(index);
+                    List list = (List) obj;
+                    obj = list.get(i);
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    return null;
+                }
+            }
+            if (null == obj) {
+                return null;
+            }
+        }
+        return obj;
+    }
+    public static Object jsonToDataStructure(String jsonString) {
+        var input = new InputState(jsonString);
+        Object res = getElement(input, '\0');
+        input.skipWhitespace().errorIfNotAtEnd();
+        return res;
+    }
+    static String getKey(InputState is, char... delimiters) {
+        char c = is.skipWhitespace().get();
+        switch (c) {
+            case '"': {
+                String res = getStringDelimitedBy(is, '"','\0');
+                is.errorIfNotDelimiter(is.peekBack(),'"');
+                is.errorIfNotDelimiter(is.skipWhitespace().get(), delimiters);
+                return res;
+            }
+            default: {
+                is.unget();
+                String res = getStringDelimitedBy(is, delimiters).trim();
+                return res;
+            }
+        }
+
+    }
+    static Object getElement(InputState is, char... delimiters) {
+        char c = is.skipWhitespace().get();
+        switch (c) {
+            case '"': {
+                String res = getStringDelimitedBy(is, '"','\0');
+                is.errorIfNotDelimiter(is.peekBack(),'"');
+                is.errorIfNotDelimiter(is.skipWhitespace().get(), delimiters);
+                return res;
+            }
+            case '[':
+                return getArray(is, delimiters);
+            case '{':
+                return getDictionary(is, delimiters);
+            default:
+                is.unget();
+                return new Symbol(getStringDelimitedBy(is, delimiters).trim());
+        }
+    }
+    static Map<String,Object> getDictionary(InputState is, char... delimiters) {
+        var res = new HashMap<String, Object>();
+        if ('}' != is.skipWhitespace().peek()) {
+            do {
+                String key = getKey(is, ':', '\0');
+                is.errorIfNotDelimiter(is.peekBack(), ':');
+                is.errorIfAtEnd();
+                Object value = getElement(is, '}', ',', '\0');
+                is.errorIfNotDelimiter(is.peekBack(), '}', ',');
+                if (!IGNORE_NULL_IN_MAPS || !Symbol.isNull(value)) {
+                    res.put(key, value);
+                }
+                if ('}' == is.peekBack()) {
+                    break;
+                }
+                is.errorIfAtEnd();
+            } while (true);
+        } else {
+            is.get();
+        }
+        is.errorIfNotDelimiter(is.skipWhitespace().get(), delimiters);
+        return res;
+    }
+    static List<Object> getArray(InputState is, char... delimiters) {
+        var res = new ArrayList<Object>();
+        if (']' != is.skipWhitespace().peek()) {
+            do {
+                res.add(getElement(is, ',', ']', '\0'));
+                if (']' == is.peekBack()) {
+                    break;
+                }
+                is.errorIfAtEnd();
+            } while (true);
+        } else {
+            is.get();
+        }
+        is.errorIfNotDelimiter(is.skipWhitespace().get(), delimiters);
+        return res;
+    }
+    static String getStringDelimitedBy(InputState is, char... delimiters) {
+        var res = new StringBuilder();
+        char c;
+        while (!arrayContains(delimiters, c = is.get())) {
+            res.append(c);
+        }
+        return res.toString();
+    }
+    static private boolean arrayContains(char[] arr, char x) {
+        int size = arr.length;
+        for (int i=0; i<size; i++) {
+            if (arr[i] == x) {
+                return true;
+            }
+        }
+        return false;
+    }
+    static class InputState {
+        int pos;
+        String source;
+        InputState(String source) {
+            this.pos = 0;
+            this.source = source;
+        }
+        InputState(int pos, String source) {
+            this.pos = pos;
+            this.source = source;
+        }
+        char get() {
+            if (pos >= source.length()) {
+                pos++;
+                return 0;
+            } else {
+                return source.charAt(pos++);
+            }
+        }
+        char peek() {
+            return pos >= source.length() ? 0 : source.charAt(pos);
+        }
+        char peekBack() {
+            return pos-1 >= source.length() ? 0 : source.charAt(pos-1);
+        }
+        InputState unget() { --pos; return this; }
+        InputState skipWhitespace() {
+            while (Character.isWhitespace(peek())) pos++;
+            return this;
+        }
+        InputState errorIfAtEnd() {
+            if (pos >= source.length()) {
+                throw new PrematureEndOfInputException(describePosition());
+            }
+            return this;
+        }
+        InputState errorIfNotDelimiter(char c, char... delimiters) {
+            if (!arrayContains(delimiters, c)) {
+                throw new DelimiterNotFoundException(describePosition()+"\n"+"c='"+c+"' not in ("+new String(delimiters)+")");
+            }
+            return this;
+        }
+        InputState errorIfNotAtEnd() {
+            if (pos < source.length()) {
+                throw new EndNotReachedException(describePosition());
+            }
+            return this;
+        }
+        String describePosition() {
+            if (pos >= source.length()) {
+                return pos+": *at_end*";
+            }
+            return pos+": -->"+source.substring(pos,Math.min(source.length(), pos+40));
+        }
+    }
+    //* Any value not in quotes, including numbers
+    static class Symbol {
+        final String value;
+        public Symbol(String value) {
+            this.value = value;
+        }
+        public boolean isNull() {
+            return "null".equals(value);
+        }
+        @Override
+        public String toString() {
+            return value;
+        }
+        public static boolean isNull(Object x) { return x==null || (x instanceof Symbol && "null".equals(((Symbol) x).value));}
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Symbol symbol = (Symbol) o;
+            return value != null ? value.equals(symbol.value) : symbol.value == null;
+        }
+        @Override
+        public int hashCode() {
+            return value != null ? value.hashCode() : 0;
+        }
+    }
+    static class ParseException extends RuntimeException {
+        public ParseException(String message) {
+            super(message);
+        }
+    }
+    static class PrematureEndOfInputException extends ParseException {
+        public PrematureEndOfInputException(String message) {
+            super(message);
+        }
+    }
+    static class DelimiterNotFoundException extends ParseException {
+        public DelimiterNotFoundException(String message) {
+            super(message);
+        }
+    }
+    static class EndNotReachedException extends ParseException {
+        public EndNotReachedException(String message) {
+            super(message);
+        }
+    }
+}
+
+class LRNavigator {
+    FileNavigator<Map<String, Object>> left;
+    FileNavigator<Map<String, Object>> right;
+    LRNavigator onSetLeft(String oldPath, String newPath) {
+        if (!Objects.equals(oldPath, newPath)) {
+            left = null;
+        }
+        return this;
+    }
+    LRNavigator onSetRight(String oldPath, String newPath) {
+        if (!Objects.equals(oldPath, newPath)) {
+            right = null;
+        }
+        return this;
+    }
+    public LRNavigator  swap() {
+        var left0 = left;
+        left = right;
+        right = left0;
+        return this;
+    }
+    LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo, String leftPath, String rightPath) {
+        String newLeftPath = leftPath;
+        String newRightPath = rightPath;
+        if (isLeft) {
+            left = newIfNotSuitable(left, leftPath);
+            for (int i=0; i<byOneOrTwo; i++) {
+                newLeftPath = (forwardInTime ? left.toNext() : left.toPrev()).getCurrentPath();
+            }
+        }
+        if (isRight) {
+            right = newIfNotSuitable(right, rightPath);
+            for (int i=0; i<byOneOrTwo; i++) {
+                newRightPath = (forwardInTime ? right.toNext() : right.toPrev()).getCurrentPath();
+            }   
+        }
+        var uPaths = Arrays.asList(newLeftPath, newRightPath);
+        uiController.showInProgressViewsAndThen(uPaths,
+                () ->  uiController.updateRawDataAsync(uPaths.get(0), uPaths.get(1))
+        );
+        return this;
+    }
+    FileNavigator<Map<String, Object>> newIfNotSuitable(FileNavigator<Map<String, Object>> fileNavigator, String path) {
+        var needRemote = FileLocations.isUrl(path);
+        if (null == fileNavigator || needRemote != (fileNavigator instanceof RemoteFileNavigator)) {
+            fileNavigator = FileNavigatorBase.makeNew(path);
+        }
+        return fileNavigator;
+    }
+}
+interface FileNavigator<T> {
+    FileNavigator<T> toNext();
+    FileNavigator<T> toPrev();
+    T getCurrentValue();
+    String getCurrentKey();
+    FileNavigator<T> setCurrentKey(String key);
+    String toKey(T obj);
+    String getPath(T t);
+    default String getCurrentPath() { return getPath(getCurrentValue()); }
+}
+abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
+    protected NavigableMap<String, Map<String, Object>> nmap = new TreeMap<>();
+    protected String currentKey;
+    int nToLoad=12;
+    public static FileNavigatorBase makeNew(String path) {
+        var needRemote = FileLocations.isUrl(path);
+        FileNavigatorBase res = needRemote ? new RemoteFileNavigator() : new LocalFileNavigator();
+        res._loadInitial(path);
+        return res;
+    }
+    protected void moveWindow() {
+        if (Objects.equals(currentKey, nmap.lastKey())) {
+            _loadHigher(); _cleanupLower();
+        }
+        if (Objects.equals(currentKey, nmap.firstKey())) {
+            _loadLower(); _cleanupHigher();
+        }
+    }
+    protected abstract void _loadInitial(String whereFrom);
+    protected abstract void _loadHigher();
+    protected abstract void _loadLower();
+    protected abstract void _onLoadResult(NavigableMap<String, Map<String, Object>> newData);
+    protected abstract void _cleanupHigher();
+    protected abstract void _cleanupLower();
+    protected int _numHigherToLoad() { return nToLoad; }
+    protected int _numLowerToLoad() { return nToLoad; }
+    @Override
+    public FileNavigator<Map<String, Object>> toNext() {
+        moveWindow();
+        if (currentKey == null) {
+            currentKey = nmap.firstKey();
+        } else {
+            currentKey = nmap.higherKey(currentKey);
+        }
+        return this;
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> toPrev() {
+        moveWindow();
+        if (currentKey == null) {
+            currentKey = nmap.lastKey();
+        } else {
+            currentKey = nmap.lowerKey(currentKey);
+        }
+        return this;
+    }
+    @Override
+    public Map<String, Object> getCurrentValue() {
+        if (currentKey == null) {
+            return null;
+        }
+        return nmap.get(currentKey);
+    }
+    @Override
+    public String getCurrentKey() { return currentKey; }
+    @Override
+    public FileNavigator<Map<String, Object>> setCurrentKey(String key) {
+        currentKey = key;
+        return this;
+    }
+    @Override
+    public String toKey(Map<String, Object> obj) {
+        if (obj == null) {
+            return null;
+        }
+        return obj.get("date_taken")+"^"+obj.get("imageid");
+    }
+}
+class LocalFileNavigator extends FileNavigatorBase {
+    String currentDirectory = "";
+    @Override
+    protected void _loadInitial(String whereFrom) {
+        Path path0 = Paths.get(whereFrom);
+        if (Files.isDirectory(path0)) {
+            currentKey = null;
+            currentDirectory = path0.toString();
+        } else {
+            currentKey = path0.getFileName().toString();
+            path0 = path0.getParent();
+            if (path0 == null) {
+                path0 = Paths.get(".");
+            }
+            currentDirectory = path0.toString();
+        }
+        var res = new TreeMap<String, Map<String, Object>>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path0)) {
+            for (Path path: stream) {
+                Map<String, Object> m = new TreeMap<>();
+                m.put("path",path);
+                String fileName = path.getFileName().toString();
+                m.put("key", fileName);
+                res.put(fileName, m);
+            }
+            _onLoadResult(res);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    @Override
+    protected void _onLoadResult(NavigableMap<String, Map<String, Object>> newData) {
+        nmap = newData;
+    }
+    @Override
+    public String getPath(Map<String, Object> map) {
+        return map == null ? null : map.get("path").toString();
+    }
+    @Override
+    protected void _loadHigher() {
+        _loadInitial(Paths.get(currentDirectory, currentKey).toString());
+    }
+    @Override
+    protected void _loadLower() {
+        _loadInitial(Paths.get(currentDirectory, currentKey).toString());
+    }
+    @Override
+    protected void _cleanupHigher() {}
+    @Override
+    protected void _cleanupLower() {}
+}
+
+class NasaReader {
+
+    static String nasaEncode(String params) {
+        return params.replaceAll(",", "%2C").replaceAll(":", "%3A").replaceAll(" ","+");
+    }
+
+    static String readUrl(URL url) throws IOException {
+        URLConnection conn = url.openConnection();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            return reader.lines().collect(Collectors.joining("\n"));
+        }
+    }
+
+    static String makeRequest(String parameters) {
+        return "https://mars.nasa.gov/api/v1/raw_image_items/?" +
+                nasaEncode( parameters );
+    }
+    static Object dataStructureFromRequest(String parameters) throws IOException {
+        String url = makeRequest(parameters);
+        String json = NasaReader.readUrl(new URL(url));
+        Object res = JsonDiy.jsonToDataStructure(json);
+        return res;
+    }
+    static Object dataStructureFromImageId(String imageId) throws IOException {
+        return dataStructureFromRequest(
+                "order=date_taken asc" +
+                        "&per_page=10" +
+                        "&page=0" +
+                        "&condition_1=" + imageId + ":imageid:eq" +
+                        "&search=" +
+                        "&extended=thumbnail::sample_type::noteq"
+        );
+    }
+    static Object dataStructureFromDateStarting(String date, int perPage) throws IOException {
+        return dataStructureFromRequest(
+                "order=date_taken asc" +
+                        "&per_page=" + perPage +
+                        "&page=0" +
+                        "&condition_1=" + date + ":date_taken:gte" +
+                        "&search=" +
+                        "&extended=thumbnail::sample_type::noteq"
+        );
+    }
+    static Object dataStructureFromDateEnding(String date, int perPage) throws IOException {
+        return dataStructureFromRequest(
+                "order=date_taken desc" +
+                        "&per_page=" + perPage +
+                        "&page=0" +
+                        "&condition_1=" + date + ":date_taken:lte" +
+                        "&search=" +
+                        "&extended=thumbnail::sample_type::noteq"
+        );
+    }
+}
+class RemoteFileNavigator extends FileNavigatorBase {
+    void loadFromDataStructure(Object jsonObject) {
+        try {
+            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, "items");
+            list.stream().forEach( o -> {
+                if (o instanceof Map) {
+                    Map m = (Map) o;
+                    String date = m.get("date_taken").toString();
+                    String id = m.get("imageid").toString();
+                    nmap.put(date+"^"+id, m);
+                }
+            });
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+    @Override
+    public String getPath(Map<String, Object> stringObjectMap) {
+        if (stringObjectMap == null) {
+            return null;
+        }
+        var res = stringObjectMap.get("https_url");
+        if (res == null) {
+            res = stringObjectMap.get("url");
+        }
+        return res == null ? null : res.toString();
+    }
+    @Override
+    protected void _loadInitial(String whereFrom) {
+        try {
+            loadFromDataStructure(NasaReader.dataStructureFromImageId(FileLocations.getFileNameNoExt(whereFrom)));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        currentKey = nmap.firstKey();
+    }
+    @Override
+    protected void _loadHigher() {
+        String date = (String) JsonDiy.get(getCurrentValue(),"date_taken");
+        try {
+            loadFromDataStructure(NasaReader.dataStructureFromDateStarting(date, nToLoad));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void _onLoadResult(NavigableMap<String, Map<String, Object>> newData) {
+
+    }
+
+    @Override
+    protected void _loadLower() {
+        String date = (String) JsonDiy.get(getCurrentValue(),"date_taken");
+        try {
+            loadFromDataStructure(NasaReader.dataStructureFromDateEnding(date, nToLoad));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void _cleanupHigher() {
+        var higherAll = nmap.tailMap(currentKey, false);
+        if (higherAll.size() > nToLoad) {
+            String key = currentKey;
+            for (int i=0; i<nToLoad; i++) {
+                key = higherAll.higherKey(key);
+            }
+            var toDelete = higherAll.tailMap(key, false);
+            toDelete.clear();
+        }
+    }
+
+    @Override
+    protected void _cleanupLower() {
+        var lowerAll = nmap.headMap(currentKey, false);
+        if (lowerAll.size() > nToLoad) {
+            String key = currentKey;
+            for (int i=0; i<nToLoad; i++) {
+                key = lowerAll.lowerKey(key);
+            }
+            var toDelete = lowerAll.headMap(key, false);
+            toDelete.clear();
+        }
     }
 }
 
