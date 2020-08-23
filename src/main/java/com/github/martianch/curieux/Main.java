@@ -72,6 +72,7 @@ import java.util.Scanner;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -109,7 +110,7 @@ public class Main {
             break;
         }
 
-        var rd0 = new RawData(ImageAndPath.IN_PROGRESS_PATH, ImageAndPath.IN_PROGRESS_PATH);
+        var rd0 = RawData.createInProgress(paths.get(0), paths.get(1));
         var dp = new DisplayParameters();
         var xv = new X3DViewer();
         var lrn = new LRNavigator();
@@ -140,6 +141,7 @@ interface UiEventListener {
     void copyUrl(boolean isRight);
     void copyUrls();
     void loadMatchOfOther(boolean isRight);
+    void reload(boolean isRight);
     void newWindow();
     void setShowUrls(boolean visible);
     void resetToDefaults();
@@ -188,10 +190,12 @@ class ImageAndPath {
     public static final int DUMMY_SIZE = 12;
     final BufferedImage image;
     final String path;
+    final String pathToLoad;
 
-    public ImageAndPath(BufferedImage image, String path) {
+    public ImageAndPath(BufferedImage image, String path, String pathToLoad) {
         this.image = image;
         this.path = path;
+        this.pathToLoad = pathToLoad;
     }
     public boolean isPathEqual(String otherPath) {
         boolean isThisPathSpecial = isSpecialPath(path);
@@ -220,7 +224,7 @@ class ImageAndPath {
         graphics.dispose();
         return image;
     }
-    static ImageAndPath imageIoRead(String path) throws IOException {
+    static ImageAndPath imageIoRead(String path, String pathToLoad) throws IOException {
         BufferedImage res;
         if(isSpecialPath(path)) {
             Color color = IN_PROGRESS_PATH.equals(path)
@@ -249,16 +253,16 @@ class ImageAndPath {
                 res = dummyImage(new Color(80,20,20));
             }
         }
-        return new ImageAndPath(res, path);
+        return new ImageAndPath(res, path, pathToLoad);
     }
 
     public static boolean isSpecialPath(String path) {
         return NO_PATH.equals(path) || IN_PROGRESS_PATH.equals(path) || ERROR_PATH.equals(path);
     }
 
-    static ImageAndPath imageIoReadNoExc(String path) {
+    static ImageAndPath imageIoReadNoExc(String path, String pathToLoad) {
         try {
-            return imageIoRead(path);
+            return imageIoRead(path, pathToLoad);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -281,8 +285,12 @@ class RawData {
     final ImageAndPath left;
     final ImageAndPath right;
 
-    RawData(String pathL, String pathR) throws IOException {
-        this(ImageAndPath.imageIoRead(pathL), ImageAndPath.imageIoRead(pathR));
+    public static RawData createInProgress(String leftPathToLoad, String rightPathToLoad) throws IOException {
+        var res = new RawData(
+            ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH, leftPathToLoad),
+            ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH, rightPathToLoad)
+        );
+        return res;
     }
     public RawData(ImageAndPath left, ImageAndPath right) {
         this.left = left;
@@ -459,6 +467,15 @@ class UiController implements UiEventListener {
     }
 
     @Override
+    public void reload(boolean isRight) {
+        var paths = Arrays.asList(rawData.left.pathToLoad, rawData.right.pathToLoad);
+        var uPaths = unThumbnailIfNecessary(paths);
+        showInProgressViewsAndThen(uPaths,
+                () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
+        );
+    }
+
+    @Override
     public void newWindow() {
         ProcessForker.forkWrapped();
     }
@@ -482,7 +499,7 @@ class UiController implements UiEventListener {
 
     @Override
     public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo) {
-        lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byOneOrTwo, rawData.left.path, rawData.right.path);
+        lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byOneOrTwo, rawData.left.pathToLoad, rawData.right.pathToLoad);
     }
 
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
@@ -502,10 +519,10 @@ class UiController implements UiEventListener {
         try {
             ImageAndPath l = rawData.left.isPathEqual(paths.get(0))
                            ? rawData.left
-                           : ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH);
+                           : ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH, paths.get(0));
             ImageAndPath r = rawData.right.isPathEqual(paths.get(1))
                            ? rawData.right
-                           : ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH);
+                           : ImageAndPath.imageIoRead(ImageAndPath.IN_PROGRESS_PATH, paths.get(1));
             var rdWhileInProgress = new RawData(l, r);
             javax.swing.SwingUtilities.invokeLater(
                     () -> {
@@ -539,22 +556,21 @@ class UiController implements UiEventListener {
                 sameRightPath
               ? CompletableFuture.completedFuture(rawData.right)
               : CompletableFuture
-                .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path2))
-                .exceptionally(t -> ImageAndPath.imageIoReadNoExc(""));
+                .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path2, path2))
+                .exceptionally(t -> ImageAndPath.imageIoReadNoExc("", path2));
         CompletableFuture<ImageAndPath> futureImage1 =
                 sameLeftPath
               ? CompletableFuture.completedFuture(rawData.left)
               : CompletableFuture
-                .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path1))
-                .exceptionally(t -> ImageAndPath.imageIoReadNoExc(""));
-        ImageAndPath inProgress = ImageAndPath.imageIoReadNoExc(ImageAndPath.IN_PROGRESS_PATH);
+                .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path1, path1))
+                .exceptionally(t -> ImageAndPath.imageIoReadNoExc("", path1));
 
         Runnable uiUpdateRunnableSyncL =
             () -> javax.swing.SwingUtilities.invokeLater(
                 () -> {
                     if (lastLoadTimestampL == timestamp) {
                         this.changeRawData(
-                            new RawData(futureImage1.getNow(inProgress),
+                            new RawData(getNow(futureImage1, () -> ImageAndPath.imageIoReadNoExc(ImageAndPath.IN_PROGRESS_PATH, path1)),
                                         rawData.right
                             )
                         );
@@ -567,7 +583,7 @@ class UiController implements UiEventListener {
                     if (lastLoadTimestampR == timestamp) {
                         this.changeRawData(
                             new RawData(rawData.left,
-                                        futureImage2.getNow(inProgress)
+                                        getNow(futureImage2, () -> ImageAndPath.imageIoReadNoExc(ImageAndPath.IN_PROGRESS_PATH, path2))
                             )
                         );
                     }
@@ -577,6 +593,14 @@ class UiController implements UiEventListener {
         futureImage2.thenRunAsync( uiUpdateRunnableSyncR );
         // the two above ui updates are synchronized via the invokeLater() queue
         // the 2nd one, whichever it is, shows both images
+    }
+    public static <T> T getNow(CompletableFuture<T> future, Supplier<T> valueIfAbsent) {
+        var res = future.getNow(null);
+        if (res != null) {
+            return res;
+        } else {
+            return valueIfAbsent.get();
+        }
     }
 }
 
@@ -748,6 +772,14 @@ class X3DViewer {
                                 1
                         )
                 );
+            }
+            {
+                JMenuItem miReload = new JMenuItem("Reload");
+                menuLR.add(miReload);
+                miReload.addActionListener(e ->
+                        uiEventListener.reload(
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                        ));
             }
             lblR.setComponentPopupMenu(menuLR);
             lblL.setComponentPopupMenu(menuLR);
@@ -2670,18 +2702,24 @@ class LRNavigator {
     LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo, String leftPath, String rightPath) {
         String newLeftPath = leftPath;
         String newRightPath = rightPath;
+        System.out.println("---");
+        System.out.println("L "+newLeftPath+"\nR "+newRightPath+"\n");
         if (isLeft) {
             left = newIfNotSuitable(left, leftPath);
             for (int i=0; i<byOneOrTwo; i++) {
                 newLeftPath = (forwardInTime ? left.toNext() : left.toPrev()).getCurrentPath();
+                System.out.println("L "+newLeftPath+"...");
             }
         }
         if (isRight) {
             right = newIfNotSuitable(right, rightPath);
             for (int i=0; i<byOneOrTwo; i++) {
                 newRightPath = (forwardInTime ? right.toNext() : right.toPrev()).getCurrentPath();
-            }   
+                System.out.println("R "+newRightPath+"...");
+            }
         }
+        System.out.println("\nL "+newLeftPath+"\nR "+newRightPath);
+        System.out.println("---");
         var uPaths = Arrays.asList(newLeftPath, newRightPath);
         uiController.showInProgressViewsAndThen(uPaths,
                 () ->  uiController.updateRawDataAsync(uPaths.get(0), uPaths.get(1))
