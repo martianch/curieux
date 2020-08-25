@@ -23,7 +23,9 @@ import javax.swing.*;
 import javax.swing.event.MouseInputAdapter;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultFormatterFactory;
 import javax.swing.text.Element;
+import javax.swing.text.NumberFormatter;
 import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLDocument;
 import java.awt.*;
@@ -58,6 +60,8 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,11 +72,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Scanner;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -142,11 +146,16 @@ interface UiEventListener {
     void copyUrls();
     void loadMatchOfOther(boolean isRight);
     void reload(boolean isRight);
+    void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol);
     void newWindow();
     void setShowUrls(boolean visible);
     void resetToDefaults();
     void saveScreenshot();
     void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
+}
+
+enum GoToImageOptions {
+    CURIOSITY_FIRST_OF_SOL
 }
 
 class DisplayParameters {
@@ -476,6 +485,14 @@ class UiController implements UiEventListener {
     }
 
     @Override
+    public void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol) {
+        sol.ifPresent(nSol -> {
+            // TODO: implement
+            System.out.println("gotoImage: "+goToImageOptions+" r:"+isRight+" "+nSol);
+        });
+    }
+
+    @Override
     public void newWindow() {
         ProcessForker.forkWrapped();
     }
@@ -514,6 +531,17 @@ class UiController implements UiEventListener {
     }
     public void changeRawData(RawData newRawData) {
         x3dViewer.updateViews(rawData=newRawData, displayParameters);
+    }
+    public void showInProgressViewsAndThen(Supplier<List<String>> pathSrc, Runnable next) {
+        RawData rawData0 = rawData;
+        showInProgressViewsAndThen(
+                Arrays.asList(ImageAndPath.IN_PROGRESS_PATH, ImageAndPath.IN_PROGRESS_PATH),
+                () -> {
+                    var paths = pathSrc.get();
+                    changeRawData(rawData0);
+                    showInProgressViewsAndThen(paths, next);
+                }
+        );
     }
     public void showInProgressViewsAndThen(List<String> paths, Runnable next) {
         try {
@@ -772,6 +800,17 @@ class X3DViewer {
                                 1
                         )
                 );
+            }
+            {
+                String title = "Go To First of Curiosity Sol...";
+                JMenuItem miGoTo = new JMenuItem(title);
+                menuLR.add(miGoTo);
+                miGoTo.addActionListener(e ->
+                        uiEventListener.gotoImage(
+                                GoToImageOptions.CURIOSITY_FIRST_OF_SOL,
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                askForNumber(100, title)
+                        ));
             }
             {
                 JMenuItem miReload = new JMenuItem("Reload");
@@ -1122,6 +1161,34 @@ class X3DViewer {
         if (repaint) {
             frame.validate();
             frame.repaint();
+        }
+    }
+    static Optional<Integer> askForNumber(int startWith, String title) {
+        SpinnerNumberModel spinnerNumberModel = new SpinnerNumberModel(
+                Integer.valueOf(startWith), // value
+                Integer.valueOf(0), // min
+                null, // max
+                Integer.valueOf(1) // step
+        );
+        JSpinner jSpinner = new JSpinner(spinnerNumberModel);
+
+        JFormattedTextField jFormattedTextField = ((JSpinner.DefaultEditor)jSpinner.getEditor()).getTextField();
+        {
+            NumberFormat numberFormat = new DecimalFormat("#");
+            NumberFormatter numberFormatter = new NumberFormatter(numberFormat);
+            numberFormatter.setValueClass(Integer.class);
+            numberFormatter.setMinimum(0);
+            numberFormatter.setMaximum(Integer.MAX_VALUE);
+            numberFormatter.setAllowsInvalid(false);
+            DefaultFormatterFactory myFormatterFactory = new DefaultFormatterFactory(numberFormatter);
+            jFormattedTextField.setFormatterFactory(myFormatterFactory);
+        }
+
+        int result = JOptionPane.showConfirmDialog(null, jSpinner, title, JOptionPane.OK_CANCEL_OPTION);
+        if (result == JOptionPane.OK_OPTION) {
+            return Optional.of((Integer)jSpinner.getValue());
+        } else {
+            return Optional.empty();
         }
     }
     public boolean doPaste(UiEventListener uiEventListener, boolean isRight, OneOrBothPanes oneOrBoth) {
@@ -2893,6 +2960,17 @@ class NasaReader {
                         "&per_page=10" +
                         "&page=0" +
                         "&condition_1=" + imageId + ":imageid:eq" +
+                        "&search=" +
+                        "&extended=thumbnail::sample_type::noteq"
+        );
+    }
+    static Object dataStructureFromCuriositySolStarting(int curiositySol, int perPage) throws IOException {
+        return dataStructureFromRequest(
+                "order=date_taken asc" +
+                        "&per_page=" + perPage +
+                        "&page=0" +
+                        "&condition_1=msl:mission" +
+                        "&condition_2=" + curiositySol + ":sol:gte" +
                         "&search=" +
                         "&extended=thumbnail::sample_type::noteq"
         );
