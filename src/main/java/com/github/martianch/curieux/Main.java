@@ -71,6 +71,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Scanner;
@@ -155,7 +156,8 @@ interface UiEventListener {
 }
 
 enum GoToImageOptions {
-    CURIOSITY_FIRST_OF_SOL
+    CURIOSITY_FIRST_OF_SOL,
+    CURIOSITY_LATEST;
 }
 
 class DisplayParameters {
@@ -322,7 +324,7 @@ class UiController implements UiEventListener {
     X3DViewer x3dViewer;
     DisplayParameters displayParameters;
     RawData rawData;
-    LRNavigator lrNavigator;
+    final LRNavigator lrNavigator;
     boolean dndOneToBoth = true;
     boolean unthumbnail = true;
     volatile long lastLoadTimestampL;
@@ -486,10 +488,18 @@ class UiController implements UiEventListener {
 
     @Override
     public void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol) {
-        sol.ifPresent(nSol -> {
-            // TODO: implement
-            System.out.println("gotoImage: "+goToImageOptions+" r:"+isRight+" "+nSol);
-        });
+        switch (goToImageOptions) {
+            case CURIOSITY_FIRST_OF_SOL:
+                sol.ifPresent(nSol -> {
+                    System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight + " " + nSol);
+                    lrNavigator.toCuriositySol(this, true, true, nSol);
+                });
+                break;
+            case CURIOSITY_LATEST:
+                System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight);
+                lrNavigator.toCuriosityLatest(this, true, true);
+                break;
+        }
     }
 
     @Override
@@ -802,7 +812,7 @@ class X3DViewer {
                 );
             }
             {
-                String title = "Go To First of Curiosity Sol...";
+                String title = "Go To First Image Taken on Curiosity Sol...";
                 JMenuItem miGoTo = new JMenuItem(title);
                 menuLR.add(miGoTo);
                 miGoTo.addActionListener(e ->
@@ -810,7 +820,20 @@ class X3DViewer {
                                 GoToImageOptions.CURIOSITY_FIRST_OF_SOL,
                                 lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
                                 askForNumber(100, title)
-                        ));
+                        )
+                );
+            }
+            {
+                String title = "Go To The Latest Curiosity Image";
+                JMenuItem miGoTo = new JMenuItem(title);
+                menuLR.add(miGoTo);
+                miGoTo.addActionListener(e ->
+                        uiEventListener.gotoImage(
+                                GoToImageOptions.CURIOSITY_LATEST,
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                Optional.empty() // unused
+                        )
+                );
             }
             {
                 JMenuItem miReload = new JMenuItem("Reload");
@@ -988,30 +1011,30 @@ class X3DViewer {
             }
             {
                 JButton bButton = new JButton();
-                DigitalZoomControl.loadIcon(bButton,null,"⇇"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                DigitalZoomControl.loadIcon(bButton,"icons/twoearlier24.png","««"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
                 bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 2));
-                bButton.setToolTipText("load two images taken earlier");
+                bButton.setToolTipText("go two images earlier in each pane");
                 statusPanel.add(bButton);
             }
             {
                 JButton bButton = new JButton();
-                DigitalZoomControl.loadIcon(bButton,null,"↢"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                DigitalZoomControl.loadIcon(bButton,"icons/oneearlier24.png","‹‹"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
                 bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 1));
-                bButton.setToolTipText("load one image taken earlier");
+                bButton.setToolTipText("go one image earlier in each pane");
                 statusPanel.add(bButton);
             }
             {
                 JButton fButton = new JButton();
-                DigitalZoomControl.loadIcon(fButton,null,"↣"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                DigitalZoomControl.loadIcon(fButton,"icons/onelater24.png","››"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
                 fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 1));
-                fButton.setToolTipText("load one image taken later");
+                fButton.setToolTipText("go one image later in each pane");
                 statusPanel.add(fButton);
             }
             {
                 JButton ffButton = new JButton();
-                DigitalZoomControl.loadIcon(ffButton,null,"⇉"); // "<->" "<=>" "icons/swap12.png" ⇉ ⇇ ↠ ↞ ↢ ↣
+                DigitalZoomControl.loadIcon(ffButton,"icons/twolater24.png","»»"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
                 ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 2));
-                ffButton.setToolTipText("load two images taken later");
+                ffButton.setToolTipText("go two images later in each pane");
                 statusPanel.add(ffButton);
             }
             {
@@ -2766,23 +2789,89 @@ class LRNavigator {
         right = left0;
         return this;
     }
+    LRNavigator toCuriositySol(UiController uiController, boolean isRight, boolean isLeft, int sol) {
+        try {
+            var rfn = new RemoteFileNavigator();
+            rfn.loadFromDataStructure(NasaReader.dataStructureFromCuriositySolStarting(sol, rfn.nToLoad));
+            String leftPath = rfn.toFirstLoaded().getCurrentPath();
+            var leftRfn = rfn.copy();
+            String rightPath = rfn.toNext().getCurrentPath();
+            var paths = FileLocations.twoPaths(leftPath, rightPath);
+
+            uiController.showInProgressViewsAndThen(paths,
+                    () ->  {
+                        if (Objects.equals(paths.get(0), leftPath)) {
+                            left = leftRfn;
+                            right = rfn;
+                        } else {
+                            right = leftRfn;
+                            left = rfn;
+                        }
+                        uiController.updateRawDataAsync(paths.get(0), paths.get(1));
+                    }
+            );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return this;
+    }
+    LRNavigator toCuriosityLatest(UiController uiController, boolean isRight, boolean isLeft) {
+        try {
+            var rfn = new RemoteFileNavigator();
+            rfn.loadFromDataStructure(NasaReader.dataStructureFromCuriositySolLatest(rfn.nToLoad));
+            String leftPath = rfn.toLastLoaded().getCurrentPath();
+            var leftRfn = rfn.copy();
+            String rightPath = rfn.toPrev().getCurrentPath();
+            var paths = FileLocations.twoPaths(leftPath, rightPath);
+
+            uiController.showInProgressViewsAndThen(paths,
+                    () ->  {
+                        if (Objects.equals(paths.get(0), leftPath)) {
+                            left = leftRfn;
+                            right = rfn;
+                        } else {
+                            right = leftRfn;
+                            left = rfn;
+                        }
+                        uiController.updateRawDataAsync(paths.get(0), paths.get(1));
+                    }
+            );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return this;
+    }
     LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo, String leftPath, String rightPath) {
         String newLeftPath = leftPath;
         String newRightPath = rightPath;
         System.out.println("---");
         System.out.println("L "+newLeftPath+"\nR "+newRightPath+"\n");
         if (isLeft) {
-            left = newIfNotSuitable(left, leftPath);
-            for (int i=0; i<byOneOrTwo; i++) {
-                newLeftPath = (forwardInTime ? left.toNext() : left.toPrev()).getCurrentPath();
-                System.out.println("L "+newLeftPath+"...");
+            try {
+                left = newIfNotSuitable(left, newLeftPath);
+                for (int i = 0; i < byOneOrTwo; i++) {
+                    newLeftPath = (forwardInTime ? left.toNext() : left.toPrev()).getCurrentPath();
+                    System.out.println("L " + newLeftPath + "...");
+                }
+            } catch (NoSuchElementException nsee) {
+                // TODO: think out something better
+                // load the image from the other pane
+                newLeftPath = uiController.rawData.right.pathToLoad;
+                left = newIfNotSuitable(left, newLeftPath);
             }
         }
         if (isRight) {
-            right = newIfNotSuitable(right, rightPath);
-            for (int i=0; i<byOneOrTwo; i++) {
-                newRightPath = (forwardInTime ? right.toNext() : right.toPrev()).getCurrentPath();
-                System.out.println("R "+newRightPath+"...");
+            try {
+                right = newIfNotSuitable(right, newRightPath);
+                for (int i = 0; i < byOneOrTwo; i++) {
+                    newRightPath = (forwardInTime ? right.toNext() : right.toPrev()).getCurrentPath();
+                    System.out.println("R " + newRightPath + "...");
+                }
+            } catch (NoSuchElementException nsee) {
+                // TODO: think out something better
+                // load the image from the other pane
+                newRightPath = uiController.rawData.left.pathToLoad;
+                right = newIfNotSuitable(right, newRightPath);
             }
         }
         System.out.println("\nL "+newLeftPath+"\nR "+newRightPath);
@@ -2804,11 +2893,14 @@ class LRNavigator {
 interface FileNavigator<T> {
     FileNavigator<T> toNext();
     FileNavigator<T> toPrev();
+    FileNavigator<T>  toFirstLoaded();
+    FileNavigator<T>  toLastLoaded();
     T getCurrentValue();
     String getCurrentKey();
     FileNavigator<T> setCurrentKey(String key);
     String toKey(T obj);
     String getPath(T t);
+    FileNavigator<T> copy();
     default String getCurrentPath() { return getPath(getCurrentValue()); }
 }
 abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
@@ -2820,6 +2912,12 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         FileNavigatorBase res = needRemote ? new RemoteFileNavigator() : new LocalFileNavigator();
         res._loadInitial(path);
         return res;
+    }
+    protected void setFrom(FileNavigatorBase other) {
+        nmap.clear();
+        nmap.putAll(other.nmap);
+        currentKey = other.currentKey;
+        nToLoad = other.nToLoad;
     }
     protected void moveWindow() {
         if (Objects.equals(currentKey, nmap.lastKey())) {
@@ -2837,6 +2935,7 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     protected abstract void _cleanupLower();
     protected int _numHigherToLoad() { return nToLoad; }
     protected int _numLowerToLoad() { return nToLoad; }
+
     @Override
     public FileNavigator<Map<String, Object>> toNext() {
         moveWindow();
@@ -2855,6 +2954,16 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         } else {
             currentKey = nmap.lowerKey(currentKey);
         }
+        return this;
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> toFirstLoaded() {
+        currentKey = nmap.firstKey();
+        return this;
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> toLastLoaded() {
+        currentKey = nmap.lastKey();
         return this;
     }
     @Override
@@ -2881,6 +2990,18 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
 }
 class LocalFileNavigator extends FileNavigatorBase {
     String currentDirectory = "";
+
+    protected void setFrom(LocalFileNavigator other) {
+        currentDirectory = other.currentDirectory;
+        super.setFrom(other);
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> copy() {
+        LocalFileNavigator res = new LocalFileNavigator();
+        res.setFrom(this);
+        return res;
+    }
+
     @Override
     protected void _loadInitial(String whereFrom) {
         Path path0 = Paths.get(whereFrom);
@@ -2956,7 +3077,7 @@ class NasaReader {
     }
     static Object dataStructureFromImageId(String imageId) throws IOException {
         return dataStructureFromRequest(
-                "order=date_taken asc" +
+                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
                         "&per_page=10" +
                         "&page=0" +
                         "&condition_1=" + imageId + ":imageid:eq" +
@@ -2966,7 +3087,7 @@ class NasaReader {
     }
     static Object dataStructureFromCuriositySolStarting(int curiositySol, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=date_taken asc" +
+                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -2975,9 +3096,19 @@ class NasaReader {
                         "&extended=thumbnail::sample_type::noteq"
         );
     }
+    static Object dataStructureFromCuriositySolLatest(int perPage) throws IOException {
+        return dataStructureFromRequest(
+                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
+                        "&per_page=" + perPage +
+                        "&page=0" +
+                        "&condition_1=msl:mission" +
+                        "&search=" +
+                        "&extended=thumbnail::sample_type::noteq"
+        );
+    }
     static Object dataStructureFromDateStarting(String date, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=date_taken asc" +
+                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=" + date + ":date_taken:gte" +
@@ -2987,7 +3118,7 @@ class NasaReader {
     }
     static Object dataStructureFromDateEnding(String date, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=date_taken desc" +
+                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=" + date + ":date_taken:lte" +
@@ -2997,6 +3128,17 @@ class NasaReader {
     }
 }
 class RemoteFileNavigator extends FileNavigatorBase {
+    protected void setFrom(LocalFileNavigator other) {
+//        xxx = other.xxx;
+        super.setFrom(other);
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> copy() {
+        RemoteFileNavigator res = new RemoteFileNavigator();
+        res.setFrom(this);
+        return res;
+    }
+
     void loadFromDataStructure(Object jsonObject) {
         try {
             List<Object> list = (List<Object>) JsonDiy.get(jsonObject, "items");
