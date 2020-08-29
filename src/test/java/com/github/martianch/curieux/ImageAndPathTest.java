@@ -13,9 +13,9 @@ public class ImageAndPathTest {
     public void isPathEqualTest() {
         BufferedImage dummy = ImageAndPath.dummyImage(Color.BLUE);
         BufferedImage nonDummy = ImageAndPath._dummyImage(Color.BLUE, ImageAndPath.DUMMY_SIZE+1, ImageAndPath.DUMMY_SIZE);
-        ImageAndPath iap1 = new ImageAndPath(nonDummy,"/foo/bar");
-        ImageAndPath iap2 = new ImageAndPath(dummy,"");
-        ImageAndPath iap3 = new ImageAndPath(dummy,"...");
+        ImageAndPath iap1 = new ImageAndPath(nonDummy,"/foo/bar","/foo/bar");
+        ImageAndPath iap2 = new ImageAndPath(dummy,"","/foo/bar");
+        ImageAndPath iap3 = new ImageAndPath(dummy,"...","/foo/bar");
         assertTrue(iap1.isPathEqual("/foo/bar"));
         assertFalse(iap1.isPathEqual("/baz/qux"));
         assertFalse(iap1.isPathEqual(""));
