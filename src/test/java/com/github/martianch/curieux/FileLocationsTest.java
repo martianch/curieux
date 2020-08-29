@@ -3,6 +3,7 @@ package com.github.martianch.curieux;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.github.martianch.curieux.FileLocations.isBayered;
 import static com.github.martianch.curieux.FileLocations.isUrl;
@@ -268,5 +269,13 @@ public class FileLocationsTest {
         assertFalse(isBayered("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
         assertFalse(isBayered("NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
         assertFalse(isBayered("/tmp/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
+    }
+    @Test
+    public void getSolTest() {
+        assertEquals(Optional.of(2804),FileLocations.getSol("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
+        assertEquals(Optional.of(2700),FileLocations.getSol("file://foo/bar/2700/0560ML0022630070204612C00_DXXX.jpg"));
+        assertEquals(Optional.of(2701),FileLocations.getSol("/foo/bar/2701/0560ML0022630070204612C00_DXXX.jpg"));
+        assertEquals(Optional.of(2702),FileLocations.getSol("C:\\foo\\bar\\2702\\0560ML0022630070204612C00_DXXX.jpg"));
+        assertEquals(Optional.empty(),FileLocations.getSol("/foo/bar/0560ML0022630070204612C00_DXXX.jpg"));
     }
 }

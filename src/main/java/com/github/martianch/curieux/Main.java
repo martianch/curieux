@@ -81,6 +81,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.awt.Image.SCALE_SMOOTH;
@@ -146,6 +148,7 @@ interface UiEventListener {
     void copyUrl(boolean isRight);
     void copyUrls();
     void loadMatchOfOther(boolean isRight);
+    void loadCopyOfOther(boolean isRight);
     void reload(boolean isRight);
     void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol);
     void newWindow();
@@ -153,6 +156,7 @@ interface UiEventListener {
     void resetToDefaults();
     void saveScreenshot();
     void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
+    Optional<Integer> getSol(boolean isRight);
 }
 
 enum GoToImageOptions {
@@ -478,6 +482,15 @@ class UiController implements UiEventListener {
     }
 
     @Override
+    public void loadCopyOfOther(boolean isRight) {
+        var other = isRight ? rawData.left : rawData.right;
+        var otherNavigator = isRight ? lrNavigator.left : lrNavigator.right;
+        changeRawData(new RawData(other, other));
+        lrNavigator.left = otherNavigator;
+        lrNavigator.right = otherNavigator.copy();
+    }
+
+    @Override
     public void reload(boolean isRight) {
         var paths = Arrays.asList(rawData.left.pathToLoad, rawData.right.pathToLoad);
         var uPaths = unThumbnailIfNecessary(paths);
@@ -527,6 +540,10 @@ class UiController implements UiEventListener {
     @Override
     public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo) {
         lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byOneOrTwo, rawData.left.pathToLoad, rawData.right.pathToLoad);
+    }
+    @Override
+    public Optional<Integer> getSol(boolean isRight) {
+        return FileLocations.getSol((isRight ? rawData.right : rawData.left).pathToLoad);
     }
 
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
@@ -773,10 +790,18 @@ class X3DViewer {
                         ));
             }
             {
-                JMenuItem miLoadMatch = new JMenuItem("Load Match of the Other");
+                JMenuItem miLoadMatch = new JMenuItem("Load Match of Other");
                 menuLR.add(miLoadMatch);
                 miLoadMatch.addActionListener(e ->
                         uiEventListener.loadMatchOfOther(
+                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                        ));
+            }
+            {
+                JMenuItem miLoadMatch = new JMenuItem("Load Copy of Other");
+                menuLR.add(miLoadMatch);
+                miLoadMatch.addActionListener(e ->
+                        uiEventListener.loadCopyOfOther(
                                 lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
                         ));
             }
@@ -816,11 +841,14 @@ class X3DViewer {
                 JMenuItem miGoTo = new JMenuItem(title);
                 menuLR.add(miGoTo);
                 miGoTo.addActionListener(e ->
-                        uiEventListener.gotoImage(
-                                GoToImageOptions.CURIOSITY_FIRST_OF_SOL,
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
-                                askForNumber(100, title)
-                        )
+                        {
+                            boolean isRight = lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker();
+                            uiEventListener.gotoImage(
+                                    GoToImageOptions.CURIOSITY_FIRST_OF_SOL,
+                                    isRight,
+                                    askForNumber(uiEventListener.getSol(isRight).orElse(100), title  )
+                            );
+                        }
                 );
             }
             {
@@ -1734,6 +1762,18 @@ abstract class FileLocations {
         } else {
             return fileNameExt.substring(0,indexOfDot);
         }
+    }
+    static Optional<Integer> getSol(String urlOrPath) {
+        Pattern pattern = Pattern.compile("[/\\\\]([0-9]+)[/\\\\]");
+        Matcher matcher = pattern.matcher(urlOrPath);
+        if(matcher.find()) {
+            try {
+                return Optional.of(Integer.valueOf(matcher.group(1)));
+            } catch (Throwable ignored) {
+                // do nothing
+            }
+        }
+        return Optional.empty();
     }
     static List<String> twoPaths(String path0) {
         if (isUrl(path0)) {
@@ -2919,11 +2959,11 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         currentKey = other.currentKey;
         nToLoad = other.nToLoad;
     }
-    protected void moveWindow() {
-        if (Objects.equals(currentKey, nmap.lastKey())) {
+    protected void moveWindow(boolean forwardInTime) {
+        if (forwardInTime && Objects.equals(currentKey, nmap.lastKey())) {
             _loadHigher(); _cleanupLower();
         }
-        if (Objects.equals(currentKey, nmap.firstKey())) {
+        if (!forwardInTime && Objects.equals(currentKey, nmap.firstKey())) {
             _loadLower(); _cleanupHigher();
         }
     }
@@ -2938,7 +2978,7 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
 
     @Override
     public FileNavigator<Map<String, Object>> toNext() {
-        moveWindow();
+        moveWindow(true);
         if (currentKey == null) {
             currentKey = nmap.firstKey();
         } else {
@@ -2948,7 +2988,7 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     }
     @Override
     public FileNavigator<Map<String, Object>> toPrev() {
-        moveWindow();
+        moveWindow(false);
         if (currentKey == null) {
             currentKey = nmap.lastKey();
         } else {
@@ -3070,6 +3110,7 @@ class NasaReader {
                 nasaEncode( parameters );
     }
     static Object dataStructureFromRequest(String parameters) throws IOException {
+        System.out.println("dataStructureFromRequest("+parameters+")");
         String url = makeRequest(parameters);
         String json = NasaReader.readUrl(new URL(url));
         Object res = JsonDiy.jsonToDataStructure(json);
@@ -3111,7 +3152,8 @@ class NasaReader {
                 "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
                         "&per_page=" + perPage +
                         "&page=0" +
-                        "&condition_1=" + date + ":date_taken:gte" +
+                        "&condition_1=msl:mission" +
+                        "&condition_2=" + date + ":date_taken:gte" +
                         "&search=" +
                         "&extended=thumbnail::sample_type::noteq"
         );
@@ -3121,7 +3163,8 @@ class NasaReader {
                 "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
                         "&per_page=" + perPage +
                         "&page=0" +
-                        "&condition_1=" + date + ":date_taken:lte" +
+                        "&condition_1=msl:mission" +
+                        "&condition_2=" + date + ":date_taken:lte" +
                         "&search=" +
                         "&extended=thumbnail::sample_type::noteq"
         );
