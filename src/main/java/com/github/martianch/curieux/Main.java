@@ -2540,6 +2540,7 @@ class ScreenshotSaver {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
             showSaveDialog(
                     frame,
+                    FileLocations.getSol(rawData.left.path).map(x -> String.format("%04d-",x)).orElse(""),
                     (imgFile, srcFile) -> {
                         String description = "Left, Right:\n" + rawData.left.path + "\n" + rawData.right.path + "\n";
                         ScreenshotSaver.writePng(imgFile, bi,
@@ -2553,9 +2554,9 @@ class ScreenshotSaver {
         }
 
     }
-    void showSaveDialog(JFrame frame, SaveAction howToSave) throws Exception {
+    void showSaveDialog(JFrame frame, String prefix, SaveAction howToSave) throws Exception {
         fileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
-        fileChooser.setSelectedFile(new File("stereo.png"));
+        fileChooser.setSelectedFile(new File(prefix+"stereo.png"));
 //        File imgFile;
         while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
             File imgFile = fileChooser.getSelectedFile();
