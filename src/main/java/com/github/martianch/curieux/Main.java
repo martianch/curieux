@@ -1017,13 +1017,17 @@ class X3DViewer {
                         "the currently selected one; please use Space to select the current action.<br>" +
                         "<b>F1</b>: this help<br>" +
                         "<br>"+
-                        "Command line: arguments may be either file paths or URLs<br>" +
-                        "Drag-and-Drop (DnD): opens one or two images;<br>" +
-                        "if only one image was dropped, if the \"DnD BOTH\" <br>" +
-                        "checkbox is checked, tries to also load<br>" +
-                        "the corresponding right or left image.<br>" +
+                        "<b>Command line:</b> arguments may be either file paths or URLs<br>" +
+                        "<b>Drag-and-Drop (DnD):</b> opens one or two images; if only one image was dropped, if the \"DnD BOTH\" <br>" +
+                        "checkbox is checked, tries to also load the corresponding right or left image.<br>" +
                         "If the \"DnD BOTH\" box is not checked, the dropped image/url<br>" +
                         "just replaces the image on which it was dropped.<br>" +
+                        "<br>"+
+                        "<b>Navigation.</b> On the NASA site, there is a list of all images in chronological order.<br>" +
+                        "Each pane has its own pointer to the current image. In most cases, you will want the right and left<br>" +
+                        "panes to hold images that go one next to the other, but this is not necessary, any distance between the two<br>" +
+                        "images is possible. Use the navigation buttons to replace images in both panes, use the context menu<br>" +
+                        "to replace only one image.<br>"+
                         "<br>"+
                         "This project's " +
                         "<a href=\"https://github.com/martianch/curieux\">"+
