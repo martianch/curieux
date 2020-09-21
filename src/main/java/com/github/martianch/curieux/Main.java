@@ -756,6 +756,7 @@ class X3DViewer {
         frame=new JFrame();
         urlL=new JLabel("url1");
         urlR=new JLabel("url2");
+        ColorCorrectionPane colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
 
         Font font = lblL.getFont();
         {
@@ -831,6 +832,13 @@ class X3DViewer {
                 miNewEmptyWindow.addActionListener(e ->
                                 uiEventListener.newWindow()
                         );
+            }
+            {
+                JMenuItem miColors = new JMenuItem("Color Correction...");
+                menuLR.add(miColors);
+                miColors.addActionListener(e ->
+                        colorCorrectionPane.showDialogIn(frame)
+                );
             }
             {
                 JMenuItem miPrevImage = new JMenuItem("Go To Previous");
@@ -1111,14 +1119,11 @@ class X3DViewer {
                 statusPanel2.add(showUrlsCheckox);
             }
             {
-                ColorCorrectionPane colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
-
                 JButton colorButton = new JButton();
                 DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","color");
                 colorButton.setToolTipText("color correction...");
                 colorButton.addActionListener(e -> {
-                    JOptionPane.showMessageDialog(frame, colorCorrectionPane,
-                            "Color Correction", JOptionPane.PLAIN_MESSAGE);
+                    colorCorrectionPane.showDialogIn(frame);
                 });
                 statusPanel2.add(colorButton);
             }
@@ -3330,6 +3335,36 @@ class ColorCorrection {
             case STRETCH_CONTRAST_HSV_SV:
                 res = HSVColorBalancer.balanceColors(res, false, true, true);
                 break;
+            case GAMMA_DECODE_2_4:
+                res = GammaColorBalancer.balanceColors(res, 2.4);
+                break;
+            case GAMMA_DECODE_2_2:
+                res = GammaColorBalancer.balanceColors(res, 2.2);
+                break;
+            case GAMMA_DECODE_2_0:
+                res = GammaColorBalancer.balanceColors(res, 2.0);
+                break;
+            case GAMMA_DECODE_1_8:
+                res = GammaColorBalancer.balanceColors(res, 1.8);
+                break;
+            case GAMMA_DECODE_1_6:
+                res = GammaColorBalancer.balanceColors(res, 1.6);
+                break;
+            case GAMMA_ENCODE_2_4:
+                res = GammaColorBalancer.balanceColors(res, 1/2.4);
+                break;
+            case GAMMA_ENCODE_2_2:
+                res = GammaColorBalancer.balanceColors(res, 1/2.2);
+                break;
+            case GAMMA_ENCODE_2_0:
+                res = GammaColorBalancer.balanceColors(res, 1/2.0);
+                break;
+            case GAMMA_ENCODE_1_8:
+                res = GammaColorBalancer.balanceColors(res, 1/1.8);
+                break;
+            case GAMMA_ENCODE_1_6:
+                res = GammaColorBalancer.balanceColors(res, 1/1.6);
+                break;
         }
         return res;
     }
@@ -3337,11 +3372,23 @@ class ColorCorrection {
 
 enum ColorCorrectionAlgo {
     DO_NOTHING("as is"),
-    STRETCH_CONTRAST_RGB_RGB("stretch contrast, RGB space, each channel separately"),
-    STRETCH_CONTRAST_RGB_V("stretch contrast, RGB space, all channels together"),
-    STRETCH_CONTRAST_HSV_V("stretch contrast, HSV space, change V"),
-    STRETCH_CONTRAST_HSV_S("stretch contrast, HSV space, change S"),
-    STRETCH_CONTRAST_HSV_SV("stretch contrast, HSV space, change S&V");
+    STRETCH_CONTRAST_RGB_RGB("stretch R,G,B separately in RGB space"),
+    STRETCH_CONTRAST_RGB_V("stretch R,G,B together in RGB space"),
+    STRETCH_CONTRAST_HSV_V("stretch V in HSV space"),
+    STRETCH_CONTRAST_HSV_S("stretch S in HSV space"),
+    STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space"),
+    //  γ<1 is sometimes called an encoding gamma (γ-compression), γ>1 is called a decoding gamma (γ-expansion)
+    GAMMA_DECODE_2_4("gamma decode, γ=2.4"),
+    GAMMA_DECODE_2_2("gamma decode, γ=2.2"),
+    GAMMA_DECODE_2_0("gamma decode, γ=2.0"),
+    GAMMA_DECODE_1_8("gamma decode, γ=1.8"),
+    GAMMA_DECODE_1_6("gamma decode, γ=1.6"),
+    GAMMA_ENCODE_2_4("gamma encode, γ=1/2.4"),
+    GAMMA_ENCODE_2_2("gamma encode, γ=1/2.2"),
+    GAMMA_ENCODE_2_0("gamma encode, γ=1/2.0"),
+    GAMMA_ENCODE_1_8("gamma encode, γ=1/1.8"),
+    GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6");
+
     String name;
 
     ColorCorrectionAlgo(String userVisibleName) {
@@ -3359,6 +3406,7 @@ class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {
     public ColorCorrectionModeChooser(Consumer<ColorCorrectionAlgo> valueListener) {
         super(modes);
         setValue(ColorCorrectionAlgo.DO_NOTHING);
+        setMaximumRowCount(modes.length);
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
                 valueListener.accept((ColorCorrectionAlgo) itemEvent.getItem());
@@ -3413,6 +3461,11 @@ class ColorCorrectionPane extends JPanel {
         }
         this.setLayout(gbl);
     }
+
+    void showDialogIn(JFrame mainFrame) {
+        JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
+    }
+
     ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers) {
         var algos = choosers.stream().map(c -> (ColorCorrectionAlgo)c.getSelectedItem()).collect(Collectors.toList());
         return new ColorCorrection(algos);
@@ -3570,4 +3623,38 @@ class HSVColorBalancer {
     }
 }
 
+class GammaColorBalancer {
+    public static BufferedImage balanceColors(BufferedImage src, double gamma) {
+//        if (ImageAndPath.isDummyImage(src)) {
+//            return src;
+//        }
+        try {
+            int width = src.getWidth();
+            int height = src.getHeight();
+            var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int j = 0; j < height; j++) {
+                for (int i = 0; i < width; i++) {
+                    int color = src.getRGB(i, j);
+
+                    int r = 0xff & (color >> 16);
+                    int g = 0xff & (color >> 8);
+                    int b = 0xff & (color);
+                    int r1 = gamma(gamma, r);
+                    int g1 = gamma(gamma, g);
+                    int b1 = gamma(gamma, b);
+                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                    res.setRGB(i, j, color1);
+                }
+            }
+            return res;
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
+        }
+    }
+    static int gamma(double gamma, int colorValue) {
+        double res = Math.pow((colorValue / 255.), gamma) * 255.;
+        return (int) Math.round(res);
+    }
+}
 
