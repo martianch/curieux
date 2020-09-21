@@ -66,6 +66,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -139,6 +140,8 @@ interface UiEventListener {
     void rAngleChanged(double newRAngle);
     void lDebayerModeChanged(DebayerMode newLDebayerMode);
     void rDebayerModeChanged(DebayerMode newRDebayerMode);
+    void lColorCorrectionChanged(ColorCorrection colorCorrection);
+    void rColorCorrectionChanged(ColorCorrection colorCorrection);
     void xOffsetChanged(int newXOff);
     void yOffsetChanged(int newYOff);
     void swapImages();
@@ -169,6 +172,7 @@ class DisplayParameters {
     int offsetX, offsetY;
     double angle, angleR, angleL;
     DebayerMode debayerL, debayerR;
+    ColorCorrection lColorCorrection, rColorCorrection;
 
     public DisplayParameters() {
         setDefaults();
@@ -178,8 +182,9 @@ class DisplayParameters {
         offsetX = offsetY = 0;
         angle = angleL = angleR = 0.;
         debayerL = debayerR = DebayerMode.AUTO3;
+        lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST);
     }
-    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR) {
+    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
         this.zoom = zoom;
         this.zoomL = zoomL;
         this.zoomR = zoomR;
@@ -190,12 +195,14 @@ class DisplayParameters {
         this.angleR = angleR;
         this.debayerL = debayerL;
         this.debayerR = debayerR;
+        this.lColorCorrection = lColorCorrection;
+        this.rColorCorrection = rColorCorrection;
     }
 //    public DisplayParameters copy() {
 //        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY);
 //    }
     public DisplayParameters swapped() {
-        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL);
+        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, rColorCorrection, lColorCorrection);
     }
 }
 class ImageAndPath {
@@ -387,6 +394,16 @@ class UiController implements UiEventListener {
     @Override
     public void yOffsetChanged(int newYOff) {
         displayParameters.offsetY = newYOff;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void lColorCorrectionChanged(ColorCorrection colorCorrection) {
+        displayParameters.lColorCorrection = colorCorrection;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void rColorCorrectionChanged(ColorCorrection colorCorrection) {
+        displayParameters.rColorCorrection = colorCorrection;
         x3dViewer.updateViews(rawData, displayParameters);
     }
     @Override
@@ -697,6 +714,9 @@ class X3DViewer {
             {
                 BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
                 BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
+
+                imgL = ColorCorrection.doColorCorrection(dp.lColorCorrection, imgL);
+                imgR = ColorCorrection.doColorCorrection(dp.rColorCorrection, imgR);
 
                 BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
                 BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
@@ -1089,6 +1109,18 @@ class X3DViewer {
                         e -> uiEventListener.setShowUrls(showUrlsCheckox.isSelected())
                 );
                 statusPanel2.add(showUrlsCheckox);
+            }
+            {
+                ColorCorrectionPane colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
+
+                JButton colorButton = new JButton();
+                DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","color");
+                colorButton.setToolTipText("color correction...");
+                colorButton.addActionListener(e -> {
+                    JOptionPane.showMessageDialog(frame, colorCorrectionPane,
+                            "Color Correction", JOptionPane.PLAIN_MESSAGE);
+                });
+                statusPanel2.add(colorButton);
             }
         }
 
@@ -3265,6 +3297,275 @@ class RemoteFileNavigator extends FileNavigatorBase {
             }
             var toDelete = lowerAll.headMap(key, false);
             toDelete.clear();
+        }
+    }
+}
+
+class ColorCorrection {
+    final List<ColorCorrectionAlgo> algos;
+
+    public ColorCorrection(List<ColorCorrectionAlgo> algos) {
+        this.algos = Collections.unmodifiableList(new ArrayList<>(algos));
+    }
+
+    static BufferedImage doColorCorrection(ColorCorrection colorCorrection, BufferedImage image) {
+        BufferedImage res = image;
+        for (ColorCorrectionAlgo algo : colorCorrection.algos)
+        switch (algo) {
+            default:
+            case DO_NOTHING:
+                break;
+            case STRETCH_CONTRAST_RGB_RGB:
+                res = ColorBalancer.balanceColors(res, true);
+                break;
+            case STRETCH_CONTRAST_RGB_V:
+                res = ColorBalancer.balanceColors(res, false);
+                break;
+            case STRETCH_CONTRAST_HSV_S:
+                res = HSVColorBalancer.balanceColors(res, false, true, false);
+                break;
+            case STRETCH_CONTRAST_HSV_V:
+                res = HSVColorBalancer.balanceColors(res, false, false, true);
+                break;
+            case STRETCH_CONTRAST_HSV_SV:
+                res = HSVColorBalancer.balanceColors(res, false, true, true);
+                break;
+        }
+        return res;
+    }
+}
+
+enum ColorCorrectionAlgo {
+    DO_NOTHING("as is"),
+    STRETCH_CONTRAST_RGB_RGB("stretch contrast, RGB space, each channel separately"),
+    STRETCH_CONTRAST_RGB_V("stretch contrast, RGB space, all channels together"),
+    STRETCH_CONTRAST_HSV_V("stretch contrast, HSV space, change V"),
+    STRETCH_CONTRAST_HSV_S("stretch contrast, HSV space, change S"),
+    STRETCH_CONTRAST_HSV_SV("stretch contrast, HSV space, change S&V");
+    String name;
+
+    ColorCorrectionAlgo(String userVisibleName) {
+        this.name = userVisibleName;
+    }
+
+    @Override
+    public String toString() {
+        return name;
+    }
+}
+
+class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {
+    static ColorCorrectionAlgo[] modes = ColorCorrectionAlgo.values();
+    public ColorCorrectionModeChooser(Consumer<ColorCorrectionAlgo> valueListener) {
+        super(modes);
+        setValue(ColorCorrectionAlgo.DO_NOTHING);
+        addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                valueListener.accept((ColorCorrectionAlgo) itemEvent.getItem());
+            }
+        });
+    }
+    public void setValue(ColorCorrectionAlgo algo) {
+        setSelectedItem(algo);
+    }
+}
+
+class ColorCorrectionPane extends JPanel {
+    final UiEventListener uiEventListener;
+    final List<ColorCorrectionModeChooser> lChoosers = new ArrayList<>();
+    final List<ColorCorrectionModeChooser> rChoosers = new ArrayList<>();
+
+    public ColorCorrectionPane(UiEventListener uiEventListener) {
+        this.uiEventListener = uiEventListener;
+
+        GridBagLayout gbl = new GridBagLayout();
+
+        {
+            var text = new JLabel("Apply effects to each image, in this sequence:");
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 0;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(text, gbc);
+            this.add(text);
+        }
+        for (int col = 0; col<2; col++) {
+            final boolean isLeft = (col & 1) == 0;
+            for (int row = 0; row < 5; row++) {
+                ColorCorrectionModeChooser chooser = new ColorCorrectionModeChooser(x -> {
+                    if (isLeft) {
+                        uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers));
+                    } else {
+                        uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers));
+                    }
+                });
+                (isLeft ? lChoosers : rChoosers).add(chooser);
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.fill = GridBagConstraints.BOTH;
+                gbc.weightx = 1.0;
+                gbc.weighty = 1.0;
+                gbc.gridx = col*3;
+                gbc.gridy = row+1;
+                gbl.setConstraints(chooser, gbc);
+                this.add(chooser);
+            }
+        }
+        this.setLayout(gbl);
+    }
+    ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers) {
+        var algos = choosers.stream().map(c -> (ColorCorrectionAlgo)c.getSelectedItem()).collect(Collectors.toList());
+        return new ColorCorrection(algos);
+    }
+}
+
+class ColorBalancer {
+    public static BufferedImage balanceColors(BufferedImage src, boolean perChannel) {
+//        if (ImageAndPath.isDummyImage(src)) {
+//            return src;
+//        }
+        try {
+            final int M = 16;
+            int minR = Integer.MAX_VALUE, minG = Integer.MAX_VALUE, minB = Integer.MAX_VALUE, maxR = 0, maxG = 0, maxB = 0;
+            int width = src.getWidth();
+            int height = src.getHeight();
+            long avgR = 0, avgG = 0, avgB = 0, avgW = 0;
+            for (int j = M; j < height - M; j++) {
+                for (int i = M; i < width - M; i++) {
+                    int color = src.getRGB(i, j);
+                    minR = Math.min(minR, 0xff & (color >> 16));
+                    minG = Math.min(minG, 0xff & (color >> 8));
+                    minB = Math.min(minB, 0xff & (color));
+                    maxR = Math.max(maxR, 0xff & (color >> 16));
+                    maxG = Math.max(maxG, 0xff & (color >> 8));
+                    maxB = Math.max(maxB, 0xff & (color));
+                    avgR += 0xff & (color >> 16);
+                    avgG += 0xff & (color >> 8);
+                    avgB += 0xff & (color);
+                }
+            }
+            {
+                avgW = avgR + avgG + avgB;
+                long N = (height - 2 * M) * (width - 2 * M);
+                avgR /= N;
+                avgG /= N;
+                avgB /= N;
+                avgW /= 3 * N;
+            }
+            int minV = Math.min(minR, Math.min(minG, minB));
+            int maxV = Math.max(maxR, Math.max(maxG, maxB));
+            int dv = maxV - minV;
+
+            int dr = maxR - minR;
+            int dg = maxG - minG;
+            int db = maxB - minB;
+            int dw = Math.max(dr, Math.max(dg, db));
+            System.out.println("min: " + minR + " " + minG + " " + minB);
+            System.out.println("max: " + maxR + " " + maxG + " " + maxB);
+            System.out.println("avg: " + avgR + " " + avgG + " " + avgB + "  " + avgW);
+            System.out.println("d: " + dr + " " + dg + " " + db);
+            System.out.println("avgd: " + (avgR - minR) + " " + (avgG - minG) + " " + (avgB - minB));
+
+            if (!perChannel) {
+                maxR = maxG = maxB = maxV;
+                minR = minG = minB = minV;
+                dr = dg = db = dv;
+            }
+
+            var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int j = 0; j < height; j++) {
+                for (int i = 0; i < width; i++) {
+                    int color = src.getRGB(i, j);
+                    int r = 0xff & (color >> 16);
+                    int g = 0xff & (color >> 8);
+                    int b = 0xff & (color);
+//                    int r1 = (int) (r * avgB*avgG/avgR/255);//r * 255 / maxR;//(r - minR) * 255 / dr;
+//                    int g1 = (int) (g * avgB*avgR/avgG/255); //g * 255 / maxG;//(g - minG) * 255 / dg;
+//                    int b1 = (int) (b * avgG*avgR/avgB/255); //b * 255 / maxB;// b * (b - minB) * 255 / db;
+//                    int r1 = (r - minR) * 255 / dr;
+//                    int g1 = (g - minG) * 255 / dg;
+//                    int b1 = (b - minB) * 255 / db;
+                    int r1 = (r - minR) * maxR / dr;
+                    int g1 = (g - minG) * maxG / dg;
+                    int b1 = (b - minB) * maxB / db;
+                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                    res.setRGB(i, j, color1);
+                }
+            }
+            return res;
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
+        }
+    }
+}
+
+class HSVColorBalancer {
+    public static BufferedImage balanceColors(BufferedImage src, boolean stretchH, boolean stretchS, boolean stretchV) {
+//        if (ImageAndPath.isDummyImage(src)) {
+//            return src;
+//        }
+        try {
+            final int M = 16;
+            float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
+            int width = src.getWidth();
+            int height = src.getHeight();
+            float avgH = 0, avgS = 0, avgV = 0;
+            float[] hsv = { 0.f, 0.f, 0.f };
+            for (int j = M; j < height - M; j++) {
+                for (int i = M; i < width - M; i++) {
+                    int color = src.getRGB(i, j);
+                    hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+                    minH = Math.min(minH, hsv[0]);
+                    minS = Math.min(minS, hsv[1]);
+                    minV = Math.min(minV, hsv[2]);
+                    maxH = Math.max(maxH, hsv[0]);
+                    maxS = Math.max(maxS, hsv[1]);
+                    maxV = Math.max(maxV, hsv[2]);
+                    avgH += hsv[0];
+                    avgS += hsv[1];
+                    avgV += hsv[2];
+                }
+            }
+            {
+                long N = (height - 2 * M) * (width - 2 * M);
+                avgH /= N;
+                avgS /= N;
+                avgV /= N;
+            }
+            float dh = maxH - minH;
+            float ds = maxS - minS;
+            float dv = maxV - minV;
+            System.out.println("min:  " + minH + " " + minS + " " + minV);
+            System.out.println("max:  " + maxH + " " + maxS + " " + maxV);
+            System.out.println("avg:  " + avgH + " " + avgS + " " + avgV);
+            System.out.println("  d:  " + dh + " " + ds + " " + dv);
+            System.out.println("avgd: " + (avgH - minH) + " " + (avgS - minS) + " " + (avgV - minV));
+            var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int j = 0; j < height; j++) {
+                for (int i = 0; i < width; i++) {
+                    int color = src.getRGB(i, j);
+                    hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+//                    int r = 0xff & (color >> 16);
+//                    int g = 0xff & (color >> 8);
+//                    int b = 0xff & (color);
+////                    int r1 = (int) (r * avgB*avgG/avgR/255);//r * 255 / maxR;//(r - minR) * 255 / dr;
+////                    int g1 = (int) (g * avgB*avgR/avgG/255); //g * 255 / maxG;//(g - minG) * 255 / dg;
+////                    int b1 = (int) (b * avgG*avgR/avgB/255); //b * 255 / maxB;// b * (b - minB) * 255 / db;
+////                    int r1 = (r - minR) * 255 / dr;
+////                    int g1 = (g - minG) * 255 / dg;
+////                    int b1 = (b - minB) * 255 / db;
+                    float h1 = stretchH ? (hsv[0] - minH) * maxH / dh : hsv[0];
+                    float s1 = stretchS ? (hsv[1] - minS) * maxS / ds : hsv[1];
+                    float v1 = stretchV ? (hsv[2] - minV) * maxV / dv : hsv[2];
+                    int color1 = Color.HSBtoRGB(h1, s1, v1);
+                    res.setRGB(i, j, color1);
+                }
+            }
+            return res;
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
         }
     }
 }
