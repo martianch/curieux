@@ -1029,6 +1029,10 @@ class X3DViewer {
                         "images is possible. Use the navigation buttons to replace images in both panes, use the context menu<br>" +
                         "to replace only one image.<br>"+
                         "<br>"+
+                        "<b>Color correction.</b> <a href=\"https://homepages.inf.ed.ac.uk/rbf/HIPR2/stretch.htm\">Contrast stretching</a>" +
+                        " and <a href=\"https://en.wikipedia.org/wiki/Gamma_correction\">gamma correction</a> are implemented (available via<br>" +
+                        "the context menu or via the color button).<br>"+
+                        "<br>"+
                         "This project's " +
                         "<a href=\"https://github.com/martianch/curieux\">"+
                         "home page" +
