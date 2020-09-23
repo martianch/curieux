@@ -8,6 +8,7 @@ Curious: an X3D Viewer
 Designed to view the Curiosity Rover images from Mars in X3D, but can be used to view any stereo pairs (both LR and X3D).
 Opens images from Internet or local drive, supports drag-and-drop, for example, you can drag-n-drop the red DOWNLOAD
 button from the raw images index on the NASA site.
+This software is Public Domain
 */
 
 
@@ -93,6 +94,12 @@ public class Main {
 
     public static final String NASA_RAW_IMAGES_URL =
         "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl";
+
+    public static final String[] PREFERRED_FONTS = {
+            "Verdana"
+            //,"Ubuntu"
+            //,"DejaVu Sans Mono"
+    };
 
     public static void main(String[] args) throws Exception {
         System.out.println("args: "+ Arrays.toString(args));
@@ -679,8 +686,11 @@ class UiController implements UiEventListener {
 class X3DViewer {
     JButton lblL;
     JButton lblR;
+    JComponent urlPanel;
     JLabel urlL;
     JLabel urlR;
+    JLabel colorCorrectionDescriptionL;
+    JLabel colorCorrectionDescriptionR;
     JFrame frame;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
@@ -715,8 +725,8 @@ class X3DViewer {
                 BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
                 BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
 
-                imgL = ColorCorrection.doColorCorrection(dp.lColorCorrection, imgL);
-                imgR = ColorCorrection.doColorCorrection(dp.rColorCorrection, imgR);
+                imgL = dp.lColorCorrection.doColorCorrection(imgL);
+                imgR = dp.rColorCorrection.doColorCorrection(imgR);
 
                 BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
                 BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
@@ -747,6 +757,10 @@ class X3DViewer {
                 urlL.setText(coloredPaths.get(0));
                 urlR.setText(coloredPaths.get(1));
             }
+            {
+                colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription());
+                colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription());
+            }
         }
     }
     public void createViews(RawData rd, DisplayParameters dp, UiEventListener uiEventListener)
@@ -754,20 +768,61 @@ class X3DViewer {
         lblL=new JButton();
         lblR=new JButton();
         frame=new JFrame();
+        urlPanel = new JPanel(new GridBagLayout());
         urlL=new JLabel("url1");
+        colorCorrectionDescriptionL =new JLabel("....");
+        {
+            GridBagConstraints gridBagConstraints = new GridBagConstraints();
+            gridBagConstraints.gridx = 1;
+            gridBagConstraints.gridy = 0;
+            gridBagConstraints.anchor = GridBagConstraints.EAST;
+            gridBagConstraints.weightx = 0.25;
+            urlPanel.add(urlL, gridBagConstraints);
+        }
+        {
+            GridBagConstraints gridBagConstraints = new GridBagConstraints();
+            gridBagConstraints.gridx = 3;
+            gridBagConstraints.gridy = 0;
+            gridBagConstraints.anchor = GridBagConstraints.EAST;
+            gridBagConstraints.weightx = 0.25;
+            urlPanel.add(colorCorrectionDescriptionL, gridBagConstraints);
+        }
         urlR=new JLabel("url2");
+        colorCorrectionDescriptionR =new JLabel("....");
+        {
+            GridBagConstraints gridBagConstraints = new GridBagConstraints();
+            gridBagConstraints.gridx = 1;
+            gridBagConstraints.gridy = 1;
+            gridBagConstraints.anchor = GridBagConstraints.EAST;
+            gridBagConstraints.weightx = 0.5;
+            urlPanel.add(urlR, gridBagConstraints);
+        }
+        {
+            GridBagConstraints gridBagConstraints = new GridBagConstraints();
+            gridBagConstraints.gridx = 3;
+            gridBagConstraints.gridy = 1;
+            gridBagConstraints.anchor = GridBagConstraints.EAST;
+            gridBagConstraints.weightx = 0.5;
+            urlPanel.add(colorCorrectionDescriptionR, gridBagConstraints);
+        }
+
         ColorCorrectionPane colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
 
-        Font font = lblL.getFont();
         {
-            String FONT_NAME = "Verdana";
-            var fl = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
-            var exists = fl.contains(FONT_NAME);
-            if (exists) {
-                font = new Font(FONT_NAME, Font.ITALIC + Font.BOLD, font.getSize());
+            findAnyFont(Main.PREFERRED_FONTS).ifPresent(fontName -> {
+                Font font = lblL.getFont();
+                font = new Font(fontName, Font.BOLD, font.getSize());
                 urlL.setFont(font);
                 urlR.setFont(font);
-            }
+            });
+        }
+        {
+            findAnyFont(Main.PREFERRED_FONTS).ifPresent(fontName -> {
+                Font fontCc = colorCorrectionDescriptionL.getFont();
+                fontCc = new Font(fontName, Font.PLAIN, fontCc.getSize());
+                colorCorrectionDescriptionL.setFont(fontCc);
+                colorCorrectionDescriptionR.setFont(fontCc);
+            });
         }
         {
             updateViews(rd,dp);
@@ -1157,7 +1212,7 @@ class X3DViewer {
 
         {
             frame.setLayout(gbl);
-            frame.setSize(1360,800);
+            frame.setSize(1366,800);
             frame.add(compR);
             frame.add(compL);
             frame.add(statusPanel);
@@ -1238,26 +1293,22 @@ class X3DViewer {
                 gbc.gridy = 3;
                 gbc.gridheight = 1;
                 gbc.gridwidth = 2;
-                gbl.setConstraints(urlL, gbc);
+                gbc.fill = GridBagConstraints.HORIZONTAL;
+                gbl.setConstraints(urlPanel, gbc);
             }
-            {
-                GridBagConstraints gbc = new GridBagConstraints();
-                gbc.gridx = 0;
-                gbc.gridy = 4;
-                gbc.gridheight = 1;
-                gbc.gridwidth = 2;
-                gbl.setConstraints(urlR, gbc);
-            }
-            frame.add(urlL);
-            frame.add(urlR);
+            frame.add(urlPanel);
         } else {
-            frame.remove(urlL);
-            frame.remove(urlR);
+            frame.remove(urlPanel);
         }
         if (repaint) {
             frame.validate();
             frame.repaint();
         }
+    }
+    static Optional<String> findAnyFont(String... fontNames) {
+        var fl = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+        var fontName = Arrays.stream(fontNames).filter(fl::contains).findFirst();
+        return fontName;
     }
     static Optional<Integer> askForNumber(int startWith, String title) {
         SpinnerNumberModel spinnerNumberModel = new SpinnerNumberModel(
@@ -3321,10 +3372,16 @@ class ColorCorrection {
     public ColorCorrection(List<ColorCorrectionAlgo> algos) {
         this.algos = Collections.unmodifiableList(new ArrayList<>(algos));
     }
-
-    static BufferedImage doColorCorrection(ColorCorrection colorCorrection, BufferedImage image) {
+    public String getShortDescription() {
+        String res = algos.stream()
+                .filter(x -> x != ColorCorrectionAlgo.DO_NOTHING)
+                .map(ColorCorrectionAlgo::shortName)
+                .collect(Collectors.joining(","));
+        return res;
+    }
+    BufferedImage doColorCorrection(BufferedImage image) {
         BufferedImage res = image;
-        for (ColorCorrectionAlgo algo : colorCorrection.algos)
+        for (ColorCorrectionAlgo algo : algos)
         switch (algo) {
             default:
             case DO_NOTHING:
@@ -3380,34 +3437,35 @@ class ColorCorrection {
 }
 
 enum ColorCorrectionAlgo {
-    DO_NOTHING("as is"),
-    STRETCH_CONTRAST_RGB_RGB("stretch R,G,B separately in RGB space"),
-    STRETCH_CONTRAST_RGB_V("stretch R,G,B together in RGB space"),
-    STRETCH_CONTRAST_HSV_V("stretch V in HSV space"),
-    STRETCH_CONTRAST_HSV_S("stretch S in HSV space"),
-    STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space"),
+    DO_NOTHING("as is", ""),
+    STRETCH_CONTRAST_RGB_RGB("stretch R,G,B separately in RGB space", "sRGB"),
+    STRETCH_CONTRAST_RGB_V("stretch R,G,B together in RGB space", "sRGB2"),
+    STRETCH_CONTRAST_HSV_V("stretch V in HSV space", "sHSVv"),
+    STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
+    STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space", "sHSV"),
     //  γ<1 is sometimes called an encoding gamma (γ-compression), γ>1 is called a decoding gamma (γ-expansion)
-    GAMMA_DECODE_2_4("gamma decode, γ=2.4"),
-    GAMMA_DECODE_2_2("gamma decode, γ=2.2"),
-    GAMMA_DECODE_2_0("gamma decode, γ=2.0"),
-    GAMMA_DECODE_1_8("gamma decode, γ=1.8"),
-    GAMMA_DECODE_1_6("gamma decode, γ=1.6"),
-    GAMMA_ENCODE_2_4("gamma encode, γ=1/2.4"),
-    GAMMA_ENCODE_2_2("gamma encode, γ=1/2.2"),
-    GAMMA_ENCODE_2_0("gamma encode, γ=1/2.0"),
-    GAMMA_ENCODE_1_8("gamma encode, γ=1/1.8"),
-    GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6");
+    GAMMA_DECODE_2_4("gamma decode, γ=2.4", "gd24"),
+    GAMMA_DECODE_2_2("gamma decode, γ=2.2", "gd22"),
+    GAMMA_DECODE_2_0("gamma decode, γ=2.0", "gd20"),
+    GAMMA_DECODE_1_8("gamma decode, γ=1.8", "dg18"),
+    GAMMA_DECODE_1_6("gamma decode, γ=1.6", "gd16"),
+    GAMMA_ENCODE_2_4("gamma encode, γ=1/2.4", "ge24"),
+    GAMMA_ENCODE_2_2("gamma encode, γ=1/2.2", "ge22"),
+    GAMMA_ENCODE_2_0("gamma encode, γ=1/2.0", "ge20"),
+    GAMMA_ENCODE_1_8("gamma encode, γ=1/1.8", "ge18"),
+    GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6", "ge16");
 
-    String name;
+    final String name;
+    final String shortName;
 
-    ColorCorrectionAlgo(String userVisibleName) {
-        this.name = userVisibleName;
+    ColorCorrectionAlgo(String userVisibleName, String shortName) {
+        this.name = (!shortName.isEmpty() ? shortName + ": " : "")+userVisibleName;
+        this.shortName = shortName;
     }
 
     @Override
-    public String toString() {
-        return name;
-    }
+    public String toString() { return name; }
+    public String shortName() { return shortName; }
 }
 
 class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {
