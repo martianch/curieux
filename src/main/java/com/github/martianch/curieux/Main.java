@@ -1157,6 +1157,15 @@ class X3DViewer {
                 statusPanel.add(ffButton);
             }
             {
+                JButton colorButton = new JButton();
+                DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","color");
+                colorButton.setToolTipText("color correction...");
+                colorButton.addActionListener(e -> {
+                    colorCorrectionPane.showDialogIn(frame);
+                });
+                statusPanel2.add(colorButton);
+            }
+            {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
                 dndToBothCheckox.setMnemonic(KeyEvent.VK_B);
                 dndToBothCheckox.setSelected(true);
@@ -1180,15 +1189,6 @@ class X3DViewer {
                         e -> uiEventListener.setShowUrls(showUrlsCheckox.isSelected())
                 );
                 statusPanel2.add(showUrlsCheckox);
-            }
-            {
-                JButton colorButton = new JButton();
-                DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","color");
-                colorButton.setToolTipText("color correction...");
-                colorButton.addActionListener(e -> {
-                    colorCorrectionPane.showDialogIn(frame);
-                });
-                statusPanel2.add(colorButton);
             }
         }
 
