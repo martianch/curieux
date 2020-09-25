@@ -769,8 +769,8 @@ class X3DViewer {
         lblR=new JButton();
         frame=new JFrame();
         urlPanel = new JPanel(new GridBagLayout());
-        urlL=new JLabel("url1");
-        colorCorrectionDescriptionL =new JLabel("....");
+        urlL = new JLabel("url1");
+        colorCorrectionDescriptionL = new JLabel("....");
         {
             GridBagConstraints gridBagConstraints = new GridBagConstraints();
             gridBagConstraints.gridx = 1;
@@ -787,8 +787,8 @@ class X3DViewer {
             gridBagConstraints.weightx = 0.25;
             urlPanel.add(colorCorrectionDescriptionL, gridBagConstraints);
         }
-        urlR=new JLabel("url2");
-        colorCorrectionDescriptionR =new JLabel("....");
+        urlR = new JLabel("url2");
+        colorCorrectionDescriptionR = new JLabel("....");
         {
             GridBagConstraints gridBagConstraints = new GridBagConstraints();
             gridBagConstraints.gridx = 1;
@@ -1435,6 +1435,9 @@ class X3DViewer {
         int centeringOffY = Math.max(0, otherCanvasHeight - thisCanvasHeight)/2;
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
+        if (zoomLevel > 4) {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        }
         g.drawImage(
                 originalImage,
                 Math.max(0, centeringOffX + mult(offX, zoomLevel)),
