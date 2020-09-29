@@ -1435,9 +1435,9 @@ class X3DViewer {
         int centeringOffY = Math.max(0, otherCanvasHeight - thisCanvasHeight)/2;
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
-        if (zoomLevel > 4) {
+//        if (zoomLevel > 1.5) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        }
+//        }
         g.drawImage(
                 originalImage,
                 Math.max(0, centeringOffX + mult(offX, zoomLevel)),
