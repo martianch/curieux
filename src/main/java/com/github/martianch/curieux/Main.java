@@ -776,7 +776,7 @@ class X3DViewer {
             gridBagConstraints.gridx = 1;
             gridBagConstraints.gridy = 0;
             gridBagConstraints.anchor = GridBagConstraints.EAST;
-            gridBagConstraints.weightx = 0.25;
+            gridBagConstraints.weightx = 0.5;
             urlPanel.add(urlL, gridBagConstraints);
         }
         {
@@ -784,7 +784,7 @@ class X3DViewer {
             gridBagConstraints.gridx = 3;
             gridBagConstraints.gridy = 0;
             gridBagConstraints.anchor = GridBagConstraints.EAST;
-            gridBagConstraints.weightx = 0.25;
+            gridBagConstraints.weightx = 0.5;
             urlPanel.add(colorCorrectionDescriptionL, gridBagConstraints);
         }
         urlR = new JLabel("url2");
