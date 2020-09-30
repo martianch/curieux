@@ -860,7 +860,7 @@ class X3DViewer {
                 menuLR.add(miCopy);
                 miCopy.addActionListener(e ->
                         uiEventListener.copyUrl(
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                                isFromComponentsMenu(e, lblR)
                         ));
             }
             {
@@ -876,7 +876,7 @@ class X3DViewer {
                 miPaste1.addActionListener(e ->
                         doPaste(
                                 uiEventListener,
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                isFromComponentsMenu(e, lblR),
                                 OneOrBothPanes.JUST_THIS
                         ));
             }
@@ -886,7 +886,7 @@ class X3DViewer {
                 miPaste2.addActionListener(e ->
                         doPaste(
                                 uiEventListener,
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                isFromComponentsMenu(e, lblR),
                                 OneOrBothPanes.BOTH_PANES
                         ));
             }
@@ -895,7 +895,7 @@ class X3DViewer {
                 menuLR.add(miLoadMatch);
                 miLoadMatch.addActionListener(e ->
                         uiEventListener.loadMatchOfOther(
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                                isFromComponentsMenu(e, lblR)
                         ));
             }
             {
@@ -903,7 +903,7 @@ class X3DViewer {
                 menuLR.add(miLoadMatch);
                 miLoadMatch.addActionListener(e ->
                         uiEventListener.loadCopyOfOther(
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                                isFromComponentsMenu(e, lblR)
                         ));
             }
             {
@@ -925,8 +925,8 @@ class X3DViewer {
                 menuLR.add(miPrevImage);
                 miPrevImage.addActionListener(e ->
                         uiEventListener.navigate(
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
-                                lblL == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                isFromComponentsMenu(e, lblR),
+                                isFromComponentsMenu(e, lblL),
                                 false,
                                 1
                         )
@@ -937,8 +937,8 @@ class X3DViewer {
                 menuLR.add(miNextImage);
                 miNextImage.addActionListener(e ->
                         uiEventListener.navigate(
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
-                                lblL == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                isFromComponentsMenu(e, lblR),
+                                isFromComponentsMenu(e, lblL),
                                 true,
                                 1
                         )
@@ -950,7 +950,7 @@ class X3DViewer {
                 menuLR.add(miGoTo);
                 miGoTo.addActionListener(e ->
                         {
-                            boolean isRight = lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker();
+                            boolean isRight = isFromComponentsMenu(e, lblR);
                             uiEventListener.gotoImage(
                                     GoToImageOptions.CURIOSITY_FIRST_OF_SOL,
                                     isRight,
@@ -966,7 +966,7 @@ class X3DViewer {
                 miGoTo.addActionListener(e ->
                         uiEventListener.gotoImage(
                                 GoToImageOptions.CURIOSITY_LATEST,
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker(),
+                                isFromComponentsMenu(e, lblR),
                                 Optional.empty() // unused
                         )
                 );
@@ -980,7 +980,7 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mOpen.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_CURRENT_SOL, lblR == ((JPopupMenu) ((JMenuItem) ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()).getParent()).getInvoker())
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_CURRENT_SOL, isFromComponentsSubmenu(e, lblR))
                     );
                 }
                 {
@@ -988,7 +988,7 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mOpen.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_LATER, lblR == ((JPopupMenu) ((JMenuItem) ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()).getParent()).getInvoker())
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_LATER, isFromComponentsSubmenu(e, lblR))
                     );
                 }
                 {
@@ -996,7 +996,7 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mOpen.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_EARLIER, lblR == ((JPopupMenu) ((JMenuItem) ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()).getParent()).getInvoker())
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_EARLIER, isFromComponentsSubmenu(e, lblR))
                     );
                 }
                 {
@@ -1013,7 +1013,7 @@ class X3DViewer {
                 menuLR.add(miReload);
                 miReload.addActionListener(e ->
                         uiEventListener.reload(
-                                lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()
+                                isFromComponentsMenu(e, lblR)
                         ));
             }
             lblR.setComponentPopupMenu(menuLR);
@@ -1346,6 +1346,15 @@ class X3DViewer {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
     }
+
+    static boolean isFromComponentsMenu(ActionEvent e, JComponent lblR) {
+        return lblR == ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker();
+    }
+
+    static boolean isFromComponentsSubmenu(ActionEvent e, JComponent lblR) {
+        return lblR == ((JPopupMenu) ((JMenuItem) ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()).getParent()).getInvoker();
+    }
+
     void addUrlViews(boolean visible, boolean repaint) {
         GridBagLayout gbl = (GridBagLayout) frame.getContentPane().getLayout();
         if (visible) {
