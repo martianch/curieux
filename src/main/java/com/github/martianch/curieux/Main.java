@@ -166,6 +166,7 @@ interface UiEventListener {
     void resetToDefaults();
     void saveScreenshot();
     void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
+    void openInBrowser(SiteOpenCommand command, boolean isRight);
     Optional<Integer> getSol(boolean isRight);
 }
 
@@ -565,6 +566,30 @@ class UiController implements UiEventListener {
     public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo) {
         lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byOneOrTwo, rawData.left.pathToLoad, rawData.right.pathToLoad);
     }
+
+    @Override
+    public void openInBrowser(SiteOpenCommand command, boolean isRight) {
+        System.out.println("isRight="+isRight);
+        switch (command) {
+            case OPEN_CURRENT_SOL:
+                CompletableFuture.supplyAsync(() -> {
+                            NasaSiteOpener.openCurrentSol(rawData, isRight);
+                            return null;
+                        }
+                );
+                break;
+            case OPEN_TAKEN_LATER:
+                NasaSiteOpener.openStartingFrom(rawData, isRight, true);
+                break;
+            case OPEN_TAKEN_EARLIER:
+                NasaSiteOpener.openStartingFrom(rawData, isRight, false);
+                break;
+            case OPEN_LATEST:
+                NasaSiteOpener.openLatest();
+                break;
+        }
+    }
+
     @Override
     public Optional<Integer> getSol(boolean isRight) {
         return FileLocations.getSol((isRight ? rawData.right : rawData.left).pathToLoad);
@@ -945,6 +970,43 @@ class X3DViewer {
                                 Optional.empty() // unused
                         )
                 );
+            }
+            {
+                String menuTitle = "Open In Browser...";
+                JMenu mOpen = new JMenu(menuTitle);
+                menuLR.add(mOpen);
+                {
+                    String title = "All Images from Current Sol (on one page)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mOpen.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_CURRENT_SOL, lblR == ((JPopupMenu) ((JMenuItem) ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()).getParent()).getInvoker())
+                    );
+                }
+                {
+                    String title = "Images Taken Later (100/page)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mOpen.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_LATER, lblR == ((JPopupMenu) ((JMenuItem) ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()).getParent()).getInvoker())
+                    );
+                }
+                {
+                    String title = "Images Taken Earlier (100/page)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mOpen.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_EARLIER, lblR == ((JPopupMenu) ((JMenuItem) ((JPopupMenu) ((JMenuItem) e.getSource()).getParent()).getInvoker()).getParent()).getInvoker())
+                    );
+                }
+                {
+                    String title = "Latest Images";
+                    JMenuItem mi = new JMenuItem(title);
+                    mOpen.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_LATEST, false)
+                    );
+                }
             }
             {
                 JMenuItem miReload = new JMenuItem("Reload");
@@ -3728,3 +3790,41 @@ class GammaColorBalancer {
     }
 }
 
+enum SiteOpenCommand {
+    OPEN_CURRENT_SOL, OPEN_TAKEN_LATER, OPEN_TAKEN_EARLIER, OPEN_LATEST;
+}
+class NasaSiteOpener {
+    public static void openCurrentSol(RawData rawData, boolean isRight) {
+        try {
+            Integer sol = FileLocations.getSol(isRight ? rawData.right.path : rawData.left.path).orElse(1);
+
+            Object re = NasaReader.dataStructureFromCuriositySolStarting(sol, 3);
+            if (!(re instanceof Map)) {
+                System.err.println("Response is not a map: "+re);
+                return;
+            }
+            String perPage = ((Map) re).get("total").toString();
+            String url = "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+asc%2C+date_taken+asc%2Cinstrument_sort+asc%2Csample_type_sort+asc" +
+                         "&per_page="+perPage+"&page=0&mission=msl&begin_sol="+sol+"&end_sol="+sol;
+            HyperTextPane.openHyperlink(url);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+    public static void openStartingFrom(RawData rawData, boolean isRight, boolean timeAsc) {
+        try {
+            Integer sol = FileLocations.getSol(isRight ? rawData.right.path : rawData.left.path).orElse(1);
+
+            String xsc = timeAsc ? "asc" : "desc";
+            String url = "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+"+xsc+"%2C+date_taken+"+xsc+"%2C" +
+                    "instrument_sort+asc%2Csample_type_sort+asc" +
+                    "&per_page=100&page=0&mission=msl&begin_sol="+(timeAsc ? sol : 0)+"&end_sol="+(timeAsc ? "" : sol);
+            HyperTextPane.openHyperlink(url);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+    public static void openLatest() {
+        HyperTextPane.openHyperlink(Main.NASA_RAW_IMAGES_URL);
+    }
+}
