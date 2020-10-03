@@ -263,6 +263,13 @@ class ImageAndPath {
                         ? new Color(0, 0, 0)
                         : new Color(80, 20, 20);
             res = dummyImage(color);
+        } else if(FileLocations.isCuriousUrn(path)) {
+            String path1 = FileLocations.uncuriousUri(path);
+            String imageid1 = FileLocations.getFileNameNoExt(path1);
+            String ext1 = FileLocations.getFileExt(path1);
+            Optional<String> match = MastcamPairFinder.findMrlMatch(imageid1).map(fname -> FileLocations.replaceFileName(path1, fname+ext1));
+            String newPath = match.orElse("");
+            return imageIoRead(newPath, newPath);
         } else if(FileLocations.isUrl(path)) {
             System.out.println("downloading "+path+ " ...");
             try {
@@ -1888,7 +1895,7 @@ abstract class FileLocations {
                         urlOrFile
                 )
             );
-        if (isUrl(urlOrFile) || !isProblemWithFile(unthumbnailed)) {
+        if (isUrl(urlOrFile) || isCuriousUrn(urlOrFile) || !isProblemWithFile(unthumbnailed)) {
             return unthumbnailed;
         } else {
             return urlOrFile;
@@ -1911,7 +1918,8 @@ abstract class FileLocations {
         String base = orig.substring(0, orig.length()-oldSuffix.length());
         return base + newSuffix;
     }
-    static String getFileName(String urlOrPath) {
+    static String getFileName(String urnOrUrlOrPath) {
+        String urlOrPath = uncuriousUri(urnOrUrlOrPath);
         String fullPath = urlOrPath;
         if (isUrl(urlOrPath)) {
             try {
@@ -1933,6 +1941,15 @@ abstract class FileLocations {
             return fileNameExt.substring(0,indexOfDot);
         }
     }
+    static String getFileExt(String urlOrPath) {
+        String fileNameExt = getFileName(urlOrPath);
+        int indexOfDot = fileNameExt.lastIndexOf('.');
+        if (indexOfDot < 0) {
+            return "";
+        } else {
+            return fileNameExt.substring(indexOfDot);
+        }
+    }
     static Optional<Integer> getSol(String urlOrPath) {
         Pattern pattern = Pattern.compile("[/\\\\]([0-9]+)[/\\\\]");
         Matcher matcher = pattern.matcher(urlOrPath);
@@ -1945,7 +1962,24 @@ abstract class FileLocations {
         }
         return Optional.empty();
     }
+    static boolean isMrl(String fname) {
+        return fname.matches("[0-9]{4}M[RL].*");
+    }
+    static boolean isMr(String fname) {
+        return fname.matches("[0-9]{4}MR.*");
+    }
+    static boolean isMl(String fname) {
+        return fname.matches("[0-9]{4}ML.*");
+    }
     static List<String> twoPaths(String path0) {
+        var fname = getFileName(path0);
+        if (isMrl(fname)) {
+            if (isMr(fname)) {
+                return Arrays.asList(path0, "curious:l:"+path0);
+            } else {
+                return Arrays.asList("curious:r:"+path0, path0);
+            }
+        }
         if (isUrl(path0)) {
             try {
                 URL url = new URL(path0);
@@ -1957,6 +1991,10 @@ abstract class FileLocations {
             }
         }
         return _twoPaths(path0);
+    }
+    static String replaceFileName(String urlOrPath, String newFileName) {
+        String fileName0 = Paths.get(urlOrPath).getFileName().toString();
+        return urlOrPath.replace(fileName0, newFileName);
     }
     static List<String> _twoPaths(String path0) {
         String fullPath1 = "", fullPath2 = "";
@@ -1990,10 +2028,10 @@ abstract class FileLocations {
     static List<String> twoPaths(String urlOrPath1, String urlOrPath2) {
         String file1 = getFileName(urlOrPath1);
         String file2 = getFileName(urlOrPath2);
-        if(isMarkedRL(file1) && isMarkedRL(file2)) {
-            if (isMarkedL(file1)) {
-                return Arrays.asList(urlOrPath2, urlOrPath1);
-            }
+        if( (isMarkedL(file1) && isMarkedR(file2))
+         || (isMrlMarkedL(urlOrPath1, file1) && isMrlMarkedR(urlOrPath2, file2))
+          ) {
+            return Arrays.asList(urlOrPath2, urlOrPath1);
         }
         return Arrays.asList(urlOrPath1, urlOrPath2);
     }
@@ -2007,6 +2045,28 @@ abstract class FileLocations {
     }
     private static boolean isMarkedRL(String file) {
         return isMarkedR(file) || isMarkedL(file);
+    }
+    static boolean isMrlMarkedR(String path, String fname) {
+        return isCuriousUrn(path) ? isCuriousRUrn(path) : isMr(fname);
+    }
+    static boolean isMrlMarkedL(String path, String fname) {
+        return isCuriousUrn(path) ? isCuriousLUrn(path) : isMl(fname);
+    }
+    static boolean isCuriousUrn(String path) {
+        return path.startsWith("curious:");
+    }
+    static boolean isCuriousRUrn(String path) {
+        return path.startsWith("curious:r:");
+    }
+    static boolean isCuriousLUrn(String path) {
+        return path.startsWith("curious:l:");
+    }
+    static String uncuriousUri(String path) {
+        if (isCuriousLUrn(path) || isCuriousRUrn(path)) {
+            return path.substring("curious:l:".length());
+        } else {
+            return path;
+        }
     }
     static boolean isUrl(String path) {
         String prefix = path.substring(0,Math.min(9, path.length())).toLowerCase();
@@ -3297,6 +3357,26 @@ class NasaReader {
                         "&extended=thumbnail::sample_type::noteq"
         );
     }
+    //ssssMXjjjjjjpppCCnnnnnYNN_DXXX
+    //2893ML0151010011101294C00_DXXX.jpg
+    //2893MR0151010011300209C00_DXXX.jpg
+    //2893ML0151010021101295C00_DXXX.jpg
+    //2893MR0151010021300210C00_DXXX.jpg
+    final static int pairPrefixLength = "ssssMXjjjjjjppp".length();
+    static Object dataStructureMrlMatchesFromImageId(String imageId) throws IOException {
+        StringBuilder sbPairId = new StringBuilder(imageId.substring(0, pairPrefixLength));
+        sbPairId.setCharAt(5,(char)((int)'R'^(int)'L'^(int)sbPairId.charAt(5)));
+        String pairId = sbPairId.toString();
+        return dataStructureFromRequest(
+                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                        "&per_page=10" +
+                        "&page=0" +
+                        "&condition_1=" + pairId + ":imageid:gt" +
+                        "&condition_2=" + pairId + "z:imageid:lt" +
+                        "&search=" +
+                        "&extended=thumbnail::sample_type::noteq"
+        );
+    }
     static Object dataStructureFromCuriositySolStarting(int curiositySol, int perPage) throws IOException {
         return dataStructureFromRequest(
                 "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
@@ -3836,4 +3916,34 @@ class NasaSiteOpener {
     public static void openLatest() {
         HyperTextPane.openHyperlink(Main.NASA_RAW_IMAGES_URL);
     }
+}
+
+class MastcamPairFinder {
+    private static int suffixLength = "C00_DXXX".length();
+
+    /**
+     * Find the corresponding left/right mastcam image (a query to the NASA site is made).
+     * @param imageId image id, e.g. "1407ML0068890100601896C00_DXXX"
+     * @return id of the corresponding other image, e.g. "1407MR0068890100702104C00_DXXX"
+     * @throws IOException
+     */
+    public static Optional<String> findMrlMatch(String imageId) throws IOException {
+        Object jsonObjectPairs = NasaReader.dataStructureMrlMatchesFromImageId(imageId);
+        List<Map> items = (List) (
+            ((List<Object>) JsonDiy.get(jsonObjectPairs, "items"))
+            .stream()
+            .filter(o -> o instanceof Map)
+            .collect(Collectors.toList())
+        );
+        Optional<Map> match = Optional.empty();
+        if (items.size() > 1) {
+            String suffix = imageId.substring(imageId.length()-suffixLength);
+            match = items.stream().filter(m -> m.get("imageid").toString().endsWith(suffix)).findFirst();
+        }
+        if (!match.isPresent()) {
+            match = items.stream().findAny();
+        }
+        return match.map(m -> m.get("imageid").toString());
+    }
+
 }

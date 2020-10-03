@@ -22,6 +22,10 @@ public class FileLocationsTest {
             assertThat(s, is("filename.ext"));
         }
         {
+            String s = FileLocations.getFileName("curious:r:http://my.site/some/global/path/filename.ext?foo=bar&l=en");
+            assertThat(s, is("filename.ext"));
+        }
+        {
             String s = FileLocations.getFileName("http://my.site/some/global/path/filename?foo=bar&l=en");
             assertThat(s, is("filename"));
         }
@@ -30,11 +34,19 @@ public class FileLocationsTest {
             assertThat(s, is("filename.ext"));
         }
         {
+            String s = FileLocations.getFileName("curious:l:http://my.site/some/global/path/filename.ext");
+            assertThat(s, is("filename.ext"));
+        }
+        {
             String s = FileLocations.getFileName("https://my.site/some/global/path/filename.ext");
             assertThat(s, is("filename.ext"));
         }
         {
             String s = FileLocations.getFileName("file://some/global/path/filename.ext");
+            assertThat(s, is("filename.ext"));
+        }
+        {
+            String s = FileLocations.getFileName("curious:l:file://some/global/path/filename.ext");
             assertThat(s, is("filename.ext"));
         }
         {
@@ -82,6 +94,41 @@ public class FileLocationsTest {
         }
     }
     @Test
+    public void testGetFileExt() {
+        {
+            String s = FileLocations.getFileExt("/some/global/path/filename.ext");
+            assertThat(s, is(".ext"));
+        }
+        {
+            String s = FileLocations.getFileExt("http://my.site/some/global/path/filename.ext?foo=bar&l=en");
+            assertThat(s, is(".ext"));
+        }
+        {
+            String s = FileLocations.getFileExt("http://my.site/some/global/path/filename?foo=bar&l=en");
+            assertThat(s, is(""));
+        }
+        {
+            String s = FileLocations.getFileExt("http://my.site/some/global/path/filename.ext");
+            assertThat(s, is(".ext"));
+        }
+        {
+            String s = FileLocations.getFileExt("https://my.site/some/global/path/filename.ext");
+            assertThat(s, is(".ext"));
+        }
+        {
+            String s = FileLocations.getFileExt("file://some/global/path/filename.ext");
+            assertThat(s, is(".ext"));
+        }
+        {
+            String s = FileLocations.getFileExt("filename.ext");
+            assertThat(s, is(".ext"));
+        }
+        {
+            String s = FileLocations.getFileExt("/filename.ext");
+            assertThat(s, is(".ext"));
+        }
+    }
+    @Test
     public void testGetFileName2() {
         {
             String s = FileLocations.getFileName("/");
@@ -99,6 +146,16 @@ public class FileLocationsTest {
         }
         {
             String s = FileLocations.getFileNameNoExt("https://google.com/");
+            assertThat(s, is(""));
+        }
+    }
+    public void testGetFileExt2() {
+        {
+            String s = FileLocations.getFileExt("/");
+            assertThat(s, is(""));
+        }
+        {
+            String s = FileLocations.getFileExt("https://google.com/");
             assertThat(s, is(""));
         }
     }
@@ -207,7 +264,7 @@ public class FileLocationsTest {
             List<String> r = FileLocations.twoPaths("https://mars.jpl.nasa.gov/msl-raw-images/msss/02693/mcam/2693MR0140890070604865C00_DXXX.jpg");
             assertThat(r.size(), is(2));
             assertThat(r.get(0), is("https://mars.jpl.nasa.gov/msl-raw-images/msss/02693/mcam/2693MR0140890070604865C00_DXXX.jpg"));
-            assertThat(r.get(1), is(""));
+            assertThat(r.get(1), is("curious:l:https://mars.jpl.nasa.gov/msl-raw-images/msss/02693/mcam/2693MR0140890070604865C00_DXXX.jpg"));
         }
     }
 
@@ -277,5 +334,45 @@ public class FileLocationsTest {
         assertEquals(Optional.of(2701),FileLocations.getSol("/foo/bar/2701/0560ML0022630070204612C00_DXXX.jpg"));
         assertEquals(Optional.of(2702),FileLocations.getSol("C:\\foo\\bar\\2702\\0560ML0022630070204612C00_DXXX.jpg"));
         assertEquals(Optional.empty(),FileLocations.getSol("/foo/bar/0560ML0022630070204612C00_DXXX.jpg"));
+    }
+    @Test
+    public void isMrlTest() {
+        assertEquals(true, FileLocations.isMrl("/msl-raw-images/msss/02893/mcam/2893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMrl("/msl-raw-images/msss/02893/mcam/2893MR0151010011300209C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMrl("2893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMrl("2893MR0151010011300209C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMrl("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893MR0151010021300210C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMrl("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMrl("/msl-raw-images/msss/02893/mcam/02893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMrl("02893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMrl("CR0_654758502PRC_F0822176CCAM03897L1.PNG"));
+        assertEquals(false, FileLocations.isMrl("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02898/soas/rdr/ccam/CR0_654758502PRC_F0822176CCAM03897L1.PNG"));
+    }
+    @Test
+    public void isMrTest() {
+        assertEquals(false, FileLocations.isMr("/msl-raw-images/msss/02893/mcam/2893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMr("/msl-raw-images/msss/02893/mcam/2893MR0151010011300209C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMr("2893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMr("2893MR0151010011300209C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMr("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893MR0151010021300210C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMr("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMr("/msl-raw-images/msss/02893/mcam/2893MR0151010021300210C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMr("/msl-raw-images/msss/02893/mcam/02893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMr("02893ML0151010021101295C00_DXXX.jpg"));
+        assertEquals(false, FileLocations.isMr("CR0_654758502PRC_F0822176CCAM03897L1.PNG"));
+        assertEquals(false, FileLocations.isMr("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02898/soas/rdr/ccam/CR0_654758502PRC_F0822176CCAM03897L1.PNG"));
+    }
+    @Test
+    public void replaceFileNameTest() {
+        String ml = "2893ML0151010021101295C00_DXXX.jpg";
+        String mr = "2893MR0151010021300210C00_DXXX.jpg";
+        String mll = "https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893ML0151010021101295C00_DXXX.jpg";
+        String mrl = "https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893MR0151010021300210C00_DXXX.jpg";
+        assertEquals(mr, FileLocations.replaceFileName(ml, mr));
+        assertEquals(ml, FileLocations.replaceFileName(mr, ml));
+        assertEquals(mrl, FileLocations.replaceFileName(mll, mr));
+        assertEquals(mrl, FileLocations.replaceFileName(mrl, mr));
+        assertEquals(mll, FileLocations.replaceFileName(mrl, ml));
+        assertEquals(mll, FileLocations.replaceFileName(mll, ml));
     }
 }
