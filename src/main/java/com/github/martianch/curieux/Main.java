@@ -192,6 +192,11 @@ class DisplayParameters {
         debayerL = debayerR = DebayerMode.AUTO3;
         lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST);
     }
+    void setDefaultsMrMl() {
+        setDefaults();
+        zoomR = 3.;
+        offsetX = -260;
+    }
     private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
         this.zoom = zoom;
         this.zoomL = zoomL;
@@ -559,7 +564,13 @@ class UiController implements UiEventListener {
 
     @Override
     public void resetToDefaults() {
-        displayParameters.setDefaults();
+        System.out.println(rawData.left.path);
+        System.out.println(rawData.right.path);
+        if (MastcamPairFinder.areMrMlMatch(rawData.left.path, rawData.right.path)) {
+            displayParameters.setDefaultsMrMl();
+        } else {
+            displayParameters.setDefaults();
+        }
         x3dViewer.updateControls(displayParameters);
         x3dViewer.updateViews(rawData, displayParameters);
     }
@@ -1079,7 +1090,7 @@ class X3DViewer {
                 JButton resetAllControlsButton = new JButton();
                 DigitalZoomControl.loadIcon(resetAllControlsButton,"icons/clearAll25.png","xx"); // "<->" "<=>"
                 resetAllControlsButton.addActionListener(e -> uiEventListener.resetToDefaults());
-                resetAllControlsButton.setToolTipText("Reset All Controls");
+                resetAllControlsButton.setToolTipText("Reset All Controls (MR/ML pair: special case)");
                 statusPanel.add(resetAllControlsButton);
             }
 
@@ -3357,14 +3368,9 @@ class NasaReader {
                         "&extended=thumbnail::sample_type::noteq"
         );
     }
-    //ssssMXjjjjjjpppCCnnnnnYNN_DXXX
-    //2893ML0151010011101294C00_DXXX.jpg
-    //2893MR0151010011300209C00_DXXX.jpg
-    //2893ML0151010021101295C00_DXXX.jpg
-    //2893MR0151010021300210C00_DXXX.jpg
-    final static int pairPrefixLength = "ssssMXjjjjjjppp".length();
+
     static Object dataStructureMrlMatchesFromImageId(String imageId) throws IOException {
-        StringBuilder sbPairId = new StringBuilder(imageId.substring(0, pairPrefixLength));
+        StringBuilder sbPairId = new StringBuilder(imageId.substring(0, MastcamPairFinder.pairPrefixLength));
         sbPairId.setCharAt(5,(char)((int)'R'^(int)'L'^(int)sbPairId.charAt(5)));
         String pairId = sbPairId.toString();
         return dataStructureFromRequest(
@@ -3919,8 +3925,24 @@ class NasaSiteOpener {
 }
 
 class MastcamPairFinder {
+    //ssssMXjjjjjjpppCCnnnnnYNN_DXXX
+    //2893ML0151010011101294C00_DXXX.jpg
+    //2893MR0151010011300209C00_DXXX.jpg
+    //2893ML0151010021101295C00_DXXX.jpg
+    //2893MR0151010021300210C00_DXXX.jpg
+    final static int pairPrefixLength = "ssssMXjjjjjjppp".length();
     private static int suffixLength = "C00_DXXX".length();
 
+    public static boolean areMrMlMatch(String url1, String url2) {
+        var fname1 = FileLocations.getFileName(url1);
+        var fname2 = FileLocations.getFileName(url2);
+        return fname1.length() > pairPrefixLength
+            && fname2.length() > pairPrefixLength
+            && fname1.substring(0, 4).equals(fname2.substring(0, 4))
+            && fname1.substring(4,6).equalsIgnoreCase("MR")
+            && fname2.substring(4,6).equalsIgnoreCase("ML")
+            && fname1.substring(6, pairPrefixLength).equals(fname2.substring(6, pairPrefixLength));
+    }
     /**
      * Find the corresponding left/right mastcam image (a query to the NASA site is made).
      * @param imageId image id, e.g. "1407ML0068890100601896C00_DXXX"
