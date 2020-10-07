@@ -3765,12 +3765,12 @@ class ColorBalancer {
 //                    int r1 = (int) (r * avgB*avgG/avgR/255);//r * 255 / maxR;//(r - minR) * 255 / dr;
 //                    int g1 = (int) (g * avgB*avgR/avgG/255); //g * 255 / maxG;//(g - minG) * 255 / dg;
 //                    int b1 = (int) (b * avgG*avgR/avgB/255); //b * 255 / maxB;// b * (b - minB) * 255 / db;
-//                    int r1 = (r - minR) * 255 / dr;
-//                    int g1 = (g - minG) * 255 / dg;
-//                    int b1 = (b - minB) * 255 / db;
-                    int r1 = (r - minR) * maxR / dr;
-                    int g1 = (g - minG) * maxG / dg;
-                    int b1 = (b - minB) * maxB / db;
+                    int r1 = (r - minR) * 255 / dr;
+                    int g1 = (g - minG) * 255 / dg;
+                    int b1 = (b - minB) * 255 / db;
+//                    int r1 = (r - minR) * maxR / dr;
+//                    int g1 = (g - minG) * maxG / dg;
+//                    int b1 = (b - minB) * maxB / db;
                     int color1 = (r1 << 16) | (g1 << 8) | (b1);
                     res.setRGB(i, j, color1);
                 }
@@ -3838,9 +3838,12 @@ class HSVColorBalancer {
 ////                    int r1 = (r - minR) * 255 / dr;
 ////                    int g1 = (g - minG) * 255 / dg;
 ////                    int b1 = (b - minB) * 255 / db;
-                    float h1 = stretchH ? (hsv[0] - minH) * maxH / dh : hsv[0];
-                    float s1 = stretchS ? (hsv[1] - minS) * maxS / ds : hsv[1];
-                    float v1 = stretchV ? (hsv[2] - minV) * maxV / dv : hsv[2];
+//                    float h1 = stretchH ? (hsv[0] - minH) * maxH / dh : hsv[0];
+//                    float s1 = stretchS ? (hsv[1] - minS) * maxS / ds : hsv[1];
+//                    float v1 = stretchV ? (hsv[2] - minV) * maxV / dv : hsv[2];
+                    float h1 = stretchH ? (hsv[0] - minH) / dh : hsv[0];
+                    float s1 = stretchS ? (hsv[1] - minS) / ds : hsv[1];
+                    float v1 = stretchV ? (hsv[2] - minV) / dv : hsv[2];
                     int color1 = Color.HSBtoRGB(h1, s1, v1);
                     res.setRGB(i, j, color1);
                 }
