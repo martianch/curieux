@@ -735,6 +735,7 @@ class X3DViewer {
     JLabel urlR;
     JLabel colorCorrectionDescriptionL;
     JLabel colorCorrectionDescriptionR;
+    ColorCorrectionPane colorCorrectionPane;
     JFrame frame;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
@@ -760,6 +761,8 @@ class X3DViewer {
         dcAngleR.setValueAndText(dp.angleR);
         debayerL.setValue(dp.debayerL);
         debayerR.setValue(dp.debayerR);
+        colorCorrectionPane.setColorCorrectionValue(false, dp.lColorCorrection);
+        colorCorrectionPane.setColorCorrectionValue(true, dp.rColorCorrection);
     }
     public void updateViews(RawData rd, DisplayParameters dp) {
         {
@@ -814,7 +817,10 @@ class X3DViewer {
         frame=new JFrame();
         urlPanel = new JPanel(new GridBagLayout());
         urlL = new JLabel("url1");
+        urlR = new JLabel("url2");
         colorCorrectionDescriptionL = new JLabel("....");
+        colorCorrectionDescriptionR = new JLabel("....");
+        colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
         {
             GridBagConstraints gridBagConstraints = new GridBagConstraints();
             gridBagConstraints.gridx = 1;
@@ -831,8 +837,6 @@ class X3DViewer {
             gridBagConstraints.weightx = 0.5;
             urlPanel.add(colorCorrectionDescriptionL, gridBagConstraints);
         }
-        urlR = new JLabel("url2");
-        colorCorrectionDescriptionR = new JLabel("....");
         {
             GridBagConstraints gridBagConstraints = new GridBagConstraints();
             gridBagConstraints.gridx = 1;
@@ -849,9 +853,6 @@ class X3DViewer {
             gridBagConstraints.weightx = 0.5;
             urlPanel.add(colorCorrectionDescriptionR, gridBagConstraints);
         }
-
-        ColorCorrectionPane colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
-
         {
             findAnyFont(Main.PREFERRED_FONTS).ifPresent(fontName -> {
                 Font font = lblL.getFont();
@@ -3536,6 +3537,9 @@ class ColorCorrection {
     public ColorCorrection(List<ColorCorrectionAlgo> algos) {
         this.algos = Collections.unmodifiableList(new ArrayList<>(algos));
     }
+    public List<ColorCorrectionAlgo> getAlgos() {
+        return algos;
+    }
     public String getShortDescription() {
         String res = algos.stream()
                 .filter(x -> x != ColorCorrectionAlgo.DO_NOTHING)
@@ -3708,6 +3712,17 @@ class ColorCorrectionPane extends JPanel {
     ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers) {
         var algos = choosers.stream().map(c -> (ColorCorrectionAlgo)c.getSelectedItem()).collect(Collectors.toList());
         return new ColorCorrection(algos);
+    }
+    ColorCorrectionPane setColorCorrectionValue(boolean isRight, ColorCorrection colorCorrection) {
+        var algos = colorCorrection.getAlgos();
+        int nAlgos = algos.size();
+        var choosers = isRight ? rChoosers : lChoosers;
+        for (int i=0, N=choosers.size(); i<N; i++) {
+            choosers.get(i).setSelectedItem(
+                i < nAlgos ? algos.get(i) : ColorCorrectionAlgo.DO_NOTHING
+            );
+        }
+        return this;
     }
 }
 
