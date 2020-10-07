@@ -82,6 +82,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntBinaryOperator;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -3544,56 +3545,59 @@ class ColorCorrection {
     }
     BufferedImage doColorCorrection(BufferedImage image) {
         BufferedImage res = image;
-        for (ColorCorrectionAlgo algo : algos)
-        switch (algo) {
-            default:
-            case DO_NOTHING:
-                break;
-            case STRETCH_CONTRAST_RGB_RGB:
-                res = ColorBalancer.balanceColors(res, true);
-                break;
-            case STRETCH_CONTRAST_RGB_V:
-                res = ColorBalancer.balanceColors(res, false);
-                break;
-            case STRETCH_CONTRAST_HSV_S:
-                res = HSVColorBalancer.balanceColors(res, false, true, false);
-                break;
-            case STRETCH_CONTRAST_HSV_V:
-                res = HSVColorBalancer.balanceColors(res, false, false, true);
-                break;
-            case STRETCH_CONTRAST_HSV_SV:
-                res = HSVColorBalancer.balanceColors(res, false, true, true);
-                break;
-            case GAMMA_DECODE_2_4:
-                res = GammaColorBalancer.balanceColors(res, 2.4);
-                break;
-            case GAMMA_DECODE_2_2:
-                res = GammaColorBalancer.balanceColors(res, 2.2);
-                break;
-            case GAMMA_DECODE_2_0:
-                res = GammaColorBalancer.balanceColors(res, 2.0);
-                break;
-            case GAMMA_DECODE_1_8:
-                res = GammaColorBalancer.balanceColors(res, 1.8);
-                break;
-            case GAMMA_DECODE_1_6:
-                res = GammaColorBalancer.balanceColors(res, 1.6);
-                break;
-            case GAMMA_ENCODE_2_4:
-                res = GammaColorBalancer.balanceColors(res, 1/2.4);
-                break;
-            case GAMMA_ENCODE_2_2:
-                res = GammaColorBalancer.balanceColors(res, 1/2.2);
-                break;
-            case GAMMA_ENCODE_2_0:
-                res = GammaColorBalancer.balanceColors(res, 1/2.0);
-                break;
-            case GAMMA_ENCODE_1_8:
-                res = GammaColorBalancer.balanceColors(res, 1/1.8);
-                break;
-            case GAMMA_ENCODE_1_6:
-                res = GammaColorBalancer.balanceColors(res, 1/1.6);
-                break;
+        for (ColorCorrectionAlgo algo : algos) {
+            switch (algo) {
+                default:
+                case DO_NOTHING:
+                    break;
+                case STRETCH_CONTRAST_RGB_RGB:
+                    res = ColorBalancer.balanceColors(res, true);
+                    break;
+                case STRETCH_CONTRAST_RGB_V:
+                    res = ColorBalancer.balanceColors(res, false);
+                    break;
+                case STRETCH_CONTRAST_HSV_S:
+                    res = HSVColorBalancer.balanceColors(res, false, true, false);
+                    break;
+                case STRETCH_CONTRAST_HSV_V:
+                    res = HSVColorBalancer.balanceColors(res, false, false, true);
+                    break;
+                case STRETCH_CONTRAST_HSV_SV:
+                    res = HSVColorBalancer.balanceColors(res, false, true, true);
+                    break;
+                case GAMMA_DECODE_2_4:
+                    res = GammaColorBalancer.balanceColors(res, 2.4);
+                    break;
+                case GAMMA_DECODE_2_2:
+                    res = GammaColorBalancer.balanceColors(res, 2.2);
+                    break;
+                case GAMMA_DECODE_2_0:
+                    res = GammaColorBalancer.balanceColors(res, 2.0);
+                    break;
+                case GAMMA_DECODE_1_8:
+                    res = GammaColorBalancer.balanceColors(res, 1.8);
+                    break;
+                case GAMMA_DECODE_1_6:
+                    res = GammaColorBalancer.balanceColors(res, 1.6);
+                    break;
+                case GAMMA_ENCODE_2_4:
+                    res = GammaColorBalancer.balanceColors(res, 1 / 2.4);
+                    break;
+                case GAMMA_ENCODE_2_2:
+                    res = GammaColorBalancer.balanceColors(res, 1 / 2.2);
+                    break;
+                case GAMMA_ENCODE_2_0:
+                    res = GammaColorBalancer.balanceColors(res, 1 / 2.0);
+                    break;
+                case GAMMA_ENCODE_1_8:
+                    res = GammaColorBalancer.balanceColors(res, 1 / 1.8);
+                    break;
+                case GAMMA_ENCODE_1_6:
+                    res = GammaColorBalancer.balanceColors(res, 1 / 1.6);
+                    break;
+                case UNGLARE1:
+                    res = BilinearDeglareWhite.unglare(res);
+            }
         }
         return res;
     }
@@ -3616,7 +3620,8 @@ enum ColorCorrectionAlgo {
     GAMMA_ENCODE_2_2("gamma encode, γ=1/2.2", "ge22"),
     GAMMA_ENCODE_2_0("gamma encode, γ=1/2.0", "ge20"),
     GAMMA_ENCODE_1_8("gamma encode, γ=1/1.8", "ge18"),
-    GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6", "ge16");
+    GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6", "ge16"),
+    UNGLARE1("unglare, bilinear","ugb");
 
     final String name;
     final String shortName;
@@ -3673,9 +3678,13 @@ class ColorCorrectionPane extends JPanel {
             for (int row = 0; row < 5; row++) {
                 ColorCorrectionModeChooser chooser = new ColorCorrectionModeChooser(x -> {
                     if (isLeft) {
-                        uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers));
+                        javax.swing.SwingUtilities.invokeLater( () ->
+                            uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers))
+                        );
                     } else {
-                        uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers));
+                        javax.swing.SwingUtilities.invokeLater( () ->
+                            uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers))
+                        );
                     }
                 });
                 (isLeft ? lChoosers : rChoosers).add(chooser);
@@ -3742,7 +3751,9 @@ class ColorBalancer {
             int dr = maxR - minR;
             int dg = maxG - minG;
             int db = maxB - minB;
-            int dw = Math.max(dr, Math.max(dg, db));
+            //int dw = Math.max(dr, Math.max(dg, db));
+            System.out.println("balanceColors("+//src+
+                    ", perChannel="+perChannel+")");
             System.out.println("min: " + minR + " " + minG + " " + minB);
             System.out.println("max: " + maxR + " " + maxG + " " + maxB);
             System.out.println("avg: " + avgR + " " + avgG + " " + avgB + "  " + avgW);
@@ -3888,6 +3899,217 @@ class GammaColorBalancer {
     static int gamma(double gamma, int colorValue) {
         double res = Math.pow((colorValue / 255.), gamma) * 255.;
         return (int) Math.round(res);
+    }
+}
+
+class BilinearDeglareWhite {
+    final static int NX = 32, NY=32;
+    public static BufferedImage unglare(BufferedImage src) {
+        try {
+            int width = src.getWidth();
+            int height = src.getHeight();
+            int dx = (width+NX-1)/NX;
+            int dy = (height+NY-1)/NY;
+
+            var aminv = new ByteArray2d(NX,NY);
+            var amaxv = new ByteArray2d(NX,NY);
+            aminv.setAll(255);
+
+            {
+                var smaxv = new StretchedArray2d(amaxv, dx, dy);
+                var sminv = new StretchedArray2d(aminv, dx, dy);
+                for (int j = 0; j < height; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int color = src.getRGB(i, j);
+                        int r = 0xff & (color >> 16);
+                        int g = 0xff & (color >> 8);
+                        int b = 0xff & (color);
+                        int v = Math.min(Math.min(r,g),b);
+                        int vv = Math.max(Math.max(r,g),b);
+                        if (v < sminv.get(i, j)) { sminv.set(i,j,r); }
+                        if (vv > smaxv.get(i, j)) { smaxv.set(i,j,vv); }
+                    }
+                }
+                sminv.copyBoundaries();
+                smaxv.copyBoundaries();
+            }
+
+            var bminv = new ByteArray2d(NX,NY);
+            var bmaxv = new ByteArray2d(NX,NY);
+            for (int j=0; j<NY; j++) {
+                for (int i=0; i<NX; i++) {
+                    bminv.set(i,j, aminv.foldAround(i,j, Math::min, 255));
+                    bmaxv.set(i,j, amaxv.foldAround(i,j, Math::max, 0));
+                }
+            }
+            bminv.copyBoundaries();
+            bmaxv.copyBoundaries();
+
+            var iminv = new InterpolatingArray2d(bminv, dx, dy);
+            var imaxv = new InterpolatingArray2d(bmaxv, dx, dy);
+
+            var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int j=0; j<height; j++) {
+                for (int i=0; i<width; i++) {
+                    int color = src.getRGB(i, j);
+                    int r = 0xff & (color >> 16);
+                    int g = 0xff & (color >> 8);
+                    int b = 0xff & (color);
+                    int minV = iminv.get(i,j);
+                    int maxV = imaxv.get(i,j);
+                    int r1 = (r - minV) * 255 / Math.max(40, maxV-minV);
+                    int g1 = (g - minV) * 255 / Math.max(40, maxV-minV);
+                    int b1 = (b - minV) * 255 / Math.max(40, maxV-minV);
+                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                    res.setRGB(i, j, color1);
+                }
+            }
+            return res;
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
+        }
+    }
+    //====
+    interface ROArray2d {
+        int get(int x, int y);
+        int getXSize();
+        int getYSize();
+    }
+    interface Array2d extends ROArray2d {
+        void set(int x, int y, int value);
+        void copyBoundaries();
+        int setAll(int value);
+    }
+    //====
+    static class ByteArray2d implements Array2d {
+        final byte[][]values;
+        final int xsize, ysize;
+        ByteArray2d(int xsize, int ysize) {
+            this.values = new byte[xsize+2][ysize+2];
+            this.xsize = xsize;
+            this.ysize = ysize;
+        }
+        public int get(int x, int y) {
+            return 0xff & values[x+1][y+1];
+        }
+        public void set(int x, int y, int value) {
+            values[x+1][y+1] = (byte)value;
+            if((value & 0xffff_ff00) != 0) {
+                System.err.println("storing "+value+" to byte at ("+x+","+y+")");
+            }
+        }
+        public void copyBoundaries() {
+            set(-1,-1,get(0,0));
+            set(-1,ysize,get(0,ysize-1));
+            set(xsize,-1,get(xsize-1,0));
+            set(xsize,ysize,get(xsize-1,ysize-1));
+            for(int i=0; i<xsize; i++) {
+                set(-1,i,get(0,i));
+                set(i,-1,get(i,0));
+                set(xsize,i,get(xsize-1,i));
+                set(i,ysize,get(i,ysize-1));
+            }
+        }
+        public int setAll(int value) {
+            for (int i=0; i<values.length; i++) {
+                Arrays.fill(values[i], (byte)value);
+            }
+            if((value & 0xffff_ff00) != 0) {
+                System.err.println("storing "+value+" to byte at all indexes)");
+            }
+            return value;
+        }
+        @Override
+        public int getXSize() {
+            return xsize;
+        }
+        @Override
+        public int getYSize() {
+            return ysize;
+        }
+        public int foldAround(int i, int j, IntBinaryOperator f, int startVal) {
+            int val = startVal;
+            for (int dj=-1; dj<=1; ++dj) {
+                for (int di=-1; di<=1; ++di) {
+                    val = f.applyAsInt(val, get(i+di, j+dj));
+                }
+            }
+            return val;
+        }
+    }
+    //====
+    static class StretchedArray2d implements Array2d {
+        final Array2d backingArray;
+        final int dx, dy;
+        public StretchedArray2d(Array2d backingArray, int dx, int dy) {
+            this.backingArray = backingArray;
+            this.dx = dx;
+            this.dy = dy;
+        }
+        @Override
+        public int get(int x, int y) {
+            return backingArray.get(Math.floorDiv(x,dx), Math.floorDiv(y,dy));
+        }
+        @Override
+        public void set(int x, int y, int value) {
+            backingArray.set(Math.floorDiv(x,dx), Math.floorDiv(y,dy), value);
+        }
+        @Override
+        public void copyBoundaries() {
+            backingArray.copyBoundaries();
+        }
+        @Override
+        public int setAll(int value) {
+            return backingArray.setAll(value);
+        }
+        @Override
+        public int getXSize() {
+            return backingArray.getXSize()*dx;
+        }
+        @Override
+        public int getYSize() {
+            return backingArray.getYSize()*dy;
+        }
+    }
+    //====
+    static class InterpolatingArray2d implements ROArray2d {
+        final ROArray2d backingArray;
+        final int dx, dy;
+        public InterpolatingArray2d(ROArray2d backingArray, int dx, int dy) {
+            this.backingArray = backingArray;
+            this.dx = dx;
+            this.dy = dy;
+        }
+        public int get(int x, int y) {
+            int dx2 = dx/2, dy2 = dy/2;
+            int ia = Math.floorDiv(x-dx2, dx);
+            int iz = ia + 1;
+            int ja = Math.floorDiv(y-dy2, dy);
+            int jz = ja + 1;
+            int xa = dx*ia+dx2;
+            int ya = dy*ja+dy2;
+            double faa = backingArray.get(ia,ja), fza = backingArray.get(iz,ja),
+                    faz = backingArray.get(ia,jz), fzz = backingArray.get(iz,jz);
+            int xx = x - xa;
+            int yy = y - ya;
+            double f0 = bilinear4(xx, yy, faa, fza, faz, fzz);
+            return (int)f0;
+        }
+        double bilinear4(int x, int y, double faa, double fza, double faz, double fzz) {
+            double fa = ( faa*(dx-x) + fza*x ) / dx;
+            double fz = ( faz*(dx-x) + fzz*x ) / dx;
+            double f = ( fa*(dy-y) + fz*y ) / dy;
+            return f;
+        }
+        @Override
+        public int getXSize() {
+            return backingArray.getXSize()*dx;
+        }
+        @Override
+        public int getYSize() {
+            return backingArray.getYSize()*dy;
+        }
     }
 }
 
