@@ -524,7 +524,7 @@ class UiController implements UiEventListener {
         var otherNavigator = isRight ? lrNavigator.left : lrNavigator.right;
         changeRawData(new RawData(other, other));
         lrNavigator.left = otherNavigator;
-        lrNavigator.right = otherNavigator.copy();
+        lrNavigator.right = FileNavigator.copy(otherNavigator);
     }
 
     @Override
@@ -3183,6 +3183,9 @@ interface FileNavigator<T> {
     String toKey(T obj);
     String getPath(T t);
     FileNavigator<T> copy();
+    static<T> FileNavigator<T> copy(FileNavigator<T> orig) {
+        return orig == null ? null : orig.copy();
+    }
     default String getCurrentPath() { return getPath(getCurrentValue()); }
 }
 abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
