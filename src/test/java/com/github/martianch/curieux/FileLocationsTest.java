@@ -5,8 +5,7 @@ import org.junit.Test;
 import java.util.List;
 import java.util.Optional;
 
-import static com.github.martianch.curieux.FileLocations.isBayered;
-import static com.github.martianch.curieux.FileLocations.isUrl;
+import static com.github.martianch.curieux.FileLocations.*;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
 
@@ -294,6 +293,47 @@ public class FileLocationsTest {
             assertThat(r.get(0), is("RRB_635598676EDR_F0790000RHAZ00337M_.JPG"));
             assertThat(r.get(1), is("./RLB_635598676EDR_F0790000RHAZ00337M_.JPG"));
         }
+    }
+    @Test
+    public void chemcamTwoPathsTest() {
+        {
+            String path0 = "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02900/opgs/edr/ccam/CR0_654932925EDR_F0822176CCAM02899M_.JPG";
+            String path1 = "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02900/soas/rdr/ccam/CR0_654932925PRC_F0822176CCAM02899L1.PNG";
+            List<String> r = FileLocations._twoPaths(path0);
+            assertThat(r.size(), is(2));
+            assertTrue(r.contains(path0));
+            assertTrue(r.contains(path1));
+            assertThat(r.get(0), is(path0));
+            assertThat(r.get(1), is(path1));
+        }
+        {
+            String path0 = "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02900/opgs/edr/ccam/CR0_654932925EDR_F0822176CCAM02899M_.JPG";
+            String path1 = "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02900/soas/rdr/ccam/CR0_654932925PRC_F0822176CCAM02899L1.PNG";
+            List<String> r = FileLocations._twoPaths(path1);
+            assertThat(r.size(), is(2));
+            assertTrue(r.contains(path0));
+            assertTrue(r.contains(path1));
+            assertThat(r.get(0), is(path0));
+            assertThat(r.get(1), is(path1));
+        }
+    }
+    @Test
+    public void chemcamIsTest() {
+        String path0 = "CR0_654932925EDR_F0822176CCAM02899M_.JPG";
+        String path1 = "CR0_654932925PRC_F0822176CCAM02899L1.PNG";
+        assertEquals(true, isChemcamMarkedR(path0));
+        assertEquals(false, isChemcamMarkedR(path1));
+        assertEquals(false, isChemcamMarkedL(path0));
+        assertEquals(true, isChemcamMarkedL(path1));
+        assertEquals(path0, chemcamLToR(path1));
+        assertEquals(path1, chemcamRToL(path0));
+    }
+    @Test
+    public void chemcamL2RTest() {
+        String path0 = "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02900/opgs/edr/ccam/CR0_654932925EDR_F0822176CCAM02899M_.JPG";
+        String path1 = "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02900/soas/rdr/ccam/CR0_654932925PRC_F0822176CCAM02899L1.PNG";
+        assertEquals(path0, chemcamLToR(path1));
+        assertEquals(path1, chemcamRToL(path0));
     }
 
     @Test

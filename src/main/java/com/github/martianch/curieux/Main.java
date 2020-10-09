@@ -2018,14 +2018,20 @@ abstract class FileLocations {
         }
         var file = fullPath.getFileName().toString();
         if (isMarkedRL(file)) {
-            StringBuilder sb = new StringBuilder(file);
-            if (sb.charAt(1) == 'R') {
-                sb.setCharAt(1, 'L');
+            String otherFullPath = Paths.get(dir.toString(), toggleRL(file)).toString();
+            if (file.charAt(1) == 'R') {
                 fullPath1 = path0;
-                fullPath2 = Paths.get(dir.toString(),sb.toString()).toString();
+                fullPath2 = otherFullPath;
             } else {
-                sb.setCharAt(1, 'R');
-                fullPath1 = Paths.get(dir.toString(),sb.toString()).toString();
+                fullPath1 = otherFullPath;
+                fullPath2 = path0;
+            }
+        } else if (isChemcamMarkedRL(file)) {
+            if (isChemcamMarkedR(file)) {
+                fullPath1 = path0;
+                fullPath2 = chemcamRToL(path0);
+            } else {
+                fullPath1 = chemcamLToR(path0);
                 fullPath2 = path0;
             }
         } else {
@@ -2043,6 +2049,7 @@ abstract class FileLocations {
         String file2 = getFileName(urlOrPath2);
         if( (isMarkedL(file1) && isMarkedR(file2))
          || (isMrlMarkedL(urlOrPath1, file1) && isMrlMarkedR(urlOrPath2, file2))
+         || (isChemcamMarkedL(file1) && isChemcamMarkedR(file2))
           ) {
             return Arrays.asList(urlOrPath2, urlOrPath1);
         }
@@ -2059,11 +2066,39 @@ abstract class FileLocations {
     private static boolean isMarkedRL(String file) {
         return isMarkedR(file) || isMarkedL(file);
     }
+    static String toggleRL(String file) {
+        StringBuilder sb = new StringBuilder(file);
+        sb.setCharAt(1, (char) (sb.charAt(1)^('R'^'L')));
+        return sb.toString();
+    }
     static boolean isMrlMarkedR(String path, String fname) {
         return isCuriousUrn(path) ? isCuriousRUrn(path) : isMr(fname);
     }
     static boolean isMrlMarkedL(String path, String fname) {
         return isCuriousUrn(path) ? isCuriousLUrn(path) : isMl(fname);
+    }
+    static boolean isChemcamMarkedRL(String fname) {
+        return isChemcamMarkedR(fname) || isChemcamMarkedL(fname);
+    }
+    static boolean isChemcamMarkedR(String fname) {
+        return fname.startsWith("CR0_") && fname.matches("CR0_[0-9]+EDR_F[0-9]+CCAM[0-9]+M_.*");
+    }
+    static boolean isChemcamMarkedL(String fname) {
+        return fname.startsWith("CR0_") && fname.matches("CR0_[0-9]+PRC_F[0-9]+CCAM[0-9]+L1.*");
+    }
+    static String chemcamRToL(String path) {
+        String res = path
+                .replace("/opgs/edr/ccam/CR0_", "/soas/rdr/ccam/CR0_")
+                .replace("EDR_F", "PRC_F")
+                .replaceFirst("M_(?:-[thmbr]+)?\\.[jJ][pP][gG]","L1.PNG");
+        return res;
+    }
+    static String chemcamLToR(String path) {
+        String res = path
+                .replace("/soas/rdr/ccam/CR0_", "/opgs/edr/ccam/CR0_")
+                .replace("PRC_F", "EDR_F")
+                .replace("L1.PNG", "M_.JPG");
+        return res;
     }
     static boolean isCuriousUrn(String path) {
         return path.startsWith("curious:");
