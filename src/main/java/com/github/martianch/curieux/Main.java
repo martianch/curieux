@@ -2124,7 +2124,7 @@ abstract class FileLocations {
     }
     static boolean isBayered(String urlOrPath) {
         String fname = getFileName(urlOrPath);
-        return fname.matches(".*\\d+M[RL]\\d+C00_DXXX.*");
+        return fname.matches(".*\\d+M[RL]\\d+[CK]00_DXXX.*");
     }
 }
 

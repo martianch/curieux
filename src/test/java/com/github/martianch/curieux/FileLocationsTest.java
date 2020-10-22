@@ -366,6 +366,7 @@ public class FileLocationsTest {
         assertFalse(isBayered("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
         assertFalse(isBayered("NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
         assertFalse(isBayered("/tmp/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
+        assertTrue(isBayered("https://mars.nasa.gov/msl-raw-images/msss/02914/mcam/2914ML0152070131101802K00_DXXX.jpg"));
     }
     @Test
     public void getSolTest() {
@@ -381,6 +382,7 @@ public class FileLocationsTest {
 //        assertEquals(true, FileLocations.isMrl("/msl-raw-images/msss/02893/mcam/2893MR0151010011300209C00_DXXX.jpg"));
         assertEquals(true, FileLocations.isMrl("2893ML0151010021101295C00_DXXX.jpg"));
         assertEquals(true, FileLocations.isMrl("2893MR0151010011300209C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMrl("2914ML0152070131101802K00_DXXX.jpg"));
 //        assertEquals(true, FileLocations.isMrl("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893MR0151010021300210C00_DXXX.jpg"));
 //        assertEquals(true, FileLocations.isMrl("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893ML0151010021101295C00_DXXX.jpg"));
 //        assertEquals(false, FileLocations.isMrl("/msl-raw-images/msss/02893/mcam/02893ML0151010021101295C00_DXXX.jpg"));
@@ -394,6 +396,7 @@ public class FileLocationsTest {
 //        assertEquals(true, FileLocations.isMr("/msl-raw-images/msss/02893/mcam/2893MR0151010011300209C00_DXXX.jpg"));
         assertEquals(false, FileLocations.isMr("2893ML0151010021101295C00_DXXX.jpg"));
         assertEquals(true, FileLocations.isMr("2893MR0151010011300209C00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMr("2914MR0152070131101802K00_DXXX.jpg"));
 //        assertEquals(true, FileLocations.isMr("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893MR0151010021300210C00_DXXX.jpg"));
 //        assertEquals(false, FileLocations.isMr("https://mars.nasa.gov/msl-raw-images/msss/02893/mcam/2893ML0151010021101295C00_DXXX.jpg"));
 //        assertEquals(true, FileLocations.isMr("/msl-raw-images/msss/02893/mcam/2893MR0151010021300210C00_DXXX.jpg"));
@@ -401,6 +404,11 @@ public class FileLocationsTest {
         assertEquals(false, FileLocations.isMr("02893ML0151010021101295C00_DXXX.jpg"));
         assertEquals(false, FileLocations.isMr("CR0_654758502PRC_F0822176CCAM03897L1.PNG"));
 //        assertEquals(false, FileLocations.isMr("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02898/soas/rdr/ccam/CR0_654758502PRC_F0822176CCAM03897L1.PNG"));
+    }
+    @Test
+    public void isMlTest() {
+        assertEquals(false, FileLocations.isMl("2914MR0152070131101802K00_DXXX.jpg"));
+        assertEquals(true, FileLocations.isMl("2914ML0152070131101802K00_DXXX.jpg"));
     }
     @Test
     public void replaceFileNameTest() {
