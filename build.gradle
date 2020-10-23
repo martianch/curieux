@@ -12,6 +12,8 @@ plugins {
 
     // Apply the application plugin to add support for building a CLI application.
     id 'application'
+
+    id 'com.palantir.git-version' version '0.12.3'
 }
 
 repositories {
@@ -43,10 +45,12 @@ compileJava {
             "--release", "8" // Avoid using Java 12 APIs
     ]
 }
+
 jar {
     manifest {
         attributes(
-                'Main-Class': 'com.github.martianch.curieux.Main'
+                'Main-Class': 'com.github.martianch.curieux.Main',
+                'Implementation-Version': gitVersion()
         )
     }
 }

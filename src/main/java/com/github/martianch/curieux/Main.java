@@ -1193,6 +1193,7 @@ class X3DViewer {
                         "image with text" +
                         "</a>" +
                         " (these are three completely different methods)." +
+                        "<br><br>Build Version: " + BuildVersion.getBuildVersion() +
                         "");
                 {
                     Font f = helpText.getFont();
@@ -4246,4 +4247,11 @@ class MastcamPairFinder {
         return match.map(m -> m.get("imageid").toString());
     }
 
+}
+
+class BuildVersion {
+    public static String getBuildVersion(){
+        String ver = BuildVersion.class.getPackage().getImplementationVersion();
+        return ver == null ? "n/a" : ver;
+    }
 }
