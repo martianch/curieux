@@ -3379,8 +3379,8 @@ class LocalFileNavigator extends FileNavigatorBase {
 }
 
 class NasaReader {
-    static String USER_AGENT = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0";
-    {
+    static final String USER_AGENT;
+    static {
         //Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0
         String USER_AGENT_LINUX = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:81.0) Gecko/20100101 Firefox/81.0";
         String USER_AGENT_WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0";
