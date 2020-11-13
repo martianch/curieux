@@ -279,7 +279,9 @@ class ImageAndPath {
         } else if(FileLocations.isUrl(path)) {
             System.out.println("downloading "+path+ " ...");
             try {
-                res = ImageIO.read(new URL(path));
+                URLConnection uc = new URL(path).openConnection();
+                NasaReader.setHttpHeaders(uc);
+                res = ImageIO.read(uc.getInputStream());
                 res.getWidth(); // throw an exception if null
                 System.out.println("downloaded "+path);
             } catch (Throwable t) {
@@ -2175,6 +2177,7 @@ class HttpLocations {
         URL url = new URL(urlString);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("HEAD");
+        NasaReader.setHttpHeaders(connection);
         if (isRedirect(connection.getResponseCode())) {
             String newUrl = connection.getHeaderField("Location"); // get redirect url from "location" header field
             System.out.println("Original request URL: "+urlString+" redirected to: "+ newUrl);
@@ -2193,8 +2196,8 @@ class HttpLocations {
     protected static boolean isRedirect(int statusCode) {
         if (statusCode != HttpURLConnection.HTTP_OK) {
             if (statusCode == HttpURLConnection.HTTP_MOVED_TEMP
-                    || statusCode == HttpURLConnection.HTTP_MOVED_PERM
-                    || statusCode == HttpURLConnection.HTTP_SEE_OTHER) {
+             || statusCode == HttpURLConnection.HTTP_MOVED_PERM
+             || statusCode == HttpURLConnection.HTTP_SEE_OTHER) {
                 return true;
             }
         }
@@ -3229,7 +3232,7 @@ interface FileNavigator<T> {
 abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     protected NavigableMap<String, Map<String, Object>> nmap = new TreeMap<>();
     protected String currentKey;
-    int nToLoad=12;
+    int nToLoad=25;
     public static FileNavigatorBase makeNew(String path) {
         var needRemote = FileLocations.isUrl(path);
         FileNavigatorBase res = needRemote ? new RemoteFileNavigator() : new LocalFileNavigator();
@@ -3376,6 +3379,24 @@ class LocalFileNavigator extends FileNavigatorBase {
 }
 
 class NasaReader {
+    static String USER_AGENT = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0";
+    {
+        //Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0
+        String USER_AGENT_LINUX = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:81.0) Gecko/20100101 Firefox/81.0";
+        String USER_AGENT_WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0";
+        String USER_AGENT_MACOSX = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:82.0) Gecko/20100101 Firefox/82.0";
+        String osName = System.getProperty("os.name").toLowerCase();
+        if(osName == null) {
+            osName = "";
+        }
+        if (osName.startsWith("mac")) {
+            USER_AGENT = USER_AGENT_MACOSX;
+        } else if (osName.startsWith("lin")) {
+            USER_AGENT = USER_AGENT_LINUX;
+        } else {
+            USER_AGENT = USER_AGENT_WINDOWS;
+        }
+    }
 
     static String nasaEncode(String params) {
         return params.replaceAll(",", "%2C").replaceAll(":", "%3A").replaceAll(" ","+");
@@ -3383,6 +3404,7 @@ class NasaReader {
 
     static String readUrl(URL url) throws IOException {
         URLConnection conn = url.openConnection();
+        setHttpHeaders(conn);
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.joining("\n"));
         }
@@ -3466,6 +3488,17 @@ class NasaReader {
                         "&search=" +
                         "&extended=thumbnail::sample_type::noteq"
         );
+    }
+
+    public static void setHttpHeaders(URLConnection uc) {
+        uc.setRequestProperty("User-Agent",USER_AGENT);
+        uc.setRequestProperty("Accept","text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+        uc.setRequestProperty("Accept-Language","en-US,en;q=0.5");
+        uc.setRequestProperty("DNT","1");
+        uc.setRequestProperty("Pragma","no-cache");
+        uc.setRequestProperty("Cache-Control","no-cache");
+//      uc.setRequestProperty("","");
+
     }
 }
 class RemoteFileNavigator extends FileNavigatorBase {
