@@ -3731,6 +3731,12 @@ class ColorCorrection {
                 case GAMMA_DECODE_1_6:
                     res = GammaColorBalancer.balanceColors(res, 1.6);
                     break;
+                case GAMMA_DECODE_1_4:
+                    res = GammaColorBalancer.balanceColors(res, 1.4);
+                    break;
+                case GAMMA_DECODE_1_2:
+                    res = GammaColorBalancer.balanceColors(res, 1.2);
+                    break;
                 case GAMMA_ENCODE_2_4:
                     res = GammaColorBalancer.balanceColors(res, 1 / 2.4);
                     break;
@@ -3745,6 +3751,12 @@ class ColorCorrection {
                     break;
                 case GAMMA_ENCODE_1_6:
                     res = GammaColorBalancer.balanceColors(res, 1 / 1.6);
+                    break;
+                case GAMMA_ENCODE_1_4:
+                    res = GammaColorBalancer.balanceColors(res, 1 / 1.4);
+                    break;
+                case GAMMA_ENCODE_1_2:
+                    res = GammaColorBalancer.balanceColors(res, 1 / 1.2);
                     break;
                 case UNGLARE1:
                     res = BilinearDeglareWhite.unglare(res);
@@ -3767,11 +3779,15 @@ enum ColorCorrectionAlgo {
     GAMMA_DECODE_2_0("gamma decode, γ=2.0", "gd20"),
     GAMMA_DECODE_1_8("gamma decode, γ=1.8", "dg18"),
     GAMMA_DECODE_1_6("gamma decode, γ=1.6", "gd16"),
+    GAMMA_DECODE_1_4("gamma decode, γ=1.4", "gd14"),
+    GAMMA_DECODE_1_2("gamma decode, γ=1.2", "gd12"),
     GAMMA_ENCODE_2_4("gamma encode, γ=1/2.4", "ge24"),
     GAMMA_ENCODE_2_2("gamma encode, γ=1/2.2", "ge22"),
     GAMMA_ENCODE_2_0("gamma encode, γ=1/2.0", "ge20"),
     GAMMA_ENCODE_1_8("gamma encode, γ=1/1.8", "ge18"),
     GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6", "ge16"),
+    GAMMA_ENCODE_1_4("gamma encode, γ=1/1.4", "ge14"),
+    GAMMA_ENCODE_1_2("gamma encode, γ=1/1.2", "ge12"),
     UNGLARE1("unglare, bilinear","ugb");
 
     final String name;
