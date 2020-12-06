@@ -184,6 +184,7 @@ class DisplayParameters {
     int offsetX, offsetY;
     double angle, angleR, angleL;
     DebayerMode debayerL, debayerR;
+    ImageResamplingMode imageResamplingModeL, imageResamplingModeR;
     ColorCorrection lColorCorrection, rColorCorrection;
 
     public DisplayParameters() {
@@ -194,6 +195,7 @@ class DisplayParameters {
         offsetX = offsetY = 0;
         angle = angleL = angleR = 0.;
         debayerL = debayerR = DebayerMode.AUTO3;
+        imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.BICUBIC;
         lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST);
     }
     void setDefaultsMrMl() {
@@ -201,7 +203,7 @@ class DisplayParameters {
         zoomR = 3.;
         offsetX = -260;
     }
-    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
+    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
         this.zoom = zoom;
         this.zoomL = zoomL;
         this.zoomR = zoomR;
@@ -212,6 +214,8 @@ class DisplayParameters {
         this.angleR = angleR;
         this.debayerL = debayerL;
         this.debayerR = debayerR;
+        this.imageResamplingModeL = imageResamplingModeL;
+        this.imageResamplingModeR = imageResamplingModeR;
         this.lColorCorrection = lColorCorrection;
         this.rColorCorrection = rColorCorrection;
     }
@@ -219,7 +223,7 @@ class DisplayParameters {
 //        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY);
 //    }
     public DisplayParameters swapped() {
-        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, rColorCorrection, lColorCorrection);
+        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection);
     }
 }
 class ImageAndPath {
@@ -812,8 +816,8 @@ class X3DViewer {
 
                 BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
                 BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
-                iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY));
-                iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY));
+                iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY, dp.imageResamplingModeL));
+                iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY, dp.imageResamplingModeR));
             }
             lblL.setIcon(iconL);
             lblR.setIcon(iconR);
@@ -1544,7 +1548,7 @@ class X3DViewer {
 
         return operation.filter(originalImage, null);
     }
-    static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, BufferedImage otherImage, double otherZoomLevel, int offX, int offY) {
+    static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, BufferedImage otherImage, double otherZoomLevel, int offX, int offY, ImageResamplingMode imageResamplingMode) {
         if (ImageAndPath.isDummyImage(originalImage) && ImageAndPath.isDummyImage(otherImage)) {
             return originalImage;
         }
@@ -1563,7 +1567,7 @@ class X3DViewer {
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
 //        if (zoomLevel > 1.5) {
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, imageResamplingMode.getRenderingHint());
 //        }
         g.drawImage(
                 originalImage,
@@ -1587,6 +1591,20 @@ class X3DViewer {
 }
 
 enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
+
+enum ImageResamplingMode {
+    NEAREST(RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR),
+    BILINEAR(RenderingHints.VALUE_INTERPOLATION_BILINEAR),
+    BICUBIC(RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+
+    final Object renderingHint;
+    ImageResamplingMode(Object hint) {
+        renderingHint = hint;
+    }
+    public Object getRenderingHint() {
+        return renderingHint;
+    }
+};
 
 enum DebayerMode {
     NEVER(false,-1),
