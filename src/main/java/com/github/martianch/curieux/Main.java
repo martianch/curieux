@@ -48,10 +48,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -135,6 +137,7 @@ public class Main {
                 () -> uic.createAndShowViews()
         );
         paths = uic.unThumbnailIfNecessary(paths);
+        NasaReader.cleanupReading(); // this is black magic. we read favicon
         uic.updateRawDataAsync(paths.get(0), paths.get(1));
     }
 }
@@ -281,9 +284,39 @@ class ImageAndPath {
             try {
                 URLConnection uc = new URL(path).openConnection();
                 NasaReader.setHttpHeaders(uc);
-                res = ImageIO.read(uc.getInputStream());
-                res.getWidth(); // throw an exception if null
-                System.out.println("downloaded "+path);
+                try {
+                    res = ImageIO.read(uc.getInputStream());
+                    res.getWidth(); // throw an exception if null
+                    System.out.println("downloaded " + path);
+                } catch (IOException e) {
+                    if (uc instanceof HttpURLConnection) {
+                        HttpURLConnection httpUc = (HttpURLConnection) uc;
+                        // Oracle recommends to read the error stream, but in practice
+                        // if uc.getInputStream() failed with "java.net.ConnectException: Connection timed out",
+                        // httpUc.getErrorStream() will also fail
+                        try (
+                                InputStream es = httpUc.getErrorStream()
+                        ) {
+                            int respCode = httpUc.getResponseCode();
+                            System.out.println("Response code:" + respCode);
+                            String error_text = new BufferedReader(new InputStreamReader(es, StandardCharsets.UTF_8))
+                                    .lines()
+                                    .collect(Collectors.joining("\n"));
+                            System.out.println("Error stream:");
+                            System.out.println(error_text);
+                        } catch (IOException ex) {
+                            // deal with the exception
+                            System.out.println("Error while printing the error stream:");
+                            ex.printStackTrace();
+                            System.out.println("DISCONNECTING URLConnection...");
+                            httpUc.disconnect();
+                        }
+                    }
+                    e.printStackTrace();
+                    System.out.println("could not download "+path);
+                    res = dummyImage(new Color(80,20,20));
+                    NasaReader.cleanupReading();
+                }
             } catch (Throwable t) {
                 t.printStackTrace();
                 System.out.println("could not download "+path);
@@ -1902,6 +1935,9 @@ class DragMover extends MouseInputAdapter {
 
 abstract class FileLocations {
     static String unThumbnail(String urlOrFile) {
+        if (urlOrFile == null) {
+            return urlOrFile;
+        }
         final String thmSuffix = "-thm.jpg";
         final String brSuffix = "-br.jpg";
         final String imgSuffix = ".JPG";
@@ -1928,7 +1964,7 @@ abstract class FileLocations {
         return true;
     }
     static String replaceSuffix(String oldSuffix, String newSuffix, String orig) {
-        if (!orig.endsWith(oldSuffix)) {
+        if (orig==null || !orig.endsWith(oldSuffix)) {
             return orig;
         }
         String base = orig.substring(0, orig.length()-oldSuffix.length());
@@ -3405,8 +3441,18 @@ class NasaReader {
     static String readUrl(URL url) throws IOException {
         URLConnection conn = url.openConnection();
         setHttpHeaders(conn);
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-            return reader.lines().collect(Collectors.joining("\n"));
+        try {
+            try (
+                    InputStream connInputStream = conn.getInputStream();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connInputStream, StandardCharsets.UTF_8))
+            ) {
+                return reader.lines().collect(Collectors.joining("\n"));
+            }
+        } catch (SocketTimeoutException ste) {
+            System.out.println("Disconnecting "+conn+" ...");
+            ((HttpURLConnection)conn).disconnect();
+            NasaReader.cleanupReading();
+            throw ste;
         }
     }
 
@@ -3417,6 +3463,7 @@ class NasaReader {
     static Object dataStructureFromRequest(String parameters) throws IOException {
         System.out.println("dataStructureFromRequest("+parameters+")");
         String url = makeRequest(parameters);
+        System.out.println("dataStructureFromRequest url = "+url);
         String json = NasaReader.readUrl(new URL(url));
         Object res = JsonDiy.jsonToDataStructure(json);
         return res;
@@ -3498,7 +3545,38 @@ class NasaReader {
         uc.setRequestProperty("Pragma","no-cache");
         uc.setRequestProperty("Cache-Control","no-cache");
 //      uc.setRequestProperty("","");
+        uc.setConnectTimeout(7000); // 7 sec
+    }
 
+    /**
+     * For an unknown reason, a "java.net.ConnectException: Connection timed out"
+     * happens once in a while, and to make (reused?) HttpURLConnection-s work again,
+     * we read from several different URLs. Sometimes this works, sometimes not.
+     */
+    public static void cleanupReading() {
+        System.out.println("cleanup reading:");
+        for (String url : Arrays.asList("https://mars.nasa.gov/favicon-16x16.png",
+                                        "https://mars.nasa.gov/assets/facebook_icon@2x.png",
+                                        "https://mars.nasa.gov/assets/twitter_icon@2x.png")
+        ) {
+            try {
+                System.out.println("reading " + url);
+                HttpURLConnection uc2 = (HttpURLConnection) new URL(url).openConnection();
+                NasaReader.setHttpHeaders(uc2);
+                uc2.setConnectTimeout(3000); // 3 sec
+                try {
+                    ImageIO.read(uc2.getInputStream());
+                    System.out.println("url " + url + " read successfully");
+                    return;
+                } catch (IOException ee) {
+                    System.out.println("url was not read: "+url);
+                    ee.printStackTrace();
+                }
+            } catch (IOException e) {
+                System.out.println("could not read "+url+" :");
+                e.printStackTrace();
+            }
+        }
     }
 }
 class RemoteFileNavigator extends FileNavigatorBase {
