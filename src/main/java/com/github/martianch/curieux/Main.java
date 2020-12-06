@@ -1221,7 +1221,7 @@ class X3DViewer {
                         "<br>"+
                         "<b>Color correction.</b> <a href=\"https://homepages.inf.ed.ac.uk/rbf/HIPR2/stretch.htm\">Contrast stretching</a>" +
                         " and <a href=\"https://en.wikipedia.org/wiki/Gamma_correction\">gamma correction</a> are implemented (available via<br>" +
-                        "the context menu or via the color button).<br>"+
+                        "the context menu or via the color button). The recommended value for gamma correction is γ=2.2.<br>"+
                         "<br>"+
                         "This project's " +
                         "<a href=\"https://github.com/martianch/curieux\">"+
