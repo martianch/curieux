@@ -15,58 +15,58 @@ public class X3DViewerTest {
         BufferedImage image1 = ImageAndPath._dummyImage(red, 20, 20);
         BufferedImage image2 = ImageAndPath._dummyImage(green, 60, 60);
         {
-            var z1 = X3DViewer.zoom(image1, 1., image2, 1., 0, 0);
-            var z2 = X3DViewer.zoom(image2, 1., image1, 1., 0, 0);
+            var z1 = X3DViewer.zoom(image1, 1., image2, 1., 0, 0, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 1., image1, 1., 0, 0, ImageResamplingMode.NEAREST);
             assertEquals(z1.getWidth(), z2.getWidth());
             assertEquals(z1.getHeight(), z2.getHeight());
         }
         {
-            var z1 = X3DViewer.zoom(image1, 4., image2, 1., 0, 0);
-            var z2 = X3DViewer.zoom(image2, 1., image1, 4., 0, 0);
+            var z1 = X3DViewer.zoom(image1, 4., image2, 1., 0, 0, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 1., image1, 4., 0, 0, ImageResamplingMode.NEAREST);
             assertEquals(z1.getWidth(), z2.getWidth());
             assertEquals(z1.getHeight(), z2.getHeight());
         }
         {
-            var z1 = X3DViewer.zoom(image1, 1., image2, 2., 0, 0);
-            var z2 = X3DViewer.zoom(image2, 2., image1, 1., 0, 0);
-            assertEquals(z1.getWidth(), z2.getWidth());
-            assertEquals(z1.getHeight(), z2.getHeight());
-        }
-
-        {
-            var z1 = X3DViewer.zoom(image1, 1., image2, 1., 10, 0);
-            var z2 = X3DViewer.zoom(image2, 1., image1, 1., -10, 0);
-            assertEquals(z1.getWidth(), z2.getWidth());
-            assertEquals(z1.getHeight(), z2.getHeight());
-        }
-        {
-            var z1 = X3DViewer.zoom(image1, 4., image2, 1., 10, 0);
-            var z2 = X3DViewer.zoom(image2, 1., image1, 4., -10, 0);
-            assertEquals(z1.getWidth(), z2.getWidth());
-            assertEquals(z1.getHeight(), z2.getHeight());
-        }
-        {
-            var z1 = X3DViewer.zoom(image1, 1., image2, 2., 10, 0);
-            var z2 = X3DViewer.zoom(image2, 2., image1, 1., -10, 0);
+            var z1 = X3DViewer.zoom(image1, 1., image2, 2., 0, 0, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 2., image1, 1., 0, 0, ImageResamplingMode.NEAREST);
             assertEquals(z1.getWidth(), z2.getWidth());
             assertEquals(z1.getHeight(), z2.getHeight());
         }
 
         {
-            var z1 = X3DViewer.zoom(image1, 1., image2, 1., 0, 30);
-            var z2 = X3DViewer.zoom(image2, 1., image1, 1., 0, -30);
+            var z1 = X3DViewer.zoom(image1, 1., image2, 1., 10, 0, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 1., image1, 1., -10, 0, ImageResamplingMode.NEAREST);
             assertEquals(z1.getWidth(), z2.getWidth());
             assertEquals(z1.getHeight(), z2.getHeight());
         }
         {
-            var z1 = X3DViewer.zoom(image1, 4., image2, 1., 0, 30);
-            var z2 = X3DViewer.zoom(image2, 1., image1, 4., 0, -30);
+            var z1 = X3DViewer.zoom(image1, 4., image2, 1., 10, 0, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 1., image1, 4., -10, 0, ImageResamplingMode.NEAREST);
             assertEquals(z1.getWidth(), z2.getWidth());
             assertEquals(z1.getHeight(), z2.getHeight());
         }
         {
-            var z1 = X3DViewer.zoom(image1, 1., image2, 2., 0, 30);
-            var z2 = X3DViewer.zoom(image2, 2., image1, 1., 0, -30);
+            var z1 = X3DViewer.zoom(image1, 1., image2, 2., 10, 0, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 2., image1, 1., -10, 0, ImageResamplingMode.NEAREST);
+            assertEquals(z1.getWidth(), z2.getWidth());
+            assertEquals(z1.getHeight(), z2.getHeight());
+        }
+
+        {
+            var z1 = X3DViewer.zoom(image1, 1., image2, 1., 0, 30, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 1., image1, 1., 0, -30, ImageResamplingMode.NEAREST);
+            assertEquals(z1.getWidth(), z2.getWidth());
+            assertEquals(z1.getHeight(), z2.getHeight());
+        }
+        {
+            var z1 = X3DViewer.zoom(image1, 4., image2, 1., 0, 30, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 1., image1, 4., 0, -30, ImageResamplingMode.NEAREST);
+            assertEquals(z1.getWidth(), z2.getWidth());
+            assertEquals(z1.getHeight(), z2.getHeight());
+        }
+        {
+            var z1 = X3DViewer.zoom(image1, 1., image2, 2., 0, 30, ImageResamplingMode.NEAREST);
+            var z2 = X3DViewer.zoom(image2, 2., image1, 1., 0, -30, ImageResamplingMode.NEAREST);
             assertEquals(z1.getWidth(), z2.getWidth());
             assertEquals(z1.getHeight(), z2.getHeight());
         }

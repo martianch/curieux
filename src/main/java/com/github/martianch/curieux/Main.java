@@ -151,6 +151,8 @@ interface UiEventListener {
     void rAngleChanged(double newRAngle);
     void lDebayerModeChanged(DebayerMode newLDebayerMode);
     void rDebayerModeChanged(DebayerMode newRDebayerMode);
+    void lImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeL);
+    void rImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeR);
     void lColorCorrectionChanged(ColorCorrection colorCorrection);
     void rColorCorrectionChanged(ColorCorrection colorCorrection);
     void xOffsetChanged(int newXOff);
@@ -194,8 +196,8 @@ class DisplayParameters {
         zoom = zoomL = zoomR = 1.;
         offsetX = offsetY = 0;
         angle = angleL = angleR = 0.;
-        debayerL = debayerR = DebayerMode.AUTO3;
-        imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.BICUBIC;
+        debayerL = debayerR = DebayerMode.getUiDefault();
+        imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
         lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST);
     }
     void setDefaultsMrMl() {
@@ -444,6 +446,16 @@ class UiController implements UiEventListener {
     @Override
     public void rDebayerModeChanged(DebayerMode newRDebayerMode) {
         displayParameters.debayerR = newRDebayerMode;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void lImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeL) {
+        displayParameters.imageResamplingModeL = newImageResamplingModeL;
+        x3dViewer.updateViews(rawData, displayParameters);
+    }
+    @Override
+    public void rImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeR) {
+        displayParameters.imageResamplingModeR = newImageResamplingModeR;
         x3dViewer.updateViews(rawData, displayParameters);
     }
     @Override
@@ -802,6 +814,8 @@ class X3DViewer {
         debayerR.setValue(dp.debayerR);
         colorCorrectionPane.setColorCorrectionValue(false, dp.lColorCorrection);
         colorCorrectionPane.setColorCorrectionValue(true, dp.rColorCorrection);
+        colorCorrectionPane.setImageResamplingModeValue(false, dp.imageResamplingModeL);
+        colorCorrectionPane.setImageResamplingModeValue(true, dp.imageResamplingModeR);
     }
     public void updateViews(RawData rd, DisplayParameters dp) {
         {
@@ -1604,8 +1618,25 @@ enum ImageResamplingMode {
     public Object getRenderingHint() {
         return renderingHint;
     }
+    static ImageResamplingMode getUiDefault(){
+        return BICUBIC;
+    }
 };
-
+class ImageResamplingModeChooser extends JComboBox<ImageResamplingMode> {
+    static ImageResamplingMode[] modes = ImageResamplingMode.values();
+    public ImageResamplingModeChooser(Consumer<ImageResamplingMode> valueListener) {
+        super(modes);
+        setValue(ImageResamplingMode.getUiDefault());
+        addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                valueListener.accept((ImageResamplingMode) itemEvent.getItem());
+            }
+        });
+    }
+    public void setValue(ImageResamplingMode imageResamplingMode) {
+        setSelectedItem(imageResamplingMode);
+    }
+}
 enum DebayerMode {
     NEVER(false,-1),
     AUTO0(false,0), AUTO1(false,1), AUTO2(false,2), AUTO3(false,3), AUTO4(false,4),
@@ -1622,12 +1653,15 @@ enum DebayerMode {
                 : data
                 ;
     }
+    static DebayerMode getUiDefault(){
+        return AUTO3;
+    }
 }
 class DebayerModeChooser extends JComboBox<DebayerMode> {
     static DebayerMode[] modes = DebayerMode.values();
     public DebayerModeChooser(Consumer<DebayerMode> valueListener) {
         super(modes);
-        setValue(DebayerMode.AUTO3);
+        setValue(DebayerMode.getUiDefault());
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
                 valueListener.accept((DebayerMode) itemEvent.getItem());
@@ -3842,6 +3876,8 @@ class ColorCorrectionPane extends JPanel {
     final UiEventListener uiEventListener;
     final List<ColorCorrectionModeChooser> lChoosers = new ArrayList<>();
     final List<ColorCorrectionModeChooser> rChoosers = new ArrayList<>();
+    final ImageResamplingModeChooser lImageResamplingModeChooser;
+    final ImageResamplingModeChooser rImageResamplingModeChooser;
 
     public ColorCorrectionPane(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
@@ -3883,6 +3919,20 @@ class ColorCorrectionPane extends JPanel {
                 this.add(chooser);
             }
         }
+        {
+            var row = new JPanel();
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 7;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(row, gbc);
+            this.add(row);
+            var text = new JLabel("Image Scaling Interpolation:");
+            row.add(text);
+            row.add(lImageResamplingModeChooser = new ImageResamplingModeChooser(v -> uiEventListener.lImageResamplingModeChanged(v)));
+            row.add(rImageResamplingModeChooser = new ImageResamplingModeChooser(v -> uiEventListener.rImageResamplingModeChanged(v)));
+        }
         this.setLayout(gbl);
     }
 
@@ -3902,6 +3952,14 @@ class ColorCorrectionPane extends JPanel {
             choosers.get(i).setSelectedItem(
                 i < nAlgos ? algos.get(i) : ColorCorrectionAlgo.DO_NOTHING
             );
+        }
+        return this;
+    }
+    ColorCorrectionPane setImageResamplingModeValue(boolean isRight, ImageResamplingMode imageResamplingMode) {
+        if (isRight) {
+            rImageResamplingModeChooser.setValue(imageResamplingMode);
+        } else {
+            lImageResamplingModeChooser.setValue(imageResamplingMode);
         }
         return this;
     }
