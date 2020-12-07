@@ -1206,6 +1206,7 @@ class X3DViewer {
                         "in Java dialogs the Enter key selects the default action rather than<br>" +
                         "the currently selected one; please use Space to select the current action.<br>" +
                         "<b>F1</b>: this help<br>" +
+                        "<b>Buttons + and -</b> in the zoom/offset/rotate controls may be pressed with the <b>Shift</b> key.<br>"+
                         "<br>"+
                         "<b>Command line:</b> arguments may be either file paths or URLs<br>" +
                         "<b>Drag-and-Drop (DnD):</b> opens one or two images; if only one image was dropped, if the \"DnD BOTH\" <br>" +
@@ -1694,7 +1695,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonMinus2 = new JButton();
             loadIcon(buttonMinus2,"icons/minus12.png","––");
             buttonMinus2.addActionListener(e -> {
-                valueWrapper.decrement(1);
+                valueWrapper.decrement(1 + getGroupIndex(e));
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
@@ -1704,7 +1705,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonMinus = new JButton();
             loadIcon(buttonMinus,"icons/minusa12.png","–");
             buttonMinus.addActionListener(e -> {
-                valueWrapper.decrement(0);
+                valueWrapper.decrement(0 + getGroupIndex(e));
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
@@ -1727,7 +1728,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonPlus = new JButton();
             loadIcon(buttonPlus,"icons/plusa12.png","+");
             buttonPlus.addActionListener(e -> {
-                valueWrapper.increment(0);
+                valueWrapper.increment(0 + getGroupIndex(e));
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
@@ -1737,7 +1738,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonPlus2 = new JButton();
             loadIcon(buttonPlus2,"icons/plus12.png","++");
             buttonPlus2.addActionListener(e -> {
-                valueWrapper.increment(1);
+                valueWrapper.increment(1 + getGroupIndex(e));
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
@@ -1756,6 +1757,19 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         return this;
     }
 
+    /**
+     * Detect pressed modifier keys (only Shift at the moment).
+     * When Shift is pressed, a different set of increment values is used.
+     * @param e contains information about the modifiers (Shift/Ctrl/Alt/Meta)
+     * @return 2 if Shift is pressed, 0 otherwise
+     */
+    int getGroupIndex(ActionEvent e) {
+        if((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0) {
+            return 2;
+        } else {
+            return 0;
+        }
+    }
     DigitalZoomControl setTextFieldFromValue() {
         this.textField.setForeground(Color.BLACK);
         this.textField.setText(valueWrapper.getAsString());
@@ -1795,7 +1809,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     }
 }
 class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
-    int[] increments = {3,30,100};
+    int[] increments = {3,30,1,100};
     @Override
     boolean setFromString(String s) {
         try {
@@ -1827,7 +1841,7 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
     }
 }
 class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
-    double[] increments = {0.1, 1.0, 2.0};
+    double[] increments = {0.1, 1.0, 0.05, 5.0};
     @Override
     boolean setFromString(String s) {
         try {
@@ -1855,7 +1869,7 @@ class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     }
 }
 class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
-    double[] increments = {0.1, 1.0, 2.0};
+    double[] increments = {0.1, 1.0, 0.005, 2.0};
     final static double MIN_ZOOM_VALUE = 0.001;
     @Override
     boolean setFromString(String s) {
