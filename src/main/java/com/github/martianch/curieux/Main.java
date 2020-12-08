@@ -131,8 +131,9 @@ public class Main {
         var rd0 = RawData.createInProgress(paths.get(0), paths.get(1));
         var dp = new DisplayParameters();
         var xv = new X3DViewer();
+        var ms = new MeasurementStatus();
         var lrn = new LRNavigator();
-        var uic = new UiController(xv, lrn, rd0, dp);
+        var uic = new UiController(xv, lrn, rd0, dp, ms);
         javax.swing.SwingUtilities.invokeLater(
                 () -> uic.createAndShowViews()
         );
@@ -173,7 +174,11 @@ interface UiEventListener {
     void saveScreenshot();
     void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
     void openInBrowser(SiteOpenCommand command, boolean isRight);
+    void markPointWithMousePress(boolean isRight, MouseEvent e);
+    void setWaitingForPoint(boolean forFirstPoint);
+    void markedPointChanged(int coordId, int lrXy12);
     Optional<Integer> getSol(boolean isRight);
+    MeasurementStatus getMeasurementStatus();
 }
 
 enum GoToImageOptions {
@@ -393,96 +398,187 @@ class RawData {
                 '}';
     }
 }
+class MeasurementStatus {
+    PanelMeasurementStatus left, right;
+    boolean isWaitingForPoint;
+    boolean isWaitingForFirstPoint;
+    public MeasurementStatus(PanelMeasurementStatus left, PanelMeasurementStatus right) {
+        this.left = left;
+        this.right = right;
+        isWaitingForPoint = false;
+        isWaitingForFirstPoint = false;
+    }
+    public MeasurementStatus() {
+        this(new PanelMeasurementStatus(), new PanelMeasurementStatus());
+    }
+    public void setWaitingForPoint(boolean forFirstPoint) {
+        isWaitingForPoint = true;
+        isWaitingForFirstPoint = forFirstPoint;
+    }
+    public boolean isWaitingForPoint() {
+        return isWaitingForPoint;
+    }
+    public boolean isWaitingForFirstPoint() {
+        return isWaitingForFirstPoint;
+    }
+    public void clearWaitingForPoint() {
+        isWaitingForPoint = false;
+    }
+    public MeasurementStatus swapped() {
+        var res = new MeasurementStatus(right.copy(), left.copy());
+        res.isWaitingForPoint = this.isWaitingForPoint;
+        res.isWaitingForFirstPoint = this.isWaitingForFirstPoint;
+        return res;
+    }
+    public MeasurementStatus copy() {
+        var res = new MeasurementStatus(left.copy(), right.copy());
+        res.isWaitingForPoint = this.isWaitingForPoint;
+        res.isWaitingForFirstPoint = this.isWaitingForFirstPoint;
+        return res;
+    }
+}
+class PanelMeasurementStatus {
+    int x1=-1, y1=-1, x2=-1, y2=-1;
+    public PanelMeasurementStatus copy() {
+        var res = new PanelMeasurementStatus();
+        res.x1 = this.x1;
+        res.x2 = this.x2;
+        res.y1 = this.y1;
+        res.y2 = this.y2;
+        return res;
+    }
+    public BufferedImage drawMarks(BufferedImage img) {
+        BufferedImage res = img;
+        if (x1 >= 0 && y1 >= 0 && x1 < img.getWidth() && y1 < img.getHeight()) {
+            res = copyImage(img);
+            drawMark(res, x1, y1, 0xFF0000);
+        }
+        if (x2 >= 0 && y2 >= 0 && x2 < img.getWidth() && y2 < img.getHeight()) {
+            if (res == img) {
+                res = copyImage(img);
+            }
+           drawMark(res, x2, y2, 0x00FF00);
+        }
+        return res;
+    }
+    void drawMark(BufferedImage bi, int x, int y, int rgb) {
+        int w = bi.getWidth();
+        int h = bi.getHeight();
+        int[][] listOfXY = {{-2,-2}, {-1,-1},
+                            {-2,2},  {-1,1},
+                            {2,-2},  {1,-1},
+                            {2,2}, {1,1},
+                            {0,0}
+        };
+        for(int[] xy : listOfXY) {
+            if (x+xy[0] >= 0 && x+xy[0] < w && y+xy[1] >= 0 && y+xy[1] < h) {
+                bi.setRGB(x + xy[0], y + xy[1], rgb);
+            }
+        }
+    }
+    public static BufferedImage copyImage(BufferedImage source){
+        BufferedImage b = new BufferedImage(source.getWidth(), source.getHeight(), source.getType());
+        Graphics g = b.getGraphics();
+        g.drawImage(source, 0, 0, null);
+        g.dispose();
+        return b;
+    }
+//    public static PanelMeasurementStatus create() {
+//        return new PanelMeasurementStatus();
+//    }
+}
 class UiController implements UiEventListener {
     X3DViewer x3dViewer;
     DisplayParameters displayParameters;
     RawData rawData;
+    MeasurementStatus measurementStatus;
     final LRNavigator lrNavigator;
     boolean dndOneToBoth = true;
     boolean unthumbnail = true;
     volatile long lastLoadTimestampL;
     volatile long lastLoadTimestampR;
-    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp) {
+    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms) {
         x3dViewer = xv;
         displayParameters = dp;
         rawData = rd;
+        measurementStatus = ms;
         lrNavigator = lrn;
     }
     @Override
     public void zoomChanged(double newZoom) {
         displayParameters.zoom = newZoom;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void lZoomChanged(double newZoom) {
         displayParameters.zoomL = newZoom;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void rZoomChanged(double newZoom) {
         displayParameters.zoomR = newZoom;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void angleChanged(double newAngle) {
         displayParameters.angle = newAngle;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void lAngleChanged(double newLAngle) {
         displayParameters.angleL = newLAngle;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void rAngleChanged(double newRAngle) {
         displayParameters.angleR = newRAngle;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void lDebayerModeChanged(DebayerMode newLDebayerMode) {
         displayParameters.debayerL = newLDebayerMode;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void rDebayerModeChanged(DebayerMode newRDebayerMode) {
         displayParameters.debayerR = newRDebayerMode;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void lImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeL) {
         displayParameters.imageResamplingModeL = newImageResamplingModeL;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void rImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeR) {
         displayParameters.imageResamplingModeR = newImageResamplingModeR;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void xOffsetChanged(int newXOff) {
         displayParameters.offsetX = newXOff;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void yOffsetChanged(int newYOff) {
         displayParameters.offsetY = newYOff;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void lColorCorrectionChanged(ColorCorrection colorCorrection) {
         displayParameters.lColorCorrection = colorCorrection;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void rColorCorrectionChanged(ColorCorrection colorCorrection) {
         displayParameters.rColorCorrection = colorCorrection;
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
     public void swapImages() {
         System.out.println("swapImages "+Thread.currentThread());
-        x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters = displayParameters.swapped());
-        x3dViewer.updateControls(displayParameters);
+        x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters = displayParameters.swapped(), measurementStatus = measurementStatus.swapped());
+        x3dViewer.updateControls(displayParameters, measurementStatus);
         lrNavigator.swap();
     }
 
@@ -623,8 +719,9 @@ class UiController implements UiEventListener {
         } else {
             displayParameters.setDefaults();
         }
-        x3dViewer.updateControls(displayParameters);
-        x3dViewer.updateViews(rawData, displayParameters);
+        x3dViewer.updateControls(displayParameters, measurementStatus);
+        // TODO: reset measurementStatus
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
 
     @Override
@@ -661,10 +758,48 @@ class UiController implements UiEventListener {
     }
 
     @Override
+    public void markPointWithMousePress(boolean isRight, MouseEvent e) {
+        if (measurementStatus.isWaitingForPoint()) {
+            System.out.println("markPointWithMousePress r="+isRight+" x="+e.getX()+" y="+e.getY()+" btn="+e.getButton());
+            System.out.println("e="+e);
+            var lr = isRight ? measurementStatus.right : measurementStatus.left;
+            if (measurementStatus.isWaitingForFirstPoint()) {
+                lr.x1 = e.getX();
+                lr.y1 = e.getY();
+            } else {
+                lr.x2 = e.getX();
+                lr.y2 = e.getY();
+            }
+            measurementStatus.clearWaitingForPoint();
+            x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+        }
+    }
+    @Override
+    public void setWaitingForPoint(boolean forFirstPoint) {
+        measurementStatus.setWaitingForPoint(forFirstPoint);
+    }
+    @Override
+    public void markedPointChanged(int coordId, int lrXy12) {
+        switch (coordId) {
+            case 0: measurementStatus.left.x1 = lrXy12; break;
+            case 1: measurementStatus.left.y1 = lrXy12; break;
+            case 2: measurementStatus.left.x2 = lrXy12; break;
+            case 3: measurementStatus.left.y2 = lrXy12; break;
+            case 4: measurementStatus.right.x1 = lrXy12; break;
+            case 5: measurementStatus.right.y1 = lrXy12; break;
+            case 6: measurementStatus.right.x2 = lrXy12; break;
+            case 7: measurementStatus.right.y2 = lrXy12; break;
+        }
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+    }
+    @Override
     public Optional<Integer> getSol(boolean isRight) {
         return FileLocations.getSol((isRight ? rawData.right : rawData.left).pathToLoad);
     }
-
+    @Override
+    public MeasurementStatus getMeasurementStatus() {
+        return measurementStatus.copy();
+    }
     public List<String> unThumbnailIfNecessary(List<String> urlsOrFiles) {
         if (unthumbnail) {
             return urlsOrFiles.stream().map(FileLocations::unThumbnail).collect(Collectors.toList());
@@ -673,10 +808,10 @@ class UiController implements UiEventListener {
         }
     }
     public void createAndShowViews() {
-        x3dViewer.createViews(rawData, displayParameters, this);
+        x3dViewer.createViews(rawData, displayParameters, measurementStatus, this);
     }
     public void changeRawData(RawData newRawData) {
-        x3dViewer.updateViews(rawData=newRawData, displayParameters);
+        x3dViewer.updateViews(rawData=newRawData, displayParameters, measurementStatus);
     }
     public void showInProgressViewsAndThen(Supplier<List<String>> pathSrc, Runnable next) {
         RawData rawData0 = rawData;
@@ -787,6 +922,7 @@ class X3DViewer {
     JLabel colorCorrectionDescriptionL;
     JLabel colorCorrectionDescriptionR;
     ColorCorrectionPane colorCorrectionPane;
+    MeasurementPanel measurementPanel;
     JFrame frame;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
@@ -801,7 +937,7 @@ class X3DViewer {
     JButton helpButton;
     ScreenshotSaver screenshotSaver = new ScreenshotSaver(new JFileChooser());
 
-    public void updateControls(DisplayParameters dp) {
+    public void updateControls(DisplayParameters dp, MeasurementStatus ms) {
         dcZoom.setValueAndText(dp.zoom);
         dcZoomL.setValueAndText(dp.zoomL);
         dcZoomR.setValueAndText(dp.zoomR);
@@ -816,8 +952,9 @@ class X3DViewer {
         colorCorrectionPane.setColorCorrectionValue(true, dp.rColorCorrection);
         colorCorrectionPane.setImageResamplingModeValue(false, dp.imageResamplingModeL);
         colorCorrectionPane.setImageResamplingModeValue(true, dp.imageResamplingModeR);
+        measurementPanel.setControls(ms);
     }
-    public void updateViews(RawData rd, DisplayParameters dp) {
+    public void updateViews(RawData rd, DisplayParameters dp, MeasurementStatus ms) {
         {
             ImageIcon iconL;
             ImageIcon iconR;
@@ -827,6 +964,9 @@ class X3DViewer {
 
                 imgL = dp.lColorCorrection.doColorCorrection(imgL);
                 imgR = dp.rColorCorrection.doColorCorrection(imgR);
+
+                imgL = ms.left.drawMarks(imgL);
+                imgR = ms.right.drawMarks(imgR);
 
                 BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
                 BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
@@ -863,7 +1003,7 @@ class X3DViewer {
             }
         }
     }
-    public void createViews(RawData rd, DisplayParameters dp, UiEventListener uiEventListener)
+    public void createViews(RawData rd, DisplayParameters dp, MeasurementStatus ms, UiEventListener uiEventListener)
     {
         lblL=new JButton();
         lblR=new JButton();
@@ -874,6 +1014,27 @@ class X3DViewer {
         colorCorrectionDescriptionL = new JLabel("....");
         colorCorrectionDescriptionR = new JLabel("....");
         colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
+        measurementPanel = new MeasurementPanel(uiEventListener);
+        {
+            lblL.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+//                    System.out.println("mousePressed x="+e.getX()+" y="+e.getY()+" clickCount="+e.getClickCount()+" when="+e.getWhen());
+//                    System.out.println("mousePressed e="+e);
+                    //super.mousePressed(e);
+                    uiEventListener.markPointWithMousePress(false, e);
+                }
+            });
+            lblR.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+//                    System.out.println("mousePressed x="+e.getX()+" y="+e.getY()+" clickCount="+e.getClickCount()+" when="+e.getWhen());
+//                    System.out.println("mousePressed e="+e);
+                    //super.mousePressed(e);
+                    uiEventListener.markPointWithMousePress(true, e);
+                }
+            });
+        }
         {
             GridBagConstraints gridBagConstraints = new GridBagConstraints();
             gridBagConstraints.gridx = 1;
@@ -923,7 +1084,7 @@ class X3DViewer {
             });
         }
         {
-            updateViews(rd,dp);
+            updateViews(rd,dp,ms);
         }
 
         var menuLR = new JPopupMenu();
@@ -962,6 +1123,35 @@ class X3DViewer {
                                 isFromComponentsMenu(e, lblR),
                                 OneOrBothPanes.BOTH_PANES
                         ));
+            }
+            {
+                String menuTitle = "Measurement...";
+                JMenu mMeasure = new JMenu(menuTitle);
+                menuLR.add(mMeasure);
+                {
+                    String title = "Mark First Point (Red)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.setWaitingForPoint(true)
+                    );
+                }
+                {
+                    String title = "Mark Second Point (Green)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.setWaitingForPoint(false)
+                    );
+                }
+                {
+                    String title = "Show Measurement Panel...";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            measurementPanel.showDialogIn(frame)
+                    );
+                }
             }
             {
                 JMenuItem miLoadMatch = new JMenuItem("Load Match of Other");
@@ -4471,4 +4661,148 @@ class BuildVersion {
         String ver = BuildVersion.class.getPackage().getImplementationVersion();
         return ver == null ? "n/a" : ver;
     }
+}
+
+class MeasurementPanel extends JPanel {
+    final UiEventListener uiEventListener;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcLX1;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcLY1;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcLX2;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcLY2;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcRX1;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcRY1;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcRX2;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcRY2;
+//    final ImageResamplingModeChooser lImageResamplingModeChooser;
+//    final ImageResamplingModeChooser rImageResamplingModeChooser;
+
+    public MeasurementPanel(UiEventListener uiEventListener) {
+        this.uiEventListener = uiEventListener;
+
+        GridBagLayout gbl = new GridBagLayout();
+
+        dcLX1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("X1L:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(0,i));
+        dcLY1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("Y1L:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(1,i));
+        dcLX2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("X2L:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(2,i));
+        dcLY2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("Y2L:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(3,i));
+        dcRX1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("X1R:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(4,i));
+        dcRY1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("Y1R:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(5,i));
+        dcRX2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("X2R:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(6,i));
+        dcRY2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("Y2R:", 4, new OffsetWrapper(), i -> uiEventListener.markedPointChanged(7,i));
+
+        var dcs = Arrays.asList(dcLX1, dcLY1, dcLX2, dcLY2, dcRX1, dcRY1, dcRX2, dcRY2);
+//        statusPanel.add(dcZoom = new  DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoom:",4, new ZoomFactorWrapper(), d -> uiEventListener.zoomChanged(d)));
+//        statusPanel.add(dcZoomL = new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomL:",4, new ZoomFactorWrapper(), d -> uiEventListener.lZoomChanged(d)));
+//        statusPanel.add(dcZoomR = new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomR:",4, new ZoomFactorWrapper(), d -> uiEventListener.rZoomChanged(d)));
+//
+//        statusPanel.add(dcOffX = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetX:", 4, new OffsetWrapper(), i -> uiEventListener.xOffsetChanged(i)));
+//        statusPanel.add(dcOffY = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetY:", 4, new OffsetWrapper(), i -> uiEventListener.yOffsetChanged(i)));
+//
+//        statusPanel2.add(dcAngle = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotate:",4, new RotationAngleWrapper(), d -> uiEventListener.angleChanged(d)));
+//        statusPanel2.add(dcAngleL = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateL:",4, new RotationAngleWrapper(), d -> uiEventListener.lAngleChanged(d)));
+//        statusPanel2.add(dcAngleR = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateR:",4, new RotationAngleWrapper(), d -> uiEventListener.rAngleChanged(d)));
+
+//        {
+//            var text = new JLabel("Apply effects to each image, in this sequence:");
+//            GridBagConstraints gbc = new GridBagConstraints();
+//            gbc.gridx = 0;
+//            gbc.gridy = 0;
+//            gbc.gridheight = 1;
+//            gbc.gridwidth = 6;
+//            gbl.setConstraints(text, gbc);
+//            this.add(text);
+//        }
+
+        {
+            var text = new JLabel("X and Y coordinates of points 1 and 2 on the left and right images:");
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 0;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(text, gbc);
+            this.add(text);
+        }
+
+        for (int lr = 0; lr<2; lr++) {
+            for (int i = 0; i < 4; i++) {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.fill = GridBagConstraints.BOTH;
+                gbc.weightx = 1.0;
+                gbc.weighty = 1.0;
+                gbc.gridx = lr*3 + i%2;
+                gbc.gridy = i/2+2;
+                var dc = dcs.get(lr*4 + i);
+                gbl.setConstraints(dc, gbc);
+                this.add(dc);
+            }
+        }
+        // white space between controls for the left and right images
+        for (int i = 0; i < 2; i++) {
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.fill = GridBagConstraints.BOTH;
+            gbc.weightx = 1.0;
+            gbc.weighty = 1.0;
+            gbc.gridx = 2;
+            gbc.gridy = i+2;
+            var t = new JLabel("    ");
+            gbl.setConstraints(t, gbc);
+            this.add(t);
+        }
+//        {
+//            var row = new JPanel();
+//            GridBagConstraints gbc = new GridBagConstraints();
+//            gbc.gridx = 0;
+//            gbc.gridy = 7;
+//            gbc.gridheight = 1;
+//            gbc.gridwidth = 6;
+//            gbl.setConstraints(row, gbc);
+//            this.add(row);
+//            var text = new JLabel("Image Scaling Interpolation:");
+//            row.add(text);
+//            row.add(lImageResamplingModeChooser = new ImageResamplingModeChooser(v -> uiEventListener.lImageResamplingModeChanged(v)));
+//            row.add(rImageResamplingModeChooser = new ImageResamplingModeChooser(v -> uiEventListener.rImageResamplingModeChanged(v)));
+//        }
+        this.setLayout(gbl);
+    }
+
+    void showDialogIn(JFrame mainFrame) {
+        setControls(uiEventListener.getMeasurementStatus());
+        JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
+    }
+
+    MeasurementPanel setControls(MeasurementStatus ms) {
+        dcLX1.setValueAndText(ms.left.x1);
+        dcLY1.setValueAndText(ms.left.y1);
+        dcLX2.setValueAndText(ms.left.x2);
+        dcLY2.setValueAndText(ms.left.y2);
+        dcRX1.setValueAndText(ms.right.x1);
+        dcRY1.setValueAndText(ms.right.y1);
+        dcRX2.setValueAndText(ms.right.x2);
+        dcRY2.setValueAndText(ms.right.y2);
+        return this;
+    }
+//    ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers) {
+//        var algos = choosers.stream().map(c -> (ColorCorrectionAlgo)c.getSelectedItem()).collect(Collectors.toList());
+//        return new ColorCorrection(algos);
+//    }
+//    MeasurementPanel setColorCorrectionValue(boolean isRight, ColorCorrection colorCorrection) {
+//        var algos = colorCorrection.getAlgos();
+//        int nAlgos = algos.size();
+//        var choosers = isRight ? rChoosers : lChoosers;
+//        for (int i=0, N=choosers.size(); i<N; i++) {
+//            choosers.get(i).setSelectedItem(
+//                    i < nAlgos ? algos.get(i) : ColorCorrectionAlgo.DO_NOTHING
+//            );
+//        }
+//        return this;
+//    }
+//    MeasurementPanel setImageResamplingModeValue(boolean isRight, ImageResamplingMode imageResamplingMode) {
+//        if (isRight) {
+//            rImageResamplingModeChooser.setValue(imageResamplingMode);
+//        } else {
+//            lImageResamplingModeChooser.setValue(imageResamplingMode);
+//        }
+//        return this;
+//    }
 }
