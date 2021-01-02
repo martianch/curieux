@@ -84,6 +84,9 @@ import java.util.Scanner;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
@@ -106,6 +109,9 @@ public class Main {
             //,"Ubuntu"
             //,"DejaVu Sans Mono"
     };
+
+    static final ParallelImageLoading PARALLEL_IMAGE_LOADING = ParallelImageLoading.DELAYED;
+    public enum ParallelImageLoading {PARALLEL,DELAYED,SEQUENTIAL}
 
     public static void main(String[] args) throws Exception {
         System.out.println("args: "+ Arrays.toString(args));
@@ -162,6 +168,7 @@ interface UiEventListener {
     void xOffsetChanged(int newXOff);
     void yOffsetChanged(int newYOff);
     void swapImages();
+    void swapImageUrls();
     void dndImport(String s, boolean isRight, OneOrBothPanes oneOrBoth);
     void dndSingleToBothChanged(boolean newValue);
     void unthumbnailChanged(boolean newValue);
@@ -178,7 +185,7 @@ interface UiEventListener {
     void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
     void openInBrowser(SiteOpenCommand command, boolean isRight);
     void markPointWithMousePress(boolean isRight, MouseEvent e);
-    void setWaitingForPoint(boolean forFirstPoint);
+    void setWaitingForPoint(int forPointNumber);
     void markedPointChanged(int coordId, int lrXy12);
     void clearAllMarks();
     void stereoCameraChanged(StereoPairParameters v);
@@ -215,7 +222,8 @@ class DisplayParameters {
     void setDefaultsMrMl() {
         setDefaults();
         zoomR = 3.;
-        offsetX = -260;
+        offsetX = 240;
+        offsetY = 72;
     }
     private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
         this.zoom = zoom;
@@ -410,27 +418,27 @@ class MeasurementStatus {
     MeasurementPointMark measurementPointMark;
     StereoPairParameters stereoPairParameters;
     boolean isWaitingForPoint;
-    boolean isWaitingForFirstPoint;
+    int pointIsWaitingFor;
     public MeasurementStatus(PanelMeasurementStatus left, PanelMeasurementStatus right) {
         this.left = left;
         this.right = right;
         isWaitingForPoint = false;
-        isWaitingForFirstPoint = false;
+        pointIsWaitingFor = 0;
         measurementPointMark = MeasurementPointMark.getUiDefault();
         stereoPairParameters = StereoPairParameters.getUiDefault(); // TODO: find out from file name ???
     }
     public MeasurementStatus() {
         this(new PanelMeasurementStatus(), new PanelMeasurementStatus());
     }
-    public void setWaitingForPoint(boolean forFirstPoint) {
+    public void setWaitingForPoint(int forPoint) {
         isWaitingForPoint = true;
-        isWaitingForFirstPoint = forFirstPoint;
+        pointIsWaitingFor = forPoint;
     }
     public boolean isWaitingForPoint() {
         return isWaitingForPoint;
     }
-    public boolean isWaitingForFirstPoint() {
-        return isWaitingForFirstPoint;
+    public int pointWaitingFor() {
+        return pointIsWaitingFor;
     }
     public void clearWaitingForPoint() {
         isWaitingForPoint = false;
@@ -440,7 +448,7 @@ class MeasurementStatus {
         res.measurementPointMark = this.measurementPointMark;
         res.stereoPairParameters = this.stereoPairParameters;
         res.isWaitingForPoint = this.isWaitingForPoint;
-        res.isWaitingForFirstPoint = this.isWaitingForFirstPoint;
+        res.pointIsWaitingFor = this.pointIsWaitingFor;
         return res;
     }
     public MeasurementStatus copy() {
@@ -448,21 +456,149 @@ class MeasurementStatus {
         res.measurementPointMark = this.measurementPointMark;
         res.stereoPairParameters = this.stereoPairParameters;
         res.isWaitingForPoint = this.isWaitingForPoint;
-        res.isWaitingForFirstPoint = this.isWaitingForFirstPoint;
+        res.pointIsWaitingFor = this.pointIsWaitingFor;
         return res;
     }
 }
+class PanelMeasurementStatusD {
+    double x1 = -1, y1 = -1, x2 = -1, y2 = -1, x3 = -1, y3 = -1;
+    int w = 0, h = 0;
+    double ifov;
+    String descr;
+    final APoint first = new APoint() {
+        @Override public double getAx() { return getAngle(x1, w); }
+        @Override public double getAy() { return -getAngle(y1, h); }
+        @Override public double getPx() { return x1-w/2; }
+        @Override public double getPy() { return h/2-y1; }
+        @Override public double getIfov() { return ifov; }
+    };
+    final APoint second = new APoint() {
+        @Override public double getAx() { return getAngle(x2, w); }
+        @Override public double getAy() { return -getAngle(y2, h); }
+        @Override public double getPx() { return x2-w/2; }
+        @Override public double getPy() { return h/2-y2; }
+        @Override public double getIfov() { return ifov; }
+    };
+    final APoint third = new APoint() {
+        @Override public double getAx() { return getAngle(x3, w); }
+        @Override public double getAy() { return -getAngle(y3, h); }
+        @Override public double getPx() { return x3-w/2; }
+        @Override public double getPy() { return h/2-y3; }
+        @Override public double getIfov() { return ifov; }
+    };
+    private double getAngle(double xy, double wh) {
+        return ifov*(xy - wh/2);
+    }
+    @Override
+    public String toString() {
+        return ""+descr+
+                "  " + x1 + " " + y1 +
+                "  " + x2 + " " + y2 +
+                "  " + x3 + " " + y3 +
+                "  w=" + w + " h=" + h +
+                " ifov=" + ifov;
+    }
+    public PanelMeasurementStatusD copyD() {
+        var res = new PanelMeasurementStatusD();
+        res.x1 = this.x1;
+        res.x2 = this.x2;
+        res.x3 = this.x3;
+        res.y1 = this.y1;
+        res.y2 = this.y2;
+        res.y3 = this.y3;
+        res.w = this.w;
+        res.h = this.h;
+        res.ifov = this.ifov;
+        res.descr = this.descr;
+        return res;
+    }
+    double xrotated(double x, double y, double rho) { return w/2 + (x-w/2)*Math.cos(rho) - (y-h/2)*Math.sin(rho); }
+    double yrotated(double x, double y, double rho) { return h/2 + (x-w/2)*Math.sin(rho) + (y-h/2)*Math.cos(rho); }
+    public PanelMeasurementStatusD addRollD(double rho) {
+        var res = copyD();
+        res.x1 = xrotated(x1, y1, rho);
+        res.y1 = yrotated(x1, y1, rho);
+        res.x2 = xrotated(x2, y2, rho);
+        res.y2 = yrotated(x2, y2, rho);
+        res.x3 = xrotated(x3, y3, rho);
+        res.y3 = yrotated(x3, y3, rho);
+        return res;
+    }
+    public PanelMeasurementStatusD addPitchD(double a) {
+        var res = copyD();
+        double pxs = a/ifov;
+        res.y1 += pxs;
+        res.y2 += pxs;
+        res.y3 += pxs;
+        return res;
+    }
+    public PanelMeasurementStatusD addYawD(double a) {
+        var res = copyD();
+        double pxs = a/ifov;
+        res.x1 += pxs;
+        res.x2 += pxs;
+        res.x3 += pxs;
+        return res;
+    }
+
+}
+
+// TODO: camera parameters: L/R
 class PanelMeasurementStatus {
-    int x1=-1, y1=-1, x2=-1, y2=-1;
+    int x1=-1, y1=-1, x2=-1, y2=-1, x3=-1, y3=-1;
     int w=0, h=0;
+    double ifov;
+    String descr;
+    final APoint first = new APoint() {
+        @Override public double getAx() { return getAngle(x1, w); }
+        @Override public double getAy() { return -getAngle(y1, h); }
+        @Override public double getPx() { return x1-w/2; }
+        @Override public double getPy() { return h/2-y1; }
+        @Override public double getIfov() { return ifov; }
+    };
+    final APoint second = new APoint() {
+        @Override public double getAx() { return getAngle(x2, w); }
+        @Override public double getAy() { return -getAngle(y2, h); }
+        @Override public double getPx() { return x2-w/2; }
+        @Override public double getPy() { return h/2-y2; }
+        @Override public double getIfov() { return ifov; }
+    };
+    final APoint third = new APoint() {
+        @Override public double getAx() { return getAngle(x3, w); }
+        @Override public double getAy() { return -getAngle(y3, h); }
+        @Override public double getPx() { return x3-w/2; }
+        @Override public double getPy() { return h/2-y3; }
+        @Override public double getIfov() { return ifov; }
+    };
+    private double getAngle(int xy, int wh) {
+        return ifov*(xy - wh/2);
+    }
     public PanelMeasurementStatus copy() {
         var res = new PanelMeasurementStatus();
         res.x1 = this.x1;
         res.x2 = this.x2;
+        res.x3 = this.x3;
         res.y1 = this.y1;
         res.y2 = this.y2;
+        res.y3 = this.y3;
         res.w = this.w;
         res.h = this.h;
+        res.ifov = this.ifov;
+        res.descr = this.descr;
+        return res;
+    }
+    public PanelMeasurementStatusD copyD() {
+        var res = new PanelMeasurementStatusD();
+        res.x1 = this.x1;
+        res.x2 = this.x2;
+        res.x3 = this.x3;
+        res.y1 = this.y1;
+        res.y2 = this.y2;
+        res.y3 = this.y3;
+        res.w = this.w;
+        res.h = this.h;
+        res.ifov = this.ifov;
+        res.descr = this.descr;
         return res;
     }
     public BufferedImage drawMarks(BufferedImage img, MeasurementPointMark measurementPointMark) {
@@ -475,7 +611,13 @@ class PanelMeasurementStatus {
             if (res == img) {
                 res = copyImage(img);
             }
-            measurementPointMark.drawMark(res, x2, y2, 0x00a000);
+            measurementPointMark.drawMark(res, x2, y2, 0x00FF00); //0x00a000
+        }
+        if (x3 >= 0 && y3 >= 0 && x3 < img.getWidth() && y3 < img.getHeight()) {
+            if (res == img) {
+                res = copyImage(img);
+            }
+            measurementPointMark.drawMark(res, x3, y3, 0x0000FF);
         }
         return res;
     }
@@ -495,9 +637,30 @@ class PanelMeasurementStatus {
         };
         return b;
     }
-    public void setWH(BufferedImage image) {
+    public void setWHI(BufferedImage image, double new_ifov, String description) {
         w = image.getWidth();
         h = image.getHeight();
+        ifov = new_ifov;
+        descr = description;
+    }
+    @Override
+    public String toString() {
+        return ""+descr+
+                "  " + x1 + " " + y1 +
+                "  " + x2 + " " + y2 +
+                "  " + x3 + " " + y3 +
+                "  w=" + w + " h=" + h +
+                " ifov=" + ifov;
+    }
+}
+interface APoint {
+    double getAx();
+    double getAy();
+    double getPx();
+    double getPy();
+    double getIfov();
+    default String asString() {
+        return "("+getPx()+", "+getPy()+"; ifov="+String.format("%.3e", getIfov())+")";
     }
 }
 class UiController implements UiEventListener {
@@ -593,6 +756,13 @@ class UiController implements UiEventListener {
     public void swapImages() {
         System.out.println("swapImages "+Thread.currentThread());
         x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters = displayParameters.swapped(), measurementStatus = measurementStatus.swapped());
+        x3dViewer.updateControls(displayParameters, measurementStatus);
+        lrNavigator.swap();
+    }
+    @Override
+    public void swapImageUrls() {
+        System.out.println("swapImageUrls "+Thread.currentThread());
+        x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters, measurementStatus);
         x3dViewer.updateControls(displayParameters, measurementStatus);
         lrNavigator.swap();
     }
@@ -781,12 +951,19 @@ class UiController implements UiEventListener {
             var zoom = displayParameters.zoom * (isRight ? displayParameters.zoomR : displayParameters.zoomL);
             var offX = Math.max(0, isRight ? -displayParameters.offsetX : displayParameters.offsetX);
             var offY = Math.max(0, isRight ? -displayParameters.offsetY : displayParameters.offsetY);
-            if (measurementStatus.isWaitingForFirstPoint()) {
-                lr.x1 = (int)(e.getX()/zoom - offX);
-                lr.y1 = (int)(e.getY()/zoom - offY);
-            } else {
-                lr.x2 = (int)(e.getX()/zoom - offX);
-                lr.y2 = (int)(e.getY()/zoom - offY);
+            switch (measurementStatus.pointWaitingFor()) {
+                case 1:
+                    lr.x1 = (int) (e.getX() / zoom - offX);
+                    lr.y1 = (int) (e.getY() / zoom - offY);
+                    break;
+                case 2:
+                    lr.x2 = (int) (e.getX() / zoom - offX);
+                    lr.y2 = (int) (e.getY() / zoom - offY);
+                    break;
+                case 3:
+                    lr.x3 = (int) (e.getX() / zoom - offX);
+                    lr.y3 = (int) (e.getY() / zoom - offY);
+                    break;
             }
             measurementStatus.clearWaitingForPoint();
             x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
@@ -794,21 +971,26 @@ class UiController implements UiEventListener {
         }
     }
     @Override
-    public void setWaitingForPoint(boolean forFirstPoint) {
-        measurementStatus.setWaitingForPoint(forFirstPoint);
+    public void setWaitingForPoint(int forPointNumber) {
+        measurementStatus.setWaitingForPoint(forPointNumber);
         x3dViewer.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
     }
     @Override
-    public void markedPointChanged(int coordId, int lrXy12) {
+    public void markedPointChanged(int coordId, int lrXy123) {
         switch (coordId) {
-            case 0: measurementStatus.left.x1 = lrXy12; break;
-            case 1: measurementStatus.left.y1 = lrXy12; break;
-            case 2: measurementStatus.left.x2 = lrXy12; break;
-            case 3: measurementStatus.left.y2 = lrXy12; break;
-            case 4: measurementStatus.right.x1 = lrXy12; break;
-            case 5: measurementStatus.right.y1 = lrXy12; break;
-            case 6: measurementStatus.right.x2 = lrXy12; break;
-            case 7: measurementStatus.right.y2 = lrXy12; break;
+            case 0:  measurementStatus.left.x1 = lrXy123; break;
+            case 1:  measurementStatus.left.y1 = lrXy123; break;
+            case 2:  measurementStatus.left.x2 = lrXy123; break;
+            case 3:  measurementStatus.left.y2 = lrXy123; break;
+            case 4:  measurementStatus.left.x3 = lrXy123; break;
+            case 5:  measurementStatus.left.y3 = lrXy123; break;
+            case 6:  measurementStatus.right.x1 = lrXy123; break;
+            case 7:  measurementStatus.right.y1 = lrXy123; break;
+            case 8:  measurementStatus.right.x2 = lrXy123; break;
+            case 9:  measurementStatus.right.y2 = lrXy123; break;
+            case 10: measurementStatus.right.x3 = lrXy123; break;
+            case 11: measurementStatus.right.y3 = lrXy123; break;
+            default: throw new IllegalArgumentException("coordId="+coordId+" has no meaning, valid: [0..12)");
         }
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
@@ -826,6 +1008,7 @@ class UiController implements UiEventListener {
     }
     @Override
     public void stereoCameraChanged(StereoPairParameters v) {
+        System.out.println("stereoCameraChanged("+v+")");
         measurementStatus.stereoPairParameters = v;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
         // updateControls?
@@ -918,7 +1101,29 @@ class UiController implements UiEventListener {
                 sameLeftPath
               ? CompletableFuture.completedFuture(rawData.left)
               : CompletableFuture
-                .supplyAsync(() -> ImageAndPath.imageIoReadNoExc(path1, path1))
+                .supplyAsync(() -> {
+                    // Why: the NASA site sometimes returns a timeout/refused error,
+                    // and I suspect that this is because this software loads two images
+                    // in parallel, unlike any browser
+                    try {
+                        switch (Main.PARALLEL_IMAGE_LOADING) {
+                            case PARALLEL:
+                                break;
+                            case DELAYED:
+                                int randomDelay = (int)(Math.random() * 1000);
+                                futureImage2.get(1200+randomDelay, TimeUnit.MILLISECONDS);
+                                break;
+                            case SEQUENTIAL:
+                                futureImage2.get();
+                                break;
+                        }
+                    } catch (InterruptedException|ExecutionException e) {
+                        e.printStackTrace();
+                    } catch (TimeoutException e) {
+                        System.out.println("waiting stopped because of a timeout");
+                    }
+                    return ImageAndPath.imageIoReadNoExc(path1, path1);
+                })
                 .exceptionally(t -> ImageAndPath.imageIoReadNoExc("", path1));
 
         Runnable uiUpdateRunnableSyncL =
@@ -1016,8 +1221,8 @@ class X3DViewer {
                 imgL = dp.lColorCorrection.doColorCorrection(imgL);
                 imgR = dp.rColorCorrection.doColorCorrection(imgR);
 
-                ms.left.setWH(imgL);
-                ms.right.setWH(imgR);
+                ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "x3d:L straight:R");
+                ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "x3d:R, straight:L");
                 imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
                 imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
 
@@ -1180,7 +1385,7 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mMeasure.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.setWaitingForPoint(true)
+                            uiEventListener.setWaitingForPoint(1)
                     );
                 }
                 {
@@ -1188,7 +1393,15 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mMeasure.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.setWaitingForPoint(false)
+                            uiEventListener.setWaitingForPoint(2)
+                    );
+                }
+                {
+                    String title = "Mark Third Point (Blue, Calibration-Only)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.setWaitingForPoint(3)
                     );
                 }
                 {
@@ -1198,6 +1411,62 @@ class X3DViewer {
                     mi.addActionListener(e ->
                             measurementPanel.showDialogIn(frame)
                     );
+                }
+                {
+                    String title = "Measurement Help";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    HyperTextPane helpText = new HyperTextPane(
+                        "<html>" +
+                        "<h1>Measuring Distances</h1>" +
+                        "<ol>" +
+                        "<li>Mark the first point on the right and left images. Select the \"Mark First Point (Red)\" menu item,<br>" +
+                            "the mouse cursor will become a cross, click the mouse on the first point. A red mark will appear,<br>" +
+                            "and the cursor will return to the normal shape. Then, select again the \"Mark First Point (Red)\" menu item,<br>" +
+                            "and mark the first point on the other panel. It's better to place the mark on some item (like a dark spot)<br>" +
+                            "visible on both images the form the stereo pair.<br>" +
+                            "The shape of the mark may be changed on the Measurement Panel (see the \"Show Measurement Panel...\" menu item)." +
+                        "</li>" +
+                            "<li>Mark the second point on the right and left images.<br>" +
+                                "You will have to use the \"Mark Second Point (Green)\" menu item, the rest is like above." +
+                            "</li>" +
+                            "<li>Select the \"Show Measurement Panel...\" menu item.<br>" +
+                                "You will see controls that let you change the mark coordinates, mark shape, and the type of camera.<br>" +
+                                "For precise mark positioning, it may be recommended to use zoom=4, the \"Nearest Neighbor\" interpolation,<br>" +
+                                "and a single-dot mark." +
+                            "</li>" +
+                            "<li>The text area will show the results of calculations. When you change any parameter, these results will " +
+                                "be recalculated, but just in case there is a \"Calculate\" button." +
+                            "</li>" +
+                        "</ol>" +
+                            "<b>Do not forget to select the right camera type!</b> NavCam and HazCam give different results for the same set of marks.<br>" +
+                            "<br>" +
+                            "It is recommended to set image scaling interpolation to \"NEAREST (neighbor)\", the one that<br>" +
+                            "transforms pixels into squares. For distance measurement, it is important to see what the pixels are.<br>" +
+                            "<br>" +
+                            "There is angle correction, \"delta\". Without that, for example Rear HazCam B gives negative distances for objects at the horizon.<br>" +
+                            "Just in case, the chooser includes <i>\"HazCam .167\"</i> and <i>\"HazCam .100\"</i> that have no correction, the digits are the stereo base in m.<br>" +
+                            "<br>" +
+                            "Keyboard Shortcuts<br>" +
+                            "<b>Alt R</b> set the 1st (red) mark<br>" +
+                            "<b>Alt G</b> set the 2nd (green) mark<br>" +
+                            "<b>Alt H</b> set the 3rd (blue) mark<br>" +
+                            "<b>Alt T</b> show distance measurement panel<br>" +
+                            "<br>" +
+                        "</html>");
+                    mi.addActionListener(e ->
+                        JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
+                    );
+                    {
+                        Font f = helpText.getFont();
+                        String FONT_NAME = "Verdana";
+                        var fonts = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+                        var exists = fonts.contains(FONT_NAME);
+                        if (exists) {
+                            f = new Font(FONT_NAME, Font.PLAIN, f.getSize());
+                            helpText.setFont(f);
+                        }
+                    }
                 }
                 {
                     String title = "Clear All Marks";
@@ -1260,6 +1529,14 @@ class X3DViewer {
                                 true,
                                 1
                         )
+                );
+            }
+            {
+                JMenuItem miSwapUrls = new JMenuItem("Swap Image URLs, Keep Display Parameters");
+                miSwapUrls.setToolTipText("Swap URLs but keep display parameters, this is different from just \"Swap Left And Right\"");
+                menuLR.add(miSwapUrls);
+                miSwapUrls.addActionListener(e ->
+                        uiEventListener.swapImageUrls()
                 );
             }
             {
@@ -1443,6 +1720,7 @@ class X3DViewer {
                         "<b>Ctrl UP</b>, <b>Ctrl DOWN</b>: change vertical offset by 30<br>" +
                         "<b>Alt B</b>: Toggle the \"drag-and-drop to both panes\" mode<br>" +
                         "<b>Ctrl U</b>: Swap the left and right images<br>" +
+                        "<b>Alt R/Alt G/Alt T</b>: Set the red/green marks, show <b>distance measurement</b> panel; more options in the context menu<br>" +
 //                        "<br>"+
                         "<b>Ctrl N</b>: New (empty) window<br>" +
                         "<b>Ctrl S</b>: Save the stereo pair (saves a screenshot of this application plus <br>" +
@@ -1644,6 +1922,14 @@ class X3DViewer {
             frameActionMap.put("swapLeftRight", toAction(e -> uiEventListener.swapImages()));
             frameInputMap.put(KeyStroke.getKeyStroke("ctrl S"), "saveScreenshot");
             frameActionMap.put("saveScreenshot", toAction(e->uiEventListener.saveScreenshot()));
+            frameInputMap.put(KeyStroke.getKeyStroke("alt R"), "markred");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt G"), "markgreen");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt H"), "markblue");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt T"), "measurementpanel");
+            frameActionMap.put("markred", toAction(e->uiEventListener.setWaitingForPoint(1)));
+            frameActionMap.put("markgreen", toAction(e->uiEventListener.setWaitingForPoint(2)));
+            frameActionMap.put("markblue", toAction(e->uiEventListener.setWaitingForPoint(3)));
+            frameActionMap.put("measurementpanel", toAction(e->measurementPanel.showDialogIn(frame)));
         }
         {
             TransferHandler transferHandler = new TransferHandler("text") {
@@ -1816,14 +2102,16 @@ class X3DViewer {
         int newImageHeight = zoomedSize(originalImage.getHeight(), zoomLevel);
         int otherImageWidth = zoomedSize(otherImage.getWidth(), otherZoomLevel);
         int otherImageHeight = zoomedSize(otherImage.getHeight(), otherZoomLevel);
-        int thisCanvasWidth = Math.abs(mult(offX, zoomLevel)) + newImageWidth;
-        int thisCanvasHeight = Math.abs(mult(offY, zoomLevel)) + newImageHeight;
-        int otherCanvasWidth = Math.abs(mult(offX, otherZoomLevel)) + otherImageWidth;
-        int otherCanvasHeight = Math.abs(mult(offY, otherZoomLevel)) + otherImageHeight;
+        int thisCanvasWidth = Math.max(0, mult(offX, zoomLevel)) + newImageWidth;
+        int thisCanvasHeight = Math.max(0, mult(offY, zoomLevel)) + newImageHeight;
+        int otherCanvasWidth = Math.max(0, mult(-offX, otherZoomLevel)) + otherImageWidth;
+        int otherCanvasHeight = Math.max(0, mult(-offY, otherZoomLevel)) + otherImageHeight;
         int canvasWidth = Math.max(thisCanvasWidth, otherCanvasWidth);
         int canvasHeight = Math.max(thisCanvasHeight, otherCanvasHeight);
-        int centeringOffX = Math.max(0, otherCanvasWidth - thisCanvasWidth)/2;
-        int centeringOffY = Math.max(0, otherCanvasHeight - thisCanvasHeight)/2;
+        int xToDrawFrom = mult(offX, zoomLevel);
+        int yToDrawFrom = mult(offY, zoomLevel);
+        int otherXToDrawFrom = mult(-offX, zoomLevel);
+        int otherYToDrawFrom = mult(-offY, zoomLevel);
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
 //        if (zoomLevel > 1.5) {
@@ -1831,10 +2119,10 @@ class X3DViewer {
 //        }
         g.drawImage(
                 originalImage,
-                Math.max(0, centeringOffX + mult(offX, zoomLevel)),
-                Math.max(0, centeringOffY + mult(offY, zoomLevel)),
-                newImageWidth,
-                newImageHeight,
+                Math.max(0, xToDrawFrom), // x
+                Math.max(0, yToDrawFrom), // y
+                newImageWidth,  // width
+                newImageHeight, // height
                 null
         );
         g.dispose();
@@ -1927,7 +2215,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     JButton buttonPlus2;
     JButton buttonDefault;
     JTextField textField;
-    DigitalZoomControl init(String labelText, int nColumns, TT valueWrapper0, Consumer<T> valueListener) {
+    DigitalZoomControl<T,TT> init(String labelText, int nColumns, TT valueWrapper0, Consumer<T> valueListener) {
         valueWrapper = valueWrapper0;
 
         FlowLayout fl = new FlowLayout();
@@ -2025,6 +2313,10 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         setTextFieldFromValue();
         return this;
     }
+    @Override
+    public String toString() {
+        return label.getText()+super.toString();
+    }
 //    DigitalZoomControl kbShortcut(int key, int modifiers) {
 //        return this;
 //    }
@@ -2083,6 +2375,11 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
     @Override
     String getAsString() {
         return value.toString();
+    }
+}
+class OffsetWrapper2 extends OffsetWrapper {
+    {
+        increments = new int[]{1,3,30,100};
     }
 }
 class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
@@ -2211,6 +2508,15 @@ class DragMover extends MouseInputAdapter {
         Point viewPos = viewport.getViewPosition();
         int maxViewPosX = m_view.getWidth() - viewport.getWidth();
         int maxViewPosY = m_view.getHeight() - viewport.getHeight();
+
+        if (dragEventPoint == null) {
+            System.out.println("bug: dragEventPoint == null");
+            return;
+        }
+        if (m_holdPointOnView == null) {
+            System.out.println("bug: m_holdPointOnView == null");
+            return;
+        }
 
         if(m_view.getWidth() > viewport.getWidth()) {
             viewPos.x -= dragEventPoint.x - m_holdPointOnView.x;
@@ -4720,15 +5026,20 @@ class BuildVersion {
 
 class MeasurementPanel extends JPanel {
     final UiEventListener uiEventListener;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcLX1;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcLY1;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcLX2;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcLY2;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcRX1;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcRY1;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcRX2;
-    final DigitalZoomControl<Integer, OffsetWrapper> dcRY2;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX1;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY1;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX2;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY2;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX3;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY3;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX1;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY1;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX2;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY2;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX3;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY3;
     final JTextArea textArea;
+    final JScrollPane textAreaScroll;
     final StereoCamChooser stereoCamChooser;
     final MeasurementPointMarkChooser measurementPointMarkChooser;
 
@@ -4737,19 +5048,25 @@ class MeasurementPanel extends JPanel {
 
         GridBagLayout gbl = new GridBagLayout();
 
-        dcLX1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"red\">X1L:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(0,i); doCalculate(getStereoPairParameters());});
-        dcLY1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"red\">Y1L:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(1,i); doCalculate(getStereoPairParameters());});
-        dcLX2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"green\">X2L:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(2,i); doCalculate(getStereoPairParameters());});
-        dcLY2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"green\">Y2L:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(3,i); doCalculate(getStereoPairParameters());});
-        dcRX1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"red\">X1R:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(4,i); doCalculate(getStereoPairParameters());});
-        dcRY1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"red\">Y1R:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(5,i); doCalculate(getStereoPairParameters());});
-        dcRX2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"green\">X2R:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(6,i); doCalculate(getStereoPairParameters());});
-        dcRY2 = new DigitalZoomControl<Integer, OffsetWrapper>().init("<html><font color=\"green\">Y2R:</font></html>", 4, new OffsetWrapper(), i -> { uiEventListener.markedPointChanged(7,i); doCalculate(getStereoPairParameters());});
-        textArea = new JTextArea(10,60);
-        stereoCamChooser = new StereoCamChooser(v -> { uiEventListener.stereoCameraChanged(v); doCalculate(getStereoPairParameters()); });
+        dcLX1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">X1L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(0,i); doCalculate7();});
+        dcLY1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">Y1L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(1,i); doCalculate7();});
+        dcLX2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">X2L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(2,i); doCalculate7();});
+        dcLY2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">Y2L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(3,i); doCalculate7();});
+        dcLX3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">X3L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(4,i); doCalculate7();});
+        dcLY3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">Y3L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(5,i); doCalculate7();});
+        dcRX1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(6,i); doCalculate7();});
+        dcRY1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(7,i); doCalculate7();});
+        dcRX2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(8,i); doCalculate7();});
+        dcRY2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(9,i); doCalculate7();});
+        dcRX3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">X3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(10,i); doCalculate7();});
+        dcRY3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">Y3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(11,i); doCalculate7();});
+        textArea = new JTextArea(16,120);
+        textAreaScroll = new JScrollPane(textArea);
+        stereoCamChooser = new StereoCamChooser(v -> { uiEventListener.stereoCameraChanged(v); doCalculate7(); });
         measurementPointMarkChooser = new MeasurementPointMarkChooser(v -> uiEventListener.markShapeChanged(v));
 
-        var dcs = Arrays.asList(dcLX1, dcLY1, dcLX2, dcLY2, dcRX1, dcRY1, dcRX2, dcRY2);
+        var dcs = Arrays.asList(dcLX1, dcLY1, dcLX2, dcLY2, dcLX3, dcLY3, dcRX1, dcRY1, dcRX2, dcRY2, dcRX3, dcRY3);
+        var dcRows = dcs.size()/4;
 
         {
             var text = new JLabel("X and Y coordinates of points 1 and 2 on the left and right images:");
@@ -4771,29 +5088,36 @@ class MeasurementPanel extends JPanel {
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
             this.add(row);
-            var text1 = new JLabel("Please focus your eyes on the object of interest and make both marks of the same color");
-            var text2 = new JLabel("EXACTLY match ON THAT OBJECT in x3d, otherwise you will get a measurement error!");
-            var text3 = new JLabel(" ");
+//            var text1 = new JLabel("Please focus your eyes on the object of interest and make both marks of the same color");
+//            var text2 = new JLabel("EXACTLY match ON THAT OBJECT in x3d, otherwise you will get a measurement error!");
+            // TODO: refactor, use an array + a loop
+            var text1 = new JLabel("The best method is to mark THE SAME SPOT ON THE SAME OBJECT on both photos with red marks,");
+            var text2 = new JLabel("and mark another spot on another object with the green marks, again on both photos.");
+            var text3 = new JLabel("Note that moving a mark by 1 pixel MAY significantly change the result of measurement.");
+            var text4 = new JLabel("The blue marks are used only for calibration.");
+            var text5 = new JLabel(" ");
             row.add(text1);
             row.add(text2);
             row.add(text3);
+            row.add(text4);
+            row.add(text5);
         }
 
         for (int lr = 0; lr<2; lr++) {
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < dcRows*2; i++) {
                 GridBagConstraints gbc = new GridBagConstraints();
                 gbc.fill = GridBagConstraints.BOTH;
                 gbc.weightx = 1.0;
                 gbc.weighty = 1.0;
                 gbc.gridx = lr*3 + i%2;
                 gbc.gridy = i/2+2;
-                var dc = dcs.get(lr*4 + i);
+                var dc = dcs.get(lr*dcRows*2 + i);
                 gbl.setConstraints(dc, gbc);
                 this.add(dc);
             }
         }
         // white space between controls for the left and right images
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < dcRows; i++) {
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.fill = GridBagConstraints.BOTH;
             gbc.weightx = 1.0;
@@ -4808,7 +5132,7 @@ class MeasurementPanel extends JPanel {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 7;
+            gbc.gridy = 9;          // MAGIC NUMBER // TODO: calculate
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
@@ -4832,32 +5156,37 @@ class MeasurementPanel extends JPanel {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 8;
+            gbc.gridy = 10;         // MAGIC NUMBER // TODO: calculate
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
             this.add(row);
             var button = new JButton("Calculate");
-            button.addActionListener(e -> doCalculate(getStereoPairParameters()));
+            button.addActionListener(e -> doCalculate7());
             row.add(button);
+            var text = new JLabel("<html>To calibrate, set both red marks on some spot on the left, both green marks<br>on some spot on the right, set both blue marks on some infinitely distant spot, and press:</html>");
+            row.add(text);
+            var button2 = new JButton("Calibrate");
+            button2.addActionListener(e -> doCalibrate7());
+            row.add(button2);
         }
         {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 9;
+            gbc.gridy = 11;         // MAGIC NUMBER // TODO: calculate
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
             this.add(row);
-            row.add(textArea);
+            row.add(textAreaScroll);
         }
         this.setLayout(gbl);
     }
 
     void showDialogIn(JFrame mainFrame) {
         setControls(uiEventListener.getMeasurementStatus());
-        doCalculate(getStereoPairParameters());
+        doCalculate7();
         JOptionPane.showMessageDialog(mainFrame, this,"Measurement", JOptionPane.PLAIN_MESSAGE);
     }
 
@@ -4867,27 +5196,183 @@ class MeasurementPanel extends JPanel {
     StereoPairParameters getStereoPairParameters() {
         return (StereoPairParameters) stereoCamChooser.getSelectedItem();
     }
-    void doCalculate(StereoPairParameters params) {
-        var dp = uiEventListener.getDisplayParameters();
+    void setStereoPairParameters(StereoPairParameters stereoPairParameters) {
+        stereoCamChooser.setValue(stereoPairParameters);
+    }
+    private void doCalibrate7() {
         var ms = uiEventListener.getMeasurementStatus();
-        // swap L and R because of X3D (the right eye sees the left image)
-        var val1 = calculateDist2(params, dp, ms, ms.right.x1, ms.right.y1, ms.left.x1, ms.left.y1);
-        var val2 = calculateDist2(params, dp, ms, ms.right.x2, ms.right.y2, ms.left.x2, ms.left.y2);
-        System.out.println("Distance calculation");
-        System.out.println("point1: l1="+val1[0]+" l2="+val1[1]+" distL="+dist3d(val1[2],val1[3],val1[4])+" distR="+dist3d(val1[5],val1[6],val1[7]));
-        System.out.println("point2: l1="+val2[0]+" l2="+val2[1]+" distL="+dist3d(val2[2],val2[3],val2[4])+" distR="+dist3d(val2[5],val2[6],val2[7]));
-        double dist3dL = dist3d(val2[2] - val1[2], val2[3] - val1[3], val2[4] - val1[4]);
-        double dist3dR = dist3d(val2[5] - val1[5], val2[6] - val1[6], val2[7] - val1[7]);
-        System.out.println("dist12: distL="+ dist3dL +" distR="+ dist3dR);
+        String oldParameters = ms.stereoPairParameters.toStringDetailed();
+        {
+            var stereoPairParameters = ms.stereoPairParameters;
+            if (stereoPairParameters != StereoPairParameters.Custom) {
+                setStereoPairParameters(ms.stereoPairParameters = StereoPairParameters.Custom.assignFrom(stereoPairParameters));
+                // no need to call uiEventListener.stereoCameraChanged(...) explicitly, it already is called
+            }
+        }
+
+        var correction = MeasurementPanel.calibrate7(ms.right, ms.left, ms.stereoPairParameters);
+        getStereoPairParameters().measurementCorrection = correction;
+
         try (var baos = new ByteArrayOutputStream();
              var pw = new PrintWriter(baos)
         ) {
+            pw.println(oldParameters);
+            pw.println(getStereoPairParameters().toStringDetailed());
+            pw.println("assuming the marked spot is at horizon, that is, at "+ms.stereoPairParameters.horizon+" m");
+            pw.println("(which means that if you try to measure distance to something at the horizon, you'll get back this assumed digit)");
+            pw.flush();
+            String result = baos.toString(StandardCharsets.UTF_8.name());
+            System.out.println(result);
+            setResult(result);
+        } catch (Exception ioe) {
+            ioe.printStackTrace();
+            setResult("error");
+        }
+    }
+    static double getDRoll(APoint l1, APoint l2, APoint r1, APoint r2) {
+        double rollL = Math.atan((l2.getPy() - l1.getPy()) / (l2.getPx() - l1.getPx()));
+        double rollR = Math.atan((r2.getPy() - r1.getPy()) / (r2.getPx() - r1.getPx()));
+        double dRoll = rollR - rollL;
+        return dRoll;
+    }
+//    static double getDRoll(PanelMeasurementStatus left, PanelMeasurementStatus right) {
+//        double rollL = Math.atan((left.y2 - left.y1) / (double) (left.x2 - left.x1));
+//        double rollR = Math.atan((right.y2 - right.y1) / (double) (right.x2 - right.x1));
+//        double dRoll = rollR - rollL;
+//        return dRoll;
+//    }
+    static double getDPitch(APoint l1, APoint r1) {
+        return r1.getAy() - l1.getAy();
+    }
+    static double getDYaw(APoint l, APoint r, StereoPairParameters spp) {
+        var h = spp.horizon;
+        var b = spp.base;
+        var gamma = b/h;
+        var dYaw = l.getAx() - r.getAx() - gamma;
+        return dYaw;
+    }
+
+    // TODO: use this
+    static MeasurementCorrection calibrate7(PanelMeasurementStatus left0, PanelMeasurementStatus right0, StereoPairParameters spp) {
+        System.out.println("Calibration:");
+        System.out.println("left0: "+left0);
+        System.out.println("right0: "+right0);
+        System.out.println("1: "+left0.x1+" "+left0.y1+"  "+right0.x1+" "+right0.y1);
+        System.out.println("2: "+left0.x2+" "+left0.y2+"  "+right0.x2+" "+right0.y2);
+        System.out.println("3: "+left0.x3+" "+left0.y3+"  "+right0.x3+" "+right0.y3);
+        System.out.println("wh: "+left0.w+" "+left0.h+"  "+right0.w+" "+right0.h);
+        var dRollL = getDRoll(left0.first, left0.second, right0.first, right0.second);
+        var dRollR = -dRollL;
+        System.out.println("dRollL: "+dRollL);
+        var left1L = left0;
+        var right1L = right0.copyD().addRollD(dRollL);
+        var left1R = left0.copyD().addRollD(dRollR);
+        var right1R = right0;
+        System.out.println("left1L: "+left1L);
+        System.out.println("right1L: "+right1L);
+        System.out.println("left1R: "+left1R);
+        System.out.println("right1R: "+right1R);
+        System.out.println("1L: "+left1L.x1+" "+left1L.y1+"  "+right1L.x1+" "+right1L.y1);
+        System.out.println("2L: "+left1L.x2+" "+left1L.y2+"  "+right1L.x2+" "+right1L.y2);
+        System.out.println("3L: "+left1L.x3+" "+left1L.y3+"  "+right1L.x3+" "+right1L.y3);
+        System.out.println("1R: "+left1R.x1+" "+left1R.y1+"  "+right1R.x1+" "+right1R.y1);
+        System.out.println("2R: "+left1R.x2+" "+left1R.y2+"  "+right1R.x2+" "+right1R.y2);
+        System.out.println("3R: "+left1R.x3+" "+left1R.y3+"  "+right1R.x3+" "+right1R.y3);
+        System.out.println("new dRoll L: "+getDRoll(left1L.first, left1L.second, right1L.first, right1L.second));
+        System.out.println("new dRoll R: "+getDRoll(left1R.first, left1R.second, right1R.first, right1R.second));
+
+        var dPitchL = getDPitch(left1L.first, right1L.first);
+        var dPitchR = -getDPitch(left1R.first, right1R.first);
+        System.out.println("dPitchL: "+dPitchL + " dPitchR:"+dPitchR);
+
+        var left2L = left1L;
+        var right2L = right1L.addPitchD(dPitchL);
+        var left2R = left1R.addPitchD(dPitchR);
+        var right2R = right1R;
+        System.out.println("left2L: "+left2L);
+        System.out.println("right2L: "+right2L);
+        System.out.println("left2R: "+left2R);
+        System.out.println("right2R: "+right2R);
+        System.out.println("new dPitch L "+getDPitch(left2L.first, right2L.first));
+        System.out.println("new dPitch R "+getDPitch(left2R.first, right2R.first));
+
+        System.out.println("dist pt");
+        System.out.println("LL "+left2L.third.asString());
+        System.out.println("RL "+right2L.third.asString());
+        System.out.println("LR "+left2R.third.asString());
+        System.out.println("RR "+right2R.third.asString());
+        System.out.println();
+
+        var dYawL = getDYaw(left2L.third, right2L.third, spp);
+        var dYawR = -getDYaw(left2R.third, right2R.third, spp);
+        System.out.println("dYawL: "+dYawL + " dYawR:"+dYawR);
+        var left3L = left2L;
+        var right3L = right2L.addYawD(dYawL);
+        var left3R = left2R.addYawD(dYawR);
+        var right3R = right2R;
+
+        System.out.println("After all three rotations:");
+        System.out.println("new dRoll L: "+getDRoll(left3L.first, left3L.second, right3L.first, right3L.second));
+        System.out.println("new dRoll R: "+getDRoll(left3R.first, left3R.second, right3R.first, right3R.second));
+        System.out.println("new dPitch L "+getDPitch(left3L.first, right3L.first));
+        System.out.println("new dPitch R "+getDPitch(left3R.first, right3R.first));
+        System.out.println("new dYaw L "+getDYaw(left3L.third, right3L.third, spp));
+        System.out.println("new dYaw R "+getDYaw(left3R.third, right3R.third, spp));
+        var val3l = calculateDist7(spp.base, left3L.third, right3L.third);
+        var val3r = calculateDist7(spp.base, left3R.third, right3R.third);
+        System.out.println("Distance to the 3rd point (the one at the horizon):");
+        System.out.println("point3L: l1="+val3l[0]+" l2="+val3l[1]+" distL="+dist3d(val3l[2],val3l[3],val3l[4])+" distR="+dist3d(val3l[5],val3l[6],val3l[7]));
+        System.out.println("point3R: l1="+val3r[0]+" l2="+val3r[1]+" distL="+dist3d(val3r[2],val3r[3],val3r[4])+" distR="+dist3d(val3r[5],val3r[6],val3r[7]));
+        System.out.println("Calibration complete, digits in the 2 above lines must be around "+spp.horizon+" m");
+        MeasurementCorrection res = new MeasurementCorrection(dRollL, dPitchL, dYawL, dRollR, dPitchR, dYawR);
+        System.out.println(res);
+        return res;
+    }
+    void doCalculate7() { // TODO: refrite for v7
+        var ms = uiEventListener.getMeasurementStatus();
+        System.out.println();
+        System.out.println("Distance calculation");
+        var left = ms.left.copy();
+        var right = ms.right.copy();
+        StereoPairParameters spp = ms.stereoPairParameters;
+        System.out.println("Point1: "+ms.left.x1+" "+ms.left.y1+"   "+ms.right.x1+" "+ms.right.y1);
+        System.out.println("Point2: "+ms.left.x2+" "+ms.left.y2+"   "+ms.right.x2+" "+ms.right.y2);
+        System.out.println("Point3: "+ms.left.x3+" "+ms.left.y3+"   "+ms.right.x3+" "+ms.right.y3);
+        System.out.println("Center: "+ms.left.w/2+" "+ms.left.h/2+"   "+ms.right.w/2+" "+ms.right.h/2);
+        MeasurementCorrection correction = spp.measurementCorrection;
+
+        // swap left and right because of X3D: left on screen is right
+        var leftc = correction.correctToUseWithRight(right.copyD());
+        var righto = left;
+        var lefto = right;
+        var rightc = correction.correctToUseWithLeft(left.copyD());
+        var val1l = calculateDist7(spp.base, lefto.first, rightc.first);
+        var val1r = calculateDist7(spp.base, leftc.first, righto.first);
+        var val2l = calculateDist7(spp.base, lefto.second, rightc.second);
+        var val2r = calculateDist7(spp.base, leftc.second, righto.second);
+        System.out.println("point1L: l1="+val1l[0]+" l2="+val1l[1]+" distL="+dist3d(val1l[2],val1l[3],val1l[4])+" distR="+dist3d(val1l[5],val1l[6],val1l[7]));
+        System.out.println("point2L: l1="+val2l[0]+" l2="+val2l[1]+" distL="+dist3d(val2l[2],val2l[3],val2l[4])+" distR="+dist3d(val2l[5],val2l[6],val2l[7]));
+        System.out.println("point1R: l1="+val1r[0]+" l2="+val1r[1]+" distL="+dist3d(val1r[2],val1r[3],val1r[4])+" distR="+dist3d(val1r[5],val1r[6],val1r[7]));
+        System.out.println("point2R: l1="+val2r[0]+" l2="+val2r[1]+" distL="+dist3d(val2r[2],val2r[3],val2r[4])+" distR="+dist3d(val2r[5],val2r[6],val2r[7]));
+        double dist3dLl = dist3d(val2l[2] - val1l[2], val2l[3] - val1l[3], val2l[4] - val1l[4]);
+        double dist3dRl = dist3d(val2l[5] - val1l[5], val2l[6] - val1l[6], val2l[7] - val1l[7]);
+        double dist3dLr = dist3d(val2r[2] - val1r[2], val2r[3] - val1r[3], val2r[4] - val1r[4]);
+        double dist3dRr = dist3d(val2r[5] - val1r[5], val2r[6] - val1r[6], val2r[7] - val1r[7]);
+        System.out.println("dist12l: distL="+ dist3dLl +" distR="+ dist3dRl);
+        System.out.println("dist12r: distL="+ dist3dLr +" distR="+ dist3dRr);
+        try (var baos = new ByteArrayOutputStream();
+             var pw = new PrintWriter(baos)
+        ) {
+            pw.println("Point1: "+ms.left.x1+" "+ms.left.y1+"   "+ms.right.x1+" "+ms.right.y1);
+            pw.println("Point2: "+ms.left.x2+" "+ms.left.y2+"   "+ms.right.x2+" "+ms.right.y2);
+            pw.println("Point3: "+ms.left.x3+" "+ms.left.y3+"   "+ms.right.x3+" "+ms.right.y3);
+            pw.println(spp.toStringDetailed());
             pw.println("Distance from the left and right cameras, m:");
-            pw.println("Point 1: "+ val1[1] + ", " + val1[0]);
-            pw.println("Point 2: "+ val2[1] + ", " + val2[0]);
+            pw.println("Point 1: "+ val1l[1] + ", " + val1l[0] + " // " + val1r[1] + ", " + val1r[0]);
+            pw.println("Point 2: "+ val2l[1] + ", " + val2l[0] + " // " + val2r[1] + ", " + val2r[0]);
             pw.println( "Distance between Points 1 and 2,\n"+
-                        "calculated in the coordinate system of left and right cameras, m:");
-            pw.println(""+ dist3dR + ", " + dist3dL);
+                    "calculated in the coordinate systems of left and right cameras, m:");
+            pw.println(""+ dist3dRl + ", " + dist3dLl + ", " + dist3dRr + ", " + dist3dLr);
             pw.flush();
             String result = baos.toString(StandardCharsets.UTF_8.name());
             System.out.println(result);
@@ -4903,61 +5388,95 @@ class MeasurementPanel extends JPanel {
      * @param phi angle between the horizontal and inclined planes
      * @return angle in the inclined plane, between the stereo base and the point
      */
-    double caclulateInclined(double alpha, double phi) {
+    static double caclulateInclined(double alpha, double phi) {
         var alpha0 = Math.atan2(Math.sin(alpha),Math.cos(alpha)*Math.cos(phi));
         return alpha0;
     }
-    double pxToRad(double ifov, int x0, int x) {
-        var alpha = (x0-x)*ifov;
-        return alpha;
-    }
-    double dist3d(double dx, double dy, double dz) {
+    static double dist3d(double dx, double dy, double dz) {
         var res = Math.sqrt(sqr(dx)+sqr(dy)+sqr(dz));
         return res;
     }
-    double[] calculateDist2(StereoPairParameters spp, DisplayParameters dp, MeasurementStatus ms, int xl, int yl, int xr, int yr) {
-        var ifovL = spp.ifovL;
-        var ifovR = spp.ifovR;
-        var x0l = ms.left.w/2;
-        var y0l = ms.left.h/2;
-        var x0r = ms.right.w/2;
-        var y0r = ms.right.h/2;
-        var base = spp.base;
-        var phiL = pxToRad(ifovL, y0l, yl);
-        var phiR = pxToRad(ifovR, y0r, yr);
+    static double[] calculateDist7(double base, APoint l, APoint r) {
+        var phiL = l.getAy();
+        var phiR = r.getAy();
 
-        System.out.println("l:"+" x0="+x0l+" x="+xl+" ifov="+ifovL+" y0="+y0l+" y="+yl+" phi="+phiL);
-        System.out.println("r:"+" x0="+x0r+" x="+xr+" ifov="+ifovR+" y0="+y0r+" y="+yr+" phi="+phiR);
-        var alpha1 = Math.PI/2 + (x0l-xl)*ifovL;
-        var beta1 = Math.PI/2 + (xr-x0r)*ifovR;
-        System.out.println("alpha1="+Math.toDegrees(alpha1)+" beta1="+Math.toDegrees(beta1)+" gamma="+Math.toDegrees(Math.PI-alpha1-beta1));
-        var alpha = caclulateInclined(alpha1, phiL);
-        var beta = caclulateInclined(beta1, phiR);
-        var gamma = Math.PI - alpha - beta;
-        System.out.println("alpha="+Math.toDegrees(alpha)+" beta="+Math.toDegrees(beta)+" gamma="+Math.toDegrees(gamma));
-        var l1 = base * (Math.cos(beta) + Math.cos(alpha)*Math.cos(gamma)) / sqr(Math.sin(gamma));
-        var l2 = base * (Math.cos(alpha) + Math.cos(beta)*Math.cos(gamma)) / sqr(Math.sin(gamma));
+        var alpha1 = Math.PI/2 - l.getAx();
+        var beta1 = Math.PI/2 + r.getAx();
+        var gamma1 = l.getAx() - r.getAx(); // pi - alpha1 - beta1
+        System.out.println("alpha1="+Math.toDegrees(alpha1)+"° beta1="+Math.toDegrees(beta1)+"° gamma1="+Math.toDegrees(gamma1)+"°");
+        System.out.println("alpha1="+alpha1+" beta1="+beta1+" gamma1="+gamma1+"");
+        var alphaL = caclulateInclined(alpha1, phiL);
+        var alphaR = caclulateInclined(alpha1, phiR);
+        var betaL = caclulateInclined(beta1, phiL);
+        var betaR = caclulateInclined(beta1, phiR);
+        var gammaL = Math.PI - alphaL - betaL;
+        var gammaR = Math.PI - alphaR - betaR;
+        System.out.println("alphaL="+Math.toDegrees(alphaL)+"° betaL="+Math.toDegrees(betaL)+"° gammaL="+Math.toDegrees(gammaL)+"°");
+        System.out.println("alphaR="+Math.toDegrees(alphaR)+"° betaR="+Math.toDegrees(betaR)+"° gammaR="+Math.toDegrees(gammaR)+"°");
+        var l1L = base * (Math.cos(betaL) + Math.cos(alphaL)*Math.cos(gammaL)) / sqr(Math.sin(gammaL));
+        var l1R = base * (Math.cos(betaR) + Math.cos(alphaR)*Math.cos(gammaR)) / sqr(Math.sin(gammaR));
+        var l2L = base * (Math.cos(alphaL) + Math.cos(betaL)*Math.cos(gammaL)) / sqr(Math.sin(gammaL));
+        var l2R = base * (Math.cos(alphaR) + Math.cos(betaR)*Math.cos(gammaR)) / sqr(Math.sin(gammaR));
 
-        var azl = l1 * Math.sin(phiL);
-        var azr = l2 * Math.sin(phiR);
-        var ayl = l1 * Math.cos(phiL) * Math.sin(alpha1);
-        var ayr = l2 * Math.cos(phiR) * Math.sin(beta1);
-        var axl = l1 * Math.cos(phiL) * Math.cos(alpha1);
-        var axr = l2 * Math.cos(phiR) * Math.cos(beta1);
-        System.out.println(" l1="+l1+"\n l2="+l2+"\n "+"l: x="+axl+" y="+ayl+" z="+azl+"\n r: x="+axr+" y="+ayr+" z="+azr);
-        return new double[]{l1,l2,axl,ayl,azl,axr,ayr,azr};
+        var azl = l1L * Math.sin(phiL);
+        var azr = l2R * Math.sin(phiR);
+        var ayl = l1L * Math.cos(phiL) * Math.sin(alpha1);
+        var ayr = l2R * Math.cos(phiR) * Math.sin(beta1);
+        var axl = l1L * Math.cos(phiL) * Math.cos(alpha1);
+        var axr = l2R * Math.cos(phiR) * Math.cos(beta1);
+        System.out.println(" l1="+l1L+"\n l2="+l2R+"\n "+"l: x="+axl+" y="+ayl+" z="+azl+"\n r: x="+axr+" y="+ayr+" z="+azr);
+        return new double[]{l1L,l2R,axl,ayl,azl,axr,ayr,azr};
     }
-    double sqr(double x) { return x*x; }
+    static double sqr(double x) { return x*x; }
     MeasurementPanel setControls(MeasurementStatus ms) {
         dcLX1.setValueAndText(ms.left.x1);
         dcLY1.setValueAndText(ms.left.y1);
         dcLX2.setValueAndText(ms.left.x2);
         dcLY2.setValueAndText(ms.left.y2);
+        dcLX3.setValueAndText(ms.left.x3);
+        dcLY3.setValueAndText(ms.left.y3);
         dcRX1.setValueAndText(ms.right.x1);
         dcRY1.setValueAndText(ms.right.y1);
         dcRX2.setValueAndText(ms.right.x2);
         dcRY2.setValueAndText(ms.right.y2);
+        dcRX3.setValueAndText(ms.right.x3);
+        dcRY3.setValueAndText(ms.right.y3);
         return this;
+    }
+}
+class MeasurementCorrection {
+    double dRollL;
+    double dPitchL;
+    double dYawL;
+    double dRollR;
+    double dPitchR;
+    double dYawR;
+    public MeasurementCorrection() {
+    }
+    public MeasurementCorrection(double dRollL, double dPitchL, double dYawL, double dRollR, double dPitchR, double dYawR) {
+        this.dRollL = dRollL;
+        this.dPitchL = dPitchL;
+        this.dYawL = dYawL;
+        this.dRollR = dRollR;
+        this.dPitchR = dPitchR;
+        this.dYawR = dYawR;
+    }
+    public PanelMeasurementStatusD correctToUseWithLeft(PanelMeasurementStatusD right) {
+        return right.addRollD(dRollL).addPitchD(dPitchL).addYawD(dYawL);
+    }
+    public PanelMeasurementStatusD correctToUseWithRight(PanelMeasurementStatusD left) {
+        return left.addRollD(dRollR).addPitchD(dPitchR).addYawD(dYawR);
+    }
+    @Override
+    public String toString() {
+        return  "{" +
+                "dRollL=" + dRollL +
+                ", dPitchL=" + dPitchL +
+                ", dYawL=" + dYawL +
+                ", dRollR=" + dRollR +
+                ", dPitchR=" + dPitchR +
+                ", dYawR=" + dYawR +
+                '}';
     }
 }
 class StereoPairParameters {
@@ -4965,17 +5484,36 @@ class StereoPairParameters {
     double base;
     double ifovL;
     double ifovR;
+    double horizon;
+    MeasurementCorrection measurementCorrection;
 
-    public StereoPairParameters(String name, double base, double ifovL, double ifovR) {
+    public StereoPairParameters(String name, double base, double ifovL, double ifovR, double horizon) {
         this.name = name;
         this.base = base;
         this.ifovL = ifovL;
         this.ifovR = ifovR;
+        this.horizon = horizon;
+        this.measurementCorrection = new MeasurementCorrection();
     }
 
-    static StereoPairParameters NavCam = new StereoPairParameters("Curiosity NAVCAM",        0.424, 0.82E-3, 0.82E-3);
-    static StereoPairParameters FHazCam = new StereoPairParameters("Curiosity Front HAZCAM", 0.167, 2.10E-3, 2.10E-3);
-    static StereoPairParameters RHazCam = new StereoPairParameters("Curiosity Rear HAZCAM",  0.100, 2.10E-3, 2.10E-3);
+    public StereoPairParameters(String name, double base, double ifovL, double ifovR, double horizon, MeasurementCorrection measurementCorrection) {
+        this.name = name;
+        this.base = base;
+        this.ifovL = ifovL;
+        this.ifovR = ifovR;
+        this.horizon = horizon;
+        this.measurementCorrection = measurementCorrection;
+    }
+
+//    static StereoPairParameters NavCam =     new StereoPairParameters("Curiosity NAVCAM",         0.424, 0.82E-3, 0.82E-3, 3.7E3, new int[]{0,0,0,-14, 0,15,0,0});
+    static StereoPairParameters NavCam =     new StereoPairParameters("Curiosity NAVCAM",         0.424, 0.82E-3, 0.82E-3, 3.6E3);//, new int[]{0,0,0,-14, 0,15,0,0});
+    static StereoPairParameters FHazCamB =   new StereoPairParameters("Curiosity Front HAZCAM B", 0.100, 2.10E-3, 2.10E-3, 2.1E3); // base=.167 is wrong!!!
+    static StereoPairParameters RHazCamB =   new StereoPairParameters("Curiosity Rear HAZCAM B",  0.100, 2.10E-3, 2.10E-3, 2.3E3);//, new int[]{0,0,10,-6, -10,6,0,0});
+    static StereoPairParameters MastCam =    new StereoPairParameters("Curiosity MASTCAM",        0.242, 7.5E-5,  2.25E-4, 3.7E3);
+    static StereoPairParameters HazCam_167 = new StereoPairParameters("Curiosity HAZCAM .167",    0.167, 2.10E-3, 2.10E-3, 2.1E3); // I do not know if base=.167 really is there
+    static StereoPairParameters HazCam_100 = new StereoPairParameters("Curiosity HAZCAM .100",    0.100, 2.10E-3, 2.10E-3, 2.1E3);
+    static CustomStereoPairParameters Custom=new CustomStereoPairParameters(
+                                                               "Custom[========================]",0.100, 2.10E-3, 2.10E-3, 2.1E3);
 
     public static StereoPairParameters getUiDefault() { return NavCam; }
 
@@ -4983,12 +5521,36 @@ class StereoPairParameters {
     public String toString() {
         return name;
     }
+    public String toStringDetailed() {
+        String res = "\""+name+"\" base="+base+"(m) ifovL="+ifovL+"(rad/px) ifovR="+ifovR+"(rad/px)" +
+                " correction="+measurementCorrection
+                ;
+        return res;
+    }
+}
+class CustomStereoPairParameters extends StereoPairParameters {
+    public CustomStereoPairParameters(String name, double base, double ifovL, double ifovR, double horizon) {
+        super(name, base, ifovL, ifovR, horizon);
+    }
+    CustomStereoPairParameters assignFrom(StereoPairParameters other) {
+        this.name = "Custom["+other.name+"]";
+        this.base = other.base;
+        this.ifovL = other.ifovL;
+        this.ifovR = other.ifovR;
+        this.horizon = other.horizon;
+        return this;
+    }
 }
 
 class StereoCamChooser extends JComboBox<StereoPairParameters> {
     static StereoPairParameters[] modes = {
             StereoPairParameters.NavCam,
-//            StereoPairParameters.FHazCam, StereoPairParameters.RHazCam,
+            StereoPairParameters.FHazCamB,
+            StereoPairParameters.RHazCamB,
+            StereoPairParameters.MastCam,
+            StereoPairParameters.HazCam_167,
+            StereoPairParameters.HazCam_100,
+            StereoPairParameters.Custom,
     };
     public StereoCamChooser(Consumer<StereoPairParameters> valueListener) {
         super(modes);
@@ -5016,7 +5578,7 @@ enum MeasurementPointMark {
         this.listOfXY = listOfXY;
     }
     public static MeasurementPointMark getUiDefault() {
-        return DAISY;
+        return CROSS;
     }
     void drawMark(BufferedImage bi, int x, int y, int rgb) {
         int w = bi.getWidth();
