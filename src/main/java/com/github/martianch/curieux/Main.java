@@ -1274,6 +1274,14 @@ class X3DViewer {
         colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
         measurementPanel = new MeasurementPanel(uiEventListener);
         {
+            try {
+                var mainIcon = ImageIO.read(ClassLoader.getSystemResource("icons/main64.png"));
+                frame.setIconImage(mainIcon);
+            } catch (IOException e) {
+                // do nothing, it was just an icon
+            }
+        }
+        {
             lblL.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
