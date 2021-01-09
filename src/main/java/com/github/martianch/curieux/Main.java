@@ -461,7 +461,7 @@ class MeasurementStatus {
     }
 }
 class PanelMeasurementStatusD {
-    double x1 = -1, y1 = -1, x2 = -1, y2 = -1, x3 = -1, y3 = -1;
+    double x1 = -1, y1 = -1, x2 = -1, y2 = -1, x3 = -1, y3 = -1, x4=-1, y4=-1, x5=-1, y5=-1;
     int w = 0, h = 0;
     double ifov;
     String descr;
@@ -486,6 +486,20 @@ class PanelMeasurementStatusD {
         @Override public double getPy() { return h/2-y3; }
         @Override public double getIfov() { return ifov; }
     };
+    final APoint fourth = new APoint() {
+        @Override public double getAx() { return getAngle(x4, w); }
+        @Override public double getAy() { return -getAngle(y4, h); }
+        @Override public double getPx() { return x4-w/2; }
+        @Override public double getPy() { return h/2-y4; }
+        @Override public double getIfov() { return ifov; }
+    };
+    final APoint fifth = new APoint() {
+        @Override public double getAx() { return getAngle(x5, w); }
+        @Override public double getAy() { return -getAngle(y5, h); }
+        @Override public double getPx() { return x5-w/2; }
+        @Override public double getPy() { return h/2-y5; }
+        @Override public double getIfov() { return ifov; }
+    };
     private double getAngle(double xy, double wh) {
         return ifov*(xy - wh/2);
     }
@@ -495,6 +509,8 @@ class PanelMeasurementStatusD {
                 "  " + x1 + " " + y1 +
                 "  " + x2 + " " + y2 +
                 "  " + x3 + " " + y3 +
+                "  " + x4 + " " + y4 +
+                "  " + x5 + " " + y5 +
                 "  w=" + w + " h=" + h +
                 " ifov=" + ifov;
     }
@@ -503,9 +519,13 @@ class PanelMeasurementStatusD {
         res.x1 = this.x1;
         res.x2 = this.x2;
         res.x3 = this.x3;
+        res.x4 = this.x4;
+        res.x5 = this.x5;
         res.y1 = this.y1;
         res.y2 = this.y2;
         res.y3 = this.y3;
+        res.y4 = this.y4;
+        res.y5 = this.y5;
         res.w = this.w;
         res.h = this.h;
         res.ifov = this.ifov;
@@ -545,7 +565,7 @@ class PanelMeasurementStatusD {
 
 // TODO: camera parameters: L/R
 class PanelMeasurementStatus {
-    int x1=-1, y1=-1, x2=-1, y2=-1, x3=-1, y3=-1;
+    int x1=-1, y1=-1, x2=-1, y2=-1, x3=-1, y3=-1, x4=-1, y4=-1, x5=-1, y5=-1;
     int w=0, h=0;
     double ifov;
     String descr;
@@ -570,6 +590,20 @@ class PanelMeasurementStatus {
         @Override public double getPy() { return h/2-y3; }
         @Override public double getIfov() { return ifov; }
     };
+    final APoint fourth = new APoint() {
+        @Override public double getAx() { return getAngle(x4, w); }
+        @Override public double getAy() { return -getAngle(y4, h); }
+        @Override public double getPx() { return x4-w/2; }
+        @Override public double getPy() { return h/2-y4; }
+        @Override public double getIfov() { return ifov; }
+    };
+    final APoint fifth = new APoint() {
+        @Override public double getAx() { return getAngle(x5, w); }
+        @Override public double getAy() { return -getAngle(y5, h); }
+        @Override public double getPx() { return x5-w/2; }
+        @Override public double getPy() { return h/2-y5; }
+        @Override public double getIfov() { return ifov; }
+    };
     private double getAngle(int xy, int wh) {
         return ifov*(xy - wh/2);
     }
@@ -578,9 +612,13 @@ class PanelMeasurementStatus {
         res.x1 = this.x1;
         res.x2 = this.x2;
         res.x3 = this.x3;
+        res.x4 = this.x4;
+        res.x5 = this.x5;
         res.y1 = this.y1;
         res.y2 = this.y2;
         res.y3 = this.y3;
+        res.y4 = this.y4;
+        res.y5 = this.y5;
         res.w = this.w;
         res.h = this.h;
         res.ifov = this.ifov;
@@ -592,9 +630,13 @@ class PanelMeasurementStatus {
         res.x1 = this.x1;
         res.x2 = this.x2;
         res.x3 = this.x3;
+        res.x4 = this.x4;
+        res.x5 = this.x5;
         res.y1 = this.y1;
         res.y2 = this.y2;
         res.y3 = this.y3;
+        res.y4 = this.y4;
+        res.y5 = this.y5;
         res.w = this.w;
         res.h = this.h;
         res.ifov = this.ifov;
@@ -603,6 +645,7 @@ class PanelMeasurementStatus {
     }
     public BufferedImage drawMarks(BufferedImage img, MeasurementPointMark measurementPointMark) {
         BufferedImage res = img;
+        // TODO: refactor
         if (x1 >= 0 && y1 >= 0 && x1 < img.getWidth() && y1 < img.getHeight()) {
             res = copyImage(img);
             measurementPointMark.drawMark(res, x1, y1, 0xFF0000);
@@ -618,6 +661,18 @@ class PanelMeasurementStatus {
                 res = copyImage(img);
             }
             measurementPointMark.drawMark(res, x3, y3, 0x0000FF);
+        }
+        if (x4 >= 0 && y4 >= 0 && x4 < img.getWidth() && y4 < img.getHeight()) {
+            if (res == img) {
+                res = copyImage(img);
+            }
+            measurementPointMark.drawMark(res, x4, y4, 0x00FFFF);
+        }
+        if (x5 >= 0 && y5 >= 0 && x5 < img.getWidth() && y5 < img.getHeight()) {
+            if (res == img) {
+                res = copyImage(img);
+            }
+            measurementPointMark.drawMark(res, x5, y5, 0xFF00FF);
         }
         return res;
     }
@@ -649,6 +704,8 @@ class PanelMeasurementStatus {
                 "  " + x1 + " " + y1 +
                 "  " + x2 + " " + y2 +
                 "  " + x3 + " " + y3 +
+                "  " + x4 + " " + y4 +
+                "  " + x5 + " " + y5 +
                 "  w=" + w + " h=" + h +
                 " ifov=" + ifov;
     }
@@ -951,18 +1008,28 @@ class UiController implements UiEventListener {
             var zoom = displayParameters.zoom * (isRight ? displayParameters.zoomR : displayParameters.zoomL);
             var offX = Math.max(0, isRight ? -displayParameters.offsetX : displayParameters.offsetX);
             var offY = Math.max(0, isRight ? -displayParameters.offsetY : displayParameters.offsetY);
+            int x = (int) (e.getX() / zoom - offX);
+            int y = (int) (e.getY() / zoom - offY);
             switch (measurementStatus.pointWaitingFor()) {
                 case 1:
-                    lr.x1 = (int) (e.getX() / zoom - offX);
-                    lr.y1 = (int) (e.getY() / zoom - offY);
+                    lr.x1 = x;
+                    lr.y1 = y;
                     break;
                 case 2:
-                    lr.x2 = (int) (e.getX() / zoom - offX);
-                    lr.y2 = (int) (e.getY() / zoom - offY);
+                    lr.x2 = x;
+                    lr.y2 = y;
                     break;
                 case 3:
-                    lr.x3 = (int) (e.getX() / zoom - offX);
-                    lr.y3 = (int) (e.getY() / zoom - offY);
+                    lr.x3 = x;
+                    lr.y3 = y;
+                    break;
+                case 4:
+                    lr.x4 = x;
+                    lr.y4 = y;
+                    break;
+                case 5:
+                    lr.x5 = x;
+                    lr.y5 = y;
                     break;
             }
             measurementStatus.clearWaitingForPoint();
@@ -984,12 +1051,20 @@ class UiController implements UiEventListener {
             case 3:  measurementStatus.left.y2 = lrXy123; break;
             case 4:  measurementStatus.left.x3 = lrXy123; break;
             case 5:  measurementStatus.left.y3 = lrXy123; break;
-            case 6:  measurementStatus.right.x1 = lrXy123; break;
-            case 7:  measurementStatus.right.y1 = lrXy123; break;
-            case 8:  measurementStatus.right.x2 = lrXy123; break;
-            case 9:  measurementStatus.right.y2 = lrXy123; break;
-            case 10: measurementStatus.right.x3 = lrXy123; break;
-            case 11: measurementStatus.right.y3 = lrXy123; break;
+            case 6:  measurementStatus.left.x4 = lrXy123; break;
+            case 7:  measurementStatus.left.y4 = lrXy123; break;
+            case 8:  measurementStatus.left.x5 = lrXy123; break;
+            case 9:  measurementStatus.left.y5 = lrXy123; break;
+            case 10: measurementStatus.right.x1 = lrXy123; break;
+            case 11: measurementStatus.right.y1 = lrXy123; break;
+            case 12: measurementStatus.right.x2 = lrXy123; break;
+            case 13: measurementStatus.right.y2 = lrXy123; break;
+            case 14: measurementStatus.right.x3 = lrXy123; break;
+            case 15: measurementStatus.right.y3 = lrXy123; break;
+            case 16: measurementStatus.right.x4 = lrXy123; break;
+            case 17: measurementStatus.right.y4 = lrXy123; break;
+            case 18: measurementStatus.right.x5 = lrXy123; break;
+            case 19: measurementStatus.right.y5 = lrXy123; break;
             default: throw new IllegalArgumentException("coordId="+coordId+" has no meaning, valid: [0..12)");
         }
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
@@ -1000,10 +1075,22 @@ class UiController implements UiEventListener {
         measurementStatus.left.y1 =
         measurementStatus.left.x2 =
         measurementStatus.left.y2 =
+        measurementStatus.left.x3 =
+        measurementStatus.left.y3 =
+        measurementStatus.left.x4 =
+        measurementStatus.left.y4 =
+        measurementStatus.left.x5 =
+        measurementStatus.left.y5 =
         measurementStatus.right.x1 =
         measurementStatus.right.y1 =
         measurementStatus.right.x2 =
-        measurementStatus.right.y2 = -1;
+        measurementStatus.right.y2 =
+        measurementStatus.right.x3 =
+        measurementStatus.right.y3 =
+        measurementStatus.right.x4 =
+        measurementStatus.right.y4 =
+        measurementStatus.right.x5 =
+        measurementStatus.right.y5 = -1;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
@@ -1405,11 +1492,27 @@ class X3DViewer {
                     );
                 }
                 {
-                    String title = "Mark Third Point (Blue, Calibration-Only)";
+                    String title = "Mark Far Calibration Point (Blue)";
                     JMenuItem mi = new JMenuItem(title);
                     mMeasure.add(mi);
                     mi.addActionListener(e ->
                             uiEventListener.setWaitingForPoint(3)
+                    );
+                }
+                {
+                    String title = "Mark Left Calibration Point (Cyan)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.setWaitingForPoint(4)
+                    );
+                }
+                {
+                    String title = "Mark Right Calibration Point (Magenta)";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.setWaitingForPoint(5)
                     );
                 }
                 {
@@ -5040,12 +5143,20 @@ class MeasurementPanel extends JPanel {
     final DigitalZoomControl<Integer, OffsetWrapper2> dcLY2;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcLX3;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcLY3;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX4;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY4;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX5;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY5;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcRX1;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcRY1;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcRX2;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcRY2;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcRX3;
     final DigitalZoomControl<Integer, OffsetWrapper2> dcRY3;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX4;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY4;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX5;
+    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY5;
     final JTextArea textArea;
     final JScrollPane textAreaScroll;
     final StereoCamChooser stereoCamChooser;
@@ -5062,18 +5173,26 @@ class MeasurementPanel extends JPanel {
         dcLY2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">Y2L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(3,i); doCalculate7();});
         dcLX3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">X3L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(4,i); doCalculate7();});
         dcLY3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">Y3L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(5,i); doCalculate7();});
-        dcRX1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(6,i); doCalculate7();});
-        dcRY1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(7,i); doCalculate7();});
-        dcRX2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(8,i); doCalculate7();});
-        dcRY2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(9,i); doCalculate7();});
-        dcRX3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">X3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(10,i); doCalculate7();});
-        dcRY3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">Y3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(11,i); doCalculate7();});
+        dcLX4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(6,i); doCalculate7();});
+        dcLY4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(7,i); doCalculate7();});
+        dcLX5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(8,i); doCalculate7();});
+        dcLY5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(9,i); doCalculate7();});
+        dcRX1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(10,i); doCalculate7();});
+        dcRY1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(11,i); doCalculate7();});
+        dcRX2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(12,i); doCalculate7();});
+        dcRY2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(13,i); doCalculate7();});
+        dcRX3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">X3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(14,i); doCalculate7();});
+        dcRY3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">Y3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(15,i); doCalculate7();});
+        dcRX4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(16,i); doCalculate7();});
+        dcRY4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(17,i); doCalculate7();});
+        dcRX5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(18,i); doCalculate7();});
+        dcRY5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(19,i); doCalculate7();});
         textArea = new JTextArea(16,120);
         textAreaScroll = new JScrollPane(textArea);
         stereoCamChooser = new StereoCamChooser(v -> { uiEventListener.stereoCameraChanged(v); doCalculate7(); });
         measurementPointMarkChooser = new MeasurementPointMarkChooser(v -> uiEventListener.markShapeChanged(v));
 
-        var dcs = Arrays.asList(dcLX1, dcLY1, dcLX2, dcLY2, dcLX3, dcLY3, dcRX1, dcRY1, dcRX2, dcRY2, dcRX3, dcRY3);
+        var dcs = Arrays.asList(dcLX1, dcLY1, dcLX2, dcLY2, dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5, dcRX1, dcRY1, dcRX2, dcRY2, dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5);
         var dcRows = dcs.size()/4;
 
         {
@@ -5140,7 +5259,7 @@ class MeasurementPanel extends JPanel {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 9;          // MAGIC NUMBER // TODO: calculate
+            gbc.gridy = 11;          // MAGIC NUMBER // TODO: calculate
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
@@ -5164,7 +5283,7 @@ class MeasurementPanel extends JPanel {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 10;         // MAGIC NUMBER // TODO: calculate
+            gbc.gridy = 12;         // MAGIC NUMBER // TODO: calculate
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
@@ -5182,7 +5301,7 @@ class MeasurementPanel extends JPanel {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 11;         // MAGIC NUMBER // TODO: calculate
+            gbc.gridy = 13;         // MAGIC NUMBER // TODO: calculate
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
@@ -5265,11 +5384,11 @@ class MeasurementPanel extends JPanel {
         System.out.println("Calibration:");
         System.out.println("left0: "+left0);
         System.out.println("right0: "+right0);
-        System.out.println("1: "+left0.x1+" "+left0.y1+"  "+right0.x1+" "+right0.y1);
-        System.out.println("2: "+left0.x2+" "+left0.y2+"  "+right0.x2+" "+right0.y2);
         System.out.println("3: "+left0.x3+" "+left0.y3+"  "+right0.x3+" "+right0.y3);
+        System.out.println("4: "+left0.x4+" "+left0.y4+"  "+right0.x4+" "+right0.y4);
+        System.out.println("5: "+left0.x5+" "+left0.y5+"  "+right0.x5+" "+right0.y5);
         System.out.println("wh: "+left0.w+" "+left0.h+"  "+right0.w+" "+right0.h);
-        var dRollL = getDRoll(left0.first, left0.second, right0.first, right0.second);
+        var dRollL = getDRoll(left0.fourth, left0.fifth, right0.fourth, right0.fifth);
         var dRollR = -dRollL;
         System.out.println("dRollL: "+dRollL);
         var left1L = left0;
@@ -5280,17 +5399,17 @@ class MeasurementPanel extends JPanel {
         System.out.println("right1L: "+right1L);
         System.out.println("left1R: "+left1R);
         System.out.println("right1R: "+right1R);
-        System.out.println("1L: "+left1L.x1+" "+left1L.y1+"  "+right1L.x1+" "+right1L.y1);
-        System.out.println("2L: "+left1L.x2+" "+left1L.y2+"  "+right1L.x2+" "+right1L.y2);
+        System.out.println("4L: "+left1L.x4+" "+left1L.y4+"  "+right1L.x4+" "+right1L.y4);
+        System.out.println("5L: "+left1L.x5+" "+left1L.y5+"  "+right1L.x5+" "+right1L.y5);
         System.out.println("3L: "+left1L.x3+" "+left1L.y3+"  "+right1L.x3+" "+right1L.y3);
-        System.out.println("1R: "+left1R.x1+" "+left1R.y1+"  "+right1R.x1+" "+right1R.y1);
-        System.out.println("2R: "+left1R.x2+" "+left1R.y2+"  "+right1R.x2+" "+right1R.y2);
+        System.out.println("4R: "+left1R.x4+" "+left1R.y4+"  "+right1R.x4+" "+right1R.y4);
+        System.out.println("5R: "+left1R.x5+" "+left1R.y5+"  "+right1R.x5+" "+right1R.y5);
         System.out.println("3R: "+left1R.x3+" "+left1R.y3+"  "+right1R.x3+" "+right1R.y3);
-        System.out.println("new dRoll L: "+getDRoll(left1L.first, left1L.second, right1L.first, right1L.second));
-        System.out.println("new dRoll R: "+getDRoll(left1R.first, left1R.second, right1R.first, right1R.second));
+        System.out.println("new dRoll L: "+getDRoll(left1L.fourth, left1L.fifth, right1L.fourth, right1L.fifth));
+        System.out.println("new dRoll R: "+getDRoll(left1R.fourth, left1R.fifth, right1R.fourth, right1R.fifth));
 
-        var dPitchL = getDPitch(left1L.first, right1L.first);
-        var dPitchR = -getDPitch(left1R.first, right1R.first);
+        var dPitchL =  (getDPitch(left1L.fourth, right1L.fourth) + getDPitch(left1L.fifth, right1L.fifth))/2;
+        var dPitchR = -(getDPitch(left1R.fourth, right1R.fourth) + getDPitch(left1R.fifth, right1R.fifth))/2;
         System.out.println("dPitchL: "+dPitchL + " dPitchR:"+dPitchR);
 
         var left2L = left1L;
@@ -5301,8 +5420,8 @@ class MeasurementPanel extends JPanel {
         System.out.println("right2L: "+right2L);
         System.out.println("left2R: "+left2R);
         System.out.println("right2R: "+right2R);
-        System.out.println("new dPitch L "+getDPitch(left2L.first, right2L.first));
-        System.out.println("new dPitch R "+getDPitch(left2R.first, right2R.first));
+        System.out.println("new dPitch L "+getDPitch(left2L.fourth, right2L.fourth));
+        System.out.println("new dPitch R "+getDPitch(left2R.fourth, right2R.fourth));
 
         System.out.println("dist pt");
         System.out.println("LL "+left2L.third.asString());
@@ -5320,10 +5439,10 @@ class MeasurementPanel extends JPanel {
         var right3R = right2R;
 
         System.out.println("After all three rotations:");
-        System.out.println("new dRoll L: "+getDRoll(left3L.first, left3L.second, right3L.first, right3L.second));
-        System.out.println("new dRoll R: "+getDRoll(left3R.first, left3R.second, right3R.first, right3R.second));
-        System.out.println("new dPitch L "+getDPitch(left3L.first, right3L.first));
-        System.out.println("new dPitch R "+getDPitch(left3R.first, right3R.first));
+        System.out.println("new dRoll L: "+getDRoll(left3L.fourth, left3L.fifth, right3L.fourth, right3L.fifth));
+        System.out.println("new dRoll R: "+getDRoll(left3R.fourth, left3R.fifth, right3R.fourth, right3R.fifth));
+        System.out.println("new dPitch L "+getDPitch(left3L.fourth, right3L.fourth));
+        System.out.println("new dPitch R "+getDPitch(left3R.fourth, right3R.fourth));
         System.out.println("new dYaw L "+getDYaw(left3L.third, right3L.third, spp));
         System.out.println("new dYaw R "+getDYaw(left3R.third, right3R.third, spp));
         var val3l = calculateDist7(spp.base, left3L.third, right3L.third);
@@ -5374,6 +5493,8 @@ class MeasurementPanel extends JPanel {
             pw.println("Point1: "+ms.left.x1+" "+ms.left.y1+"   "+ms.right.x1+" "+ms.right.y1);
             pw.println("Point2: "+ms.left.x2+" "+ms.left.y2+"   "+ms.right.x2+" "+ms.right.y2);
             pw.println("Point3: "+ms.left.x3+" "+ms.left.y3+"   "+ms.right.x3+" "+ms.right.y3);
+            pw.println("Point4: "+ms.left.x4+" "+ms.left.y4+"   "+ms.right.x4+" "+ms.right.y4);
+            pw.println("Point5: "+ms.left.x5+" "+ms.left.y5+"   "+ms.right.x5+" "+ms.right.y5);
             pw.println(spp.toStringDetailed());
             pw.println("Distance from the left and right cameras, m:");
             pw.println("Point 1: "+ val1l[1] + ", " + val1l[0] + " // " + val1r[1] + ", " + val1r[0]);
@@ -5381,6 +5502,21 @@ class MeasurementPanel extends JPanel {
             pw.println( "Distance between Points 1 and 2,\n"+
                     "calculated in the coordinate systems of left and right cameras, m:");
             pw.println(""+ dist3dRl + ", " + dist3dLl + ", " + dist3dRr + ", " + dist3dLr);
+            pw.println("Δx: "+ (val2l[2] - val1l[2])
+                      + ", " + (val2l[5] - val1l[5])
+                    + " // " + (val2r[2] - val1r[2])
+                      + ", " + (val2r[5] - val1r[5])
+            );
+            pw.println("Δy: "+ (val2l[3] - val1l[3])
+                      + ", " + (val2l[6] - val1l[6])
+                    + " // " + (val2r[3] - val1r[3])
+                      + ", " + (val2r[6] - val1r[6])
+            );
+            pw.println("Δz: "+ (val2l[4] - val1l[4])
+                      + ", " + (val2l[7] - val1l[7])
+                    + " // " + (val2r[4] - val1r[4])
+                      + ", " + (val2r[7] - val1r[7])
+            );
             pw.flush();
             String result = baos.toString(StandardCharsets.UTF_8.name());
             System.out.println(result);
@@ -5443,12 +5579,20 @@ class MeasurementPanel extends JPanel {
         dcLY2.setValueAndText(ms.left.y2);
         dcLX3.setValueAndText(ms.left.x3);
         dcLY3.setValueAndText(ms.left.y3);
+        dcLX4.setValueAndText(ms.left.x4);
+        dcLY4.setValueAndText(ms.left.y4);
+        dcLX5.setValueAndText(ms.left.x5);
+        dcLY5.setValueAndText(ms.left.y5);
         dcRX1.setValueAndText(ms.right.x1);
         dcRY1.setValueAndText(ms.right.y1);
         dcRX2.setValueAndText(ms.right.x2);
         dcRY2.setValueAndText(ms.right.y2);
         dcRX3.setValueAndText(ms.right.x3);
         dcRY3.setValueAndText(ms.right.y3);
+        dcRX4.setValueAndText(ms.right.x4);
+        dcRY4.setValueAndText(ms.right.y4);
+        dcRX5.setValueAndText(ms.right.x5);
+        dcRY5.setValueAndText(ms.right.y5);
         return this;
     }
 }
