@@ -190,6 +190,7 @@ interface UiEventListener {
     void clearAllMarks();
     void stereoCameraChanged(StereoPairParameters v);
     void markShapeChanged(MeasurementPointMark v);
+    void escapePressed();
     Optional<Integer> getSol(boolean isRight);
     MeasurementStatus getMeasurementStatus();
     DisplayParameters getDisplayParameters();
@@ -1104,6 +1105,13 @@ class UiController implements UiEventListener {
     public void markShapeChanged(MeasurementPointMark v) {
         measurementStatus.measurementPointMark = v;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+    }
+    @Override
+    public void escapePressed() {
+        if (measurementStatus.isWaitingForPoint()) {
+            measurementStatus.clearWaitingForPoint();
+            x3dViewer.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+        }
     }
     @Override
     public Optional<Integer> getSol(boolean isRight) {
@@ -2041,6 +2049,8 @@ class X3DViewer {
             frameActionMap.put("markgreen", toAction(e->uiEventListener.setWaitingForPoint(2)));
             frameActionMap.put("markblue", toAction(e->uiEventListener.setWaitingForPoint(3)));
             frameActionMap.put("measurementpanel", toAction(e->measurementPanel.showDialogIn(frame)));
+            frameInputMap.put(KeyStroke.getKeyStroke("ESCAPE"), "escape");
+            frameActionMap.put("escape", toAction(e->uiEventListener.escapePressed()));
         }
         {
             TransferHandler transferHandler = new TransferHandler("text") {
