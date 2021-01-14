@@ -2336,6 +2336,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     JButton buttonPlus2;
     JButton buttonDefault;
     JTextField textField;
+    static final int GROUP_LENGTH = 2;
     DigitalZoomControl<T,TT> init(String labelText, int nColumns, TT valueWrapper0, Consumer<T> valueListener) {
         valueWrapper = valueWrapper0;
 
@@ -2353,6 +2354,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
+            buttonMinus2.setToolTipText(valueWrapper.getButtonToolTip(-1, 1, 1+GROUP_LENGTH));
             this.add(buttonMinus2);
         }
         {
@@ -2363,6 +2365,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
+            buttonMinus.setToolTipText(valueWrapper.getButtonToolTip(-1, 0, 0+GROUP_LENGTH));
             this.add(buttonMinus);
         }
         {
@@ -2386,6 +2389,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
+            buttonPlus.setToolTipText(valueWrapper.getButtonToolTip(+1, 0, 0+GROUP_LENGTH));
             this.add(buttonPlus);
         }
         {
@@ -2396,6 +2400,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
+            buttonPlus2.setToolTipText(valueWrapper.getButtonToolTip(+1, 1, 1+GROUP_LENGTH));
             this.add(buttonPlus2);
         }
         {
@@ -2406,6 +2411,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
                 setTextFieldFromValue();
                 valueListener.accept(valueWrapper.getSafeValue());
             });
+            buttonDefault.setToolTipText("Reset to default");
             this.add(buttonDefault);
         }
         return this;
@@ -2419,7 +2425,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
      */
     int getGroupIndex(ActionEvent e) {
         if((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0) {
-            return 2;
+            return GROUP_LENGTH;
         } else {
             return 0;
         }
@@ -2464,6 +2470,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         abstract String getAsString();
         T getSafeValue() { return value; }
         ValueWrapper setValue(T v) { value = v; return this; }
+        abstract String getButtonToolTip(int sign, int index1, int index2);
     }
 }
 class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
@@ -2497,6 +2504,11 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
     String getAsString() {
         return value.toString();
     }
+
+    @Override
+    String getButtonToolTip(int sign, int index1, int index2) {
+        return String.format("%+d, Shift: %+d", sign*increments[index1], sign*increments[index2]);
+    }
 }
 class OffsetWrapper2 extends OffsetWrapper {
     {
@@ -2529,6 +2541,11 @@ class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     @Override
     String getAsString() {
         return String.format ("%.3f", value);
+    }
+    @Override
+    String getButtonToolTip(int sign, int index1, int index2) {
+        DecimalFormat df = new DecimalFormat("+#.####;-#.####");
+        return df.format(sign*increments[index1]) + ", Shift: " + df.format(sign*increments[index2]);
     }
 }
 class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
@@ -2567,6 +2584,12 @@ class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     @Override
     String getAsString() {
         return String.format ("%.3f", value);
+    }
+
+    @Override
+    String getButtonToolTip(int sign, int index1, int index2) {
+        DecimalFormat df = new DecimalFormat("+#.####;-#.####");
+        return df.format(sign*increments[index1]) + ", Shift: " + df.format(sign*increments[index2]);
     }
 
     /* zoom maths */
