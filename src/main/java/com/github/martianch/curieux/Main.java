@@ -4270,8 +4270,10 @@ class NasaReader {
         uc.setRequestProperty("Accept","text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
         uc.setRequestProperty("Accept-Language","en-US,en;q=0.5");
         uc.setRequestProperty("DNT","1");
-        uc.setRequestProperty("Pragma","no-cache");
-        uc.setRequestProperty("Cache-Control","no-cache");
+//        uc.setRequestProperty("Pragma","no-cache");
+//        uc.setRequestProperty("Cache-Control","no-cache");
+        uc.setRequestProperty("Referer","https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc%2C+date_taken+desc&per_page=50&page=0&mission=msl");
+//        uc.setRequestProperty("Cookie","raw_images_filter=order=sol+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc%2C+date_taken+desc&per_page=50&page=0&mission=msl; _ga=GA1.3.113901165.1610160696; _gid=GA1.3.1829179841.1610160696; _gat_GSA_ENOR0=1; _gat_GSA_ENOR1=1; _gat_GSA_ENOR2=1; _ga=GA1.2.113901165.1610160696; _gid=GA1.2.1829179841.1610160696");
 //      uc.setRequestProperty("","");
         uc.setConnectTimeout(7000); // 7 sec
     }
