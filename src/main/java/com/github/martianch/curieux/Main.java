@@ -2699,13 +2699,25 @@ abstract class FileLocations {
         if (urlOrFile == null) {
             return urlOrFile;
         }
+        // Curiosity
         final String thmSuffix = "-thm.jpg";
         final String brSuffix = "-br.jpg";
         final String imgSuffix = ".JPG";
+        // Perseverance
+        final String _320Suffix = "_320.jpg";
+        final String _800Suffix = "_800.jpg";
+        final String _1200Suffix = "_1200.jpg";
+        final String pngSuffix = ".png";
         String unthumbnailed =
             replaceSuffix(thmSuffix, imgSuffix,
                 replaceSuffix(brSuffix, imgSuffix,
-                        urlOrFile
+                        replaceSuffix(_320Suffix, pngSuffix,
+                                replaceSuffix(_800Suffix, pngSuffix,
+                                        replaceSuffix(_1200Suffix, pngSuffix,
+                                            urlOrFile
+                                        )
+                                )
+                        )
                 )
             );
         if (isUrl(urlOrFile) || isCuriousUrn(urlOrFile) || !isProblemWithFile(unthumbnailed)) {
