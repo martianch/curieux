@@ -2869,11 +2869,29 @@ abstract class FileLocations {
     }
     private static boolean isMarkedR(String file) {
         return file.startsWith("NRB") || file.startsWith("RRB") || file.startsWith("FRB")
-            || file.startsWith("NRA") || file.startsWith("RRA") || file.startsWith("FRA");
+            || file.startsWith("NRA") || file.startsWith("RRA") || file.startsWith("FRA")
+            // perseverance
+            || file.startsWith("ZRF")
+            || file.startsWith("NRE") || file.startsWith("NRM") || file.startsWith("NRF")
+            || file.startsWith("NRG") || file.startsWith("NRR") // NLB: above
+            || file.startsWith("FRE") || file.startsWith("FRM")
+            || file.startsWith("FRR") || file.startsWith("FRG") || file.startsWith("FRB")
+            || file.startsWith("RRE") || file.startsWith("RRM")
+            || file.startsWith("RRR") || file.startsWith("RRG") || file.startsWith("RRB")
+            ;
     }
     private static boolean isMarkedL(String file) {
         return file.startsWith("NLB") || file.startsWith("RLB") || file.startsWith("FLB")
-            || file.startsWith("NLA") || file.startsWith("RLA") || file.startsWith("FLA");
+            || file.startsWith("NLA") || file.startsWith("RLA") || file.startsWith("FLA")
+            // perseverance
+            || file.startsWith("ZLF")
+            || file.startsWith("NLE") || file.startsWith("NLM") || file.startsWith("NLF")
+            || file.startsWith("NLG") || file.startsWith("NLR") // NLB: above
+            || file.startsWith("FLE") || file.startsWith("FLM")
+            || file.startsWith("FLR") || file.startsWith("FLG") || file.startsWith("FLB")
+            || file.startsWith("RLE") || file.startsWith("RLM")
+            || file.startsWith("RLR") || file.startsWith("RLG") || file.startsWith("RLB")
+            ;
     }
     private static boolean isMarkedRL(String file) {
         return isMarkedR(file) || isMarkedL(file);
