@@ -350,6 +350,24 @@ public class FileLocationsTest {
     }
 
     @Test
+    public void isMarkedColorChannelTest() {
+        assertFalse(FileLocations.isMarkedColorChannel(""));
+        assertTrue(FileLocations.isMarkedColorChannel("FLR_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png"));
+        assertTrue(FileLocations.isMarkedColorChannel("FLG_0000_0666958226_808ECM_N0010052AUT_04096_00_2I3J02.png"));
+        assertTrue(FileLocations.isMarkedColorChannel("FLB_0000_0666958242_147ECM_N0010052AUT_04096_00_2I3J02.png"));
+        assertFalse(FileLocations.isMarkedColorChannel("RLE_0000_0666958396_993ECM_N0010052AUT_04096_00_0LLJ02.png"));
+    }
+    @Test
+    public void withChannelColorTest() {
+        assertEquals("FLR_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", FileLocations.withChannelColor("FLR_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", 'R'));
+        assertEquals("FLG_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", FileLocations.withChannelColor("FLR_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", 'G'));
+        assertEquals("FLB_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", FileLocations.withChannelColor("FLR_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", 'B'));
+
+        assertEquals("FLR_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", FileLocations.withChannelColor("FLG_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", 'R'));
+        assertEquals("FLG_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", FileLocations.withChannelColor("FLG_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", 'G'));
+        assertEquals("FLB_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", FileLocations.withChannelColor("FLG_0000_0666958220_664ECM_N0010052AUT_04096_00_2I3J02.png", 'B'));
+    }
+    @Test
     public void getRidOfBackslashesTest() {
         assertThat(FileLocations.getRidOfBackslashes("c:\\test\\"), is("c:/test/"));
     }

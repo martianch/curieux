@@ -110,7 +110,7 @@ public class Main {
             //,"DejaVu Sans Mono"
     };
 
-    static final ParallelImageLoading PARALLEL_IMAGE_LOADING = ParallelImageLoading.DELAYED;
+    static final ParallelImageLoading PARALLEL_IMAGE_LOADING = ParallelImageLoading.SEQUENTIAL;
     public enum ParallelImageLoading {PARALLEL,DELAYED,SEQUENTIAL}
 
     public static void main(String[] args) throws Exception {
@@ -249,55 +249,80 @@ class DisplayParameters {
         return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection);
     }
 }
-class ImageAndPath {
-    public static final String IN_PROGRESS_PATH = "..."; // pseudo-path, means "download in progress"
-    public static final String NO_PATH = "-"; // pseudo-path, means "no path"
-    public static final String ERROR_PATH = ""; // pseudo-path, means "error while loading path"
-    public static final int DUMMY_SIZE = 12;
-    final BufferedImage image;
-    final String path;
-    final String pathToLoad;
-
-    public ImageAndPath(BufferedImage image, String path, String pathToLoad) {
-        this.image = image;
-        this.path = path;
-        this.pathToLoad = pathToLoad;
+class ThreeChannelImageAndPath extends ImageAndPath {
+    final SimpleImageAndPath rChannel, gChannel, bChannel;
+    public ThreeChannelImageAndPath(SimpleImageAndPath red, SimpleImageAndPath green, SimpleImageAndPath blue, BufferedImage image, String path, String pathToLoad) {
+        super(image, path, pathToLoad);
+        rChannel = red;
+        gChannel = green;
+        bChannel = blue;
     }
-    public boolean isPathEqual(String otherPath) {
-        boolean isThisPathSpecial = isSpecialPath(path);
-        boolean isOtherPathSpecial = isSpecialPath(otherPath);
-        if (isThisPathSpecial && isOtherPathSpecial) {
-            return path.equals(otherPath);
+    public ThreeChannelImageAndPath(SimpleImageAndPath red, SimpleImageAndPath green, SimpleImageAndPath blue, String path, String pathToLoad) {
+        this(red, green, blue, null, path, pathToLoad);
+    }
+    public ImageAndPath combineChannels() {
+        int width = combinedWidth(rChannel.image.getWidth(),gChannel.image.getWidth(),bChannel.image.getWidth());
+        int height = combinedHeight(rChannel.image.getHeight(),gChannel.image.getHeight(),bChannel.image.getHeight());
+        BufferedImage res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+        for (int y=0; y<height; y++) {
+            for (int x=0; x<width; x++) {
+                res.setRGB(x,y,
+                          getRgb(rChannel, x, y) & 0xff_0000
+                        | getRgb(gChannel, x, y) & 0x00_ff00
+                        | getRgb(bChannel, x, y) & 0x00_00ff
+                );
+            }
         }
-        if (!isThisPathSpecial && !isOtherPathSpecial) {
-            return path.equals(otherPath) && !isDummyImage(image);
+        // TODO: do we need all three original images?
+        //return new ThreeChannelImageAndPath(rChannel, gChannel, bChannel, res, path, pathToLoad);
+        return new SimpleImageAndPath(res, path, pathToLoad);
+    }
+    static int combinedWidth(int widthRed, int widthGreen, int widthBlue) {
+        return Math.max(widthRed, Math.max(widthGreen, widthBlue));
+    }
+    static int combinedHeight(int heightRed, int heightGreen, int heightBlue) {
+        return Math.max(heightRed, Math.max(heightGreen, heightBlue));
+    }
+    private static int getRgb(SimpleImageAndPath channel, int x, int y) {
+        if (x < channel.image.getWidth()
+         && y < channel.image.getHeight()
+        ) {
+            return channel.image.getRGB(x, y);
+        } else {
+            return 0;
         }
-        return false;
     }
+    static ImageAndPath imageIoRead(String pathFileNameExt, String pathToLoad) throws IOException {
+        var fullPath = Paths.get(pathFileNameExt);
+        var fileNameExt = fullPath.getFileName().toString();
 
-    static BufferedImage dummyImage(Color color) {
-        return _dummyImage(color, DUMMY_SIZE, DUMMY_SIZE);
+        var dir = pathFileNameExt.substring(0, pathFileNameExt.length()-fileNameExt.length());
+        if (!FileLocations.isMarkedColorChannel(fileNameExt)) {
+            return SimpleImageAndPath.imageIoRead(pathFileNameExt, pathToLoad);
+        }
+        String fullPathRed = dir + FileLocations.withChannelColor(fileNameExt,'R');
+        String fullPathGreen = dir + FileLocations.withChannelColor(fileNameExt,'G');
+        String fullPathBlue = dir + FileLocations.withChannelColor(fileNameExt,'B');
+        var red = SimpleImageAndPath.imageIoRead(fullPathRed, pathToLoad);
+        var green = SimpleImageAndPath.imageIoRead(fullPathGreen, pathToLoad);
+        var blue = SimpleImageAndPath.imageIoRead(fullPathBlue, pathToLoad);
+        var res = new ThreeChannelImageAndPath(red, green, blue, pathFileNameExt, pathToLoad).combineChannels();
+        return res;
     }
-    static boolean isDummyImage(BufferedImage img) {
-        return img.getWidth() == DUMMY_SIZE && img.getHeight() == DUMMY_SIZE;
+}
+class SimpleImageAndPath extends ImageAndPath {
+    public SimpleImageAndPath(BufferedImage image, String path, String pathToLoad) {
+        super(image, path, pathToLoad);
     }
-    static BufferedImage _dummyImage(Color color, int width, int height) {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D graphics = image.createGraphics();
-
-        graphics.setPaint(color);
-        graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
-        graphics.dispose();
-        return image;
-    }
-    static ImageAndPath imageIoRead(String path, String pathToLoad) throws IOException {
+    static SimpleImageAndPath imageIoRead(String path, String pathToLoad) throws IOException {
         BufferedImage res;
         if(isSpecialPath(path)) {
             Color color = IN_PROGRESS_PATH.equals(path)
-                        ? new Color(0, 128, 255)
-                        : NO_PATH.equals(path)
-                        ? new Color(0, 0, 0)
-                        : new Color(80, 20, 20);
+                    ? new Color(0, 128, 255)
+                    : NO_PATH.equals(path)
+                    ? new Color(0, 0, 0)
+                    : new Color(80, 20, 20);
             res = dummyImage(color);
         } else if(FileLocations.isCuriousUrn(path)) {
             String path1 = FileLocations.uncuriousUri(path);
@@ -358,7 +383,52 @@ class ImageAndPath {
                 res = dummyImage(new Color(80,20,20));
             }
         }
-        return new ImageAndPath(res, path, pathToLoad);
+        return new SimpleImageAndPath(res, path, pathToLoad);
+    }
+}
+abstract class ImageAndPath {
+    public static final String IN_PROGRESS_PATH = "..."; // pseudo-path, means "download in progress"
+    public static final String NO_PATH = "-"; // pseudo-path, means "no path"
+    public static final String ERROR_PATH = ""; // pseudo-path, means "error while loading path"
+    public static final int DUMMY_SIZE = 12;
+    final BufferedImage image;
+    final String path;
+    final String pathToLoad;
+
+    protected ImageAndPath(BufferedImage image, String path, String pathToLoad) {
+        this.image = image;
+        this.path = path;
+        this.pathToLoad = pathToLoad;
+    }
+    public boolean isPathEqual(String otherPath) {
+        boolean isThisPathSpecial = isSpecialPath(path);
+        boolean isOtherPathSpecial = isSpecialPath(otherPath);
+        if (isThisPathSpecial && isOtherPathSpecial) {
+            return path.equals(otherPath);
+        }
+        if (!isThisPathSpecial && !isOtherPathSpecial) {
+            return path.equals(otherPath) && !isDummyImage(image);
+        }
+        return false;
+    }
+
+    static BufferedImage dummyImage(Color color) {
+        return _dummyImage(color, DUMMY_SIZE, DUMMY_SIZE);
+    }
+    static boolean isDummyImage(BufferedImage img) {
+        return img.getWidth() == DUMMY_SIZE && img.getHeight() == DUMMY_SIZE;
+    }
+    static BufferedImage _dummyImage(Color color, int width, int height) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+
+        graphics.setPaint(color);
+        graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+        graphics.dispose();
+        return image;
+    }
+    static ImageAndPath imageIoRead(String path, String pathToLoad) throws IOException {
+        return ThreeChannelImageAndPath.imageIoRead(path, pathToLoad);
     }
 
     public static boolean isSpecialPath(String path) {
@@ -2869,11 +2939,15 @@ abstract class FileLocations {
     }
     private static boolean isMarkedR(String file) {
         return file.startsWith("NRB") || file.startsWith("RRB") || file.startsWith("FRB")
-            || file.startsWith("NRA") || file.startsWith("RRA") || file.startsWith("FRA");
+            || file.startsWith("NRA") || file.startsWith("RRA") || file.startsWith("FRA")
+            || file.startsWith("ZRF")// || file.startsWith("RRA") || file.startsWith("FRA")
+            ;
     }
     private static boolean isMarkedL(String file) {
         return file.startsWith("NLB") || file.startsWith("RLB") || file.startsWith("FLB")
-            || file.startsWith("NLA") || file.startsWith("RLA") || file.startsWith("FLA");
+            || file.startsWith("NLA") || file.startsWith("RLA") || file.startsWith("FLA")
+            || file.startsWith("ZLF")// || file.startsWith("RLA") || file.startsWith("FLA")
+            ;
     }
     private static boolean isMarkedRL(String file) {
         return isMarkedR(file) || isMarkedL(file);
@@ -2881,6 +2955,14 @@ abstract class FileLocations {
     static String toggleRL(String file) {
         StringBuilder sb = new StringBuilder(file);
         sb.setCharAt(1, (char) (sb.charAt(1)^('R'^'L')));
+        return sb.toString();
+    }
+    public static boolean isMarkedColorChannel(String fileNameExt) {
+        return fileNameExt.matches("[FR][RL][RGB].*");
+    }
+    static String withChannelColor(String fileNameExt, char color) {
+        StringBuilder sb = new StringBuilder(fileNameExt);
+        sb.setCharAt(2, color);
         return sb.toString();
     }
     static boolean isMrlMarkedR(String path, String fname) {
