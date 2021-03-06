@@ -2874,9 +2874,9 @@ abstract class FileLocations {
             || file.startsWith("ZRF")
             || file.startsWith("NRE") || file.startsWith("NRM") || file.startsWith("NRF")
             || file.startsWith("NRG") || file.startsWith("NRR") // NLB: above
-            || file.startsWith("FRE") || file.startsWith("FRM")
+            || file.startsWith("FRE") || file.startsWith("FRF") || file.startsWith("FRM")
             || file.startsWith("FRR") || file.startsWith("FRG") || file.startsWith("FRB")
-            || file.startsWith("RRE") || file.startsWith("RRM")
+            || file.startsWith("RRE") || file.startsWith("RRF") || file.startsWith("RRM")
             || file.startsWith("RRR") || file.startsWith("RRG") || file.startsWith("RRB")
             ;
     }
@@ -2887,9 +2887,9 @@ abstract class FileLocations {
             || file.startsWith("ZLF")
             || file.startsWith("NLE") || file.startsWith("NLM") || file.startsWith("NLF")
             || file.startsWith("NLG") || file.startsWith("NLR") // NLB: above
-            || file.startsWith("FLE") || file.startsWith("FLM")
+            || file.startsWith("FLE") || file.startsWith("FLF") || file.startsWith("FLM")
             || file.startsWith("FLR") || file.startsWith("FLG") || file.startsWith("FLB")
-            || file.startsWith("RLE") || file.startsWith("RLM")
+            || file.startsWith("RLE") || file.startsWith("RLF") || file.startsWith("RLM")
             || file.startsWith("RLR") || file.startsWith("RLG") || file.startsWith("RLB")
             ;
     }
