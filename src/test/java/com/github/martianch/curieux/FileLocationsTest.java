@@ -369,6 +369,17 @@ public class FileLocationsTest {
         assertTrue(isBayered("https://mars.nasa.gov/msl-raw-images/msss/02914/mcam/2914ML0152070131101802K00_DXXX.jpg"));
     }
     @Test
+    public void isBayeredTest2() {
+        // Perseverance Navcam
+        assertTrue(isBayered("NLE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertTrue(isBayered("NRE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertTrue(isBayered("/foo/bar/NLE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertTrue(isBayered("/foo/bar/NRE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertTrue(isBayered("file://foo/bar/NLE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00015/ids/edr/browse/ncam/NLE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00015/ids/edr/browse/ncam/NRE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+    }
+    @Test
     public void getSolTest() {
         assertEquals(Optional.of(2804),FileLocations.getSol("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
         assertEquals(Optional.of(2700),FileLocations.getSol("file://foo/bar/2700/0560ML0022630070204612C00_DXXX.jpg"));
