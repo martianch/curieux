@@ -5728,12 +5728,21 @@ class StereoPairParameters {
     }
 
 //    static StereoPairParameters NavCam =     new StereoPairParameters("Curiosity NAVCAM",         0.424, 0.82E-3, 0.82E-3, 3.7E3, new int[]{0,0,0,-14, 0,15,0,0});
-    static StereoPairParameters NavCam =     new StereoPairParameters("Curiosity NAVCAM",         0.424, 0.82E-3, 0.82E-3, 3.6E3);//, new int[]{0,0,0,-14, 0,15,0,0});
-    static StereoPairParameters FHazCamB =   new StereoPairParameters("Curiosity Front HAZCAM B", 0.100, 2.10E-3, 2.10E-3, 2.1E3); // base=.167 is wrong!!!
-    static StereoPairParameters RHazCamB =   new StereoPairParameters("Curiosity Rear HAZCAM B",  0.100, 2.10E-3, 2.10E-3, 2.3E3);//, new int[]{0,0,10,-6, -10,6,0,0});
-    static StereoPairParameters MastCam =    new StereoPairParameters("Curiosity MASTCAM",        0.242, 7.5E-5,  2.25E-4, 3.7E3);
-    static StereoPairParameters HazCam_167 = new StereoPairParameters("Curiosity HAZCAM .167",    0.167, 2.10E-3, 2.10E-3, 2.1E3); // I do not know if base=.167 really is there
-    static StereoPairParameters HazCam_100 = new StereoPairParameters("Curiosity HAZCAM .100",    0.100, 2.10E-3, 2.10E-3, 2.1E3);
+    static StereoPairParameters NavCam =     new StereoPairParameters("Curiosity NAVCAM",            0.424, 0.82E-3, 0.82E-3, 3.6E3);//, new int[]{0,0,0,-14, 0,15,0,0});
+    static StereoPairParameters FHazCamB =   new StereoPairParameters("Curiosity Front HAZCAM B",    0.100, 2.10E-3, 2.10E-3, 2.1E3); // base=.167 is wrong!!!
+    static StereoPairParameters RHazCamB =   new StereoPairParameters("Curiosity Rear HAZCAM B",     0.100, 2.10E-3, 2.10E-3, 2.3E3);//, new int[]{0,0,10,-6, -10,6,0,0});
+    static StereoPairParameters MastCam =    new StereoPairParameters("Curiosity MASTCAM",           0.242, 7.5E-5,  2.25E-4, 3.7E3);
+    static StereoPairParameters HazCam_167 = new StereoPairParameters("Curiosity HAZCAM .167(Front)",0.167, 2.10E-3, 2.10E-3, 2.1E3); // I do not know if base=.167 really is there
+    static StereoPairParameters HazCam_100 = new StereoPairParameters("Curiosity HAZCAM .100(Rear)", 0.100, 2.10E-3, 2.10E-3, 2.1E3);
+
+    // TODO: horizon=???
+    static StereoPairParameters PFHazCamV1 = new StereoPairParameters("Persev F HAZCAM .248(5K1px)", 0.248, 0.45E-3, 0.45E-3, 2.1E3);
+    static StereoPairParameters PFHazCamV2 = new StereoPairParameters("Persev F HAZCAM .248(1K2px)", 0.248, 1.84E-3, 1.84E-3, 2.1E3);
+    static StereoPairParameters PRHazCamV1 = new StereoPairParameters("Persev R HAZCAM .934(5K1px)", 0.934, 0.45E-3, 0.45E-3, 2.1E3);
+    static StereoPairParameters PRHazCamV2 = new StereoPairParameters("Persev R HAZCAM .934(1K2px)", 0.934, 1.84E-3, 1.84E-3, 2.1E3);
+    static StereoPairParameters PNavCamV1 =  new StereoPairParameters("Persev NAVCAM .424(5K1 px)",  0.424, 0.45E-3, 0.45E-3, 2.1E3);
+    static StereoPairParameters PNavCamV2 =  new StereoPairParameters("Persev NAVCAM .424(1K2 px)",  0.424, 1.84E-3, 1.84E-3, 2.1E3);
+
     static CustomStereoPairParameters Custom=new CustomStereoPairParameters(
                                                                "Custom[========================]",0.100, 2.10E-3, 2.10E-3, 2.1E3);
 
@@ -5772,6 +5781,12 @@ class StereoCamChooser extends JComboBox<StereoPairParameters> {
             StereoPairParameters.MastCam,
             StereoPairParameters.HazCam_167,
             StereoPairParameters.HazCam_100,
+            StereoPairParameters.PFHazCamV1,
+            StereoPairParameters.PFHazCamV2,
+            StereoPairParameters.PRHazCamV1,
+            StereoPairParameters.PRHazCamV2,
+            StereoPairParameters.PNavCamV1,
+            StereoPairParameters.PNavCamV2,
             StereoPairParameters.Custom,
     };
     public StereoCamChooser(Consumer<StereoPairParameters> valueListener) {
