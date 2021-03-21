@@ -5257,7 +5257,7 @@ class MeasurementPanel extends JPanel {
         dcRY4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(17,i); doCalculate7();});
         dcRX5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(18,i); doCalculate7();});
         dcRY5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(19,i); doCalculate7();});
-        textArea = new JTextArea(16,120);
+        textArea = new JTextArea(18,120);
         textAreaScroll = new JScrollPane(textArea);
         stereoCamChooser = new StereoCamChooser(v -> { uiEventListener.stereoCameraChanged(v); doCalculate7(); });
         measurementPointMarkChooser = new MeasurementPointMarkChooser(v -> uiEventListener.markShapeChanged(v));
@@ -5288,15 +5288,11 @@ class MeasurementPanel extends JPanel {
 //            var text1 = new JLabel("Please focus your eyes on the object of interest and make both marks of the same color");
 //            var text2 = new JLabel("EXACTLY match ON THAT OBJECT in x3d, otherwise you will get a measurement error!");
             // TODO: refactor, use an array + a loop
-            var text1 = new JLabel("The best method is to mark THE SAME SPOT ON THE SAME OBJECT on both photos with red marks,");
-            var text2 = new JLabel("and mark another spot on another object with the green marks, again on both photos.");
-            var text3 = new JLabel("Note that moving a mark by 1 pixel MAY significantly change the result of measurement.");
-            var text4 = new JLabel("The blue marks are used only for calibration.");
+            var text1 = new JLabel("The best method is to mark THE SAME SPOT ON THE SAME OBJECT on both photos with red marks, and mark another spot on another object with the green marks, again on both photos.");
+            var text3 = new JLabel("Note that moving a mark by 1 pixel MAY significantly change the result of measurement. The blue/cyan/magenta marks are used only for calibration.");
             var text5 = new JLabel(" ");
             row.add(text1);
-            row.add(text2);
             row.add(text3);
-            row.add(text4);
             row.add(text5);
         }
 
@@ -5361,7 +5357,7 @@ class MeasurementPanel extends JPanel {
             var button = new JButton("Calculate");
             button.addActionListener(e -> doCalculate7());
             row.add(button);
-            var text = new JLabel("<html>To calibrate, set both red marks on some spot on the left, both green marks<br>on some spot on the right, set both blue marks on some infinitely distant spot, and press:</html>");
+            var text = new JLabel("<html>To calibrate, set both cyan marks on some spot on the left, both magenta marks<br>on some spot on the right, set both blue marks on some infinitely distant spot, and press:</html>");
             row.add(text);
             var button2 = new JButton("Calibrate");
             button2.addActionListener(e -> doCalibrate7());
@@ -5555,6 +5551,10 @@ class MeasurementPanel extends JPanel {
         double dist3dRl = dist3d(val2l[5] - val1l[5], val2l[6] - val1l[6], val2l[7] - val1l[7]);
         double dist3dLr = dist3d(val2r[2] - val1r[2], val2r[3] - val1r[3], val2r[4] - val1r[4]);
         double dist3dRr = dist3d(val2r[5] - val1r[5], val2r[6] - val1r[6], val2r[7] - val1r[7]);
+        double dist2dLl = dist3d(val2l[2] - val1l[2], 0, val2l[4] - val1l[4]);
+        double dist2dRl = dist3d(val2l[5] - val1l[5], 0, val2l[7] - val1l[7]);
+        double dist2dLr = dist3d(val2r[2] - val1r[2], 0, val2r[4] - val1r[4]);
+        double dist2dRr = dist3d(val2r[5] - val1r[5], 0, val2r[7] - val1r[7]);
         System.out.println("dist12l: distL="+ dist3dLl +" distR="+ dist3dRl);
         System.out.println("dist12r: distL="+ dist3dLr +" distR="+ dist3dRr);
         try (var baos = new ByteArrayOutputStream();
@@ -5566,12 +5566,19 @@ class MeasurementPanel extends JPanel {
             pw.println("Point4: "+ms.left.x4+" "+ms.left.y4+"   "+ms.right.x4+" "+ms.right.y4);
             pw.println("Point5: "+ms.left.x5+" "+ms.left.y5+"   "+ms.right.x5+" "+ms.right.y5);
             pw.println(spp.toStringDetailed());
+            pw.println("γ₁: "+val1l[8]+"° "+val1r[8]+"° "+val2l[8]+"° "+val2r[8]+"°");
+            if(val1l[8]<0 || val1r[8]<0 || val2l[8]<0 || val2r[8]<0) {
+                pw.println("\nERROR: γ₁<0 !!!!! (the angle opposite the line between the cameras)\n");
+            }
             pw.println("Distance from the left and right cameras, m:");
             pw.println("Point 1: "+ val1l[1] + ", " + val1l[0] + " // " + val1r[1] + ", " + val1r[0]);
             pw.println("Point 2: "+ val2l[1] + ", " + val2l[0] + " // " + val2r[1] + ", " + val2r[0]);
-            pw.println( "Distance between Points 1 and 2,\n"+
+            pw.println( "Distance between Points 1 and 2, "+
                     "calculated in the coordinate systems of left and right cameras, m:");
             pw.println(""+ dist3dRl + ", " + dist3dLl + ", " + dist3dRr + ", " + dist3dLr);
+            pw.println( "The same distance between Points 1 and 2, "+
+                    "calculated assuming Δy=0, m:");
+            pw.println(""+ dist2dRl + ", " + dist2dLl + ", " + dist2dRr + ", " + dist2dLr);
             pw.println("Δx: "+ (val2l[2] - val1l[2])
                       + ", " + (val2l[5] - val1l[5])
                     + " // " + (val2r[2] - val1r[2])
@@ -5587,6 +5594,7 @@ class MeasurementPanel extends JPanel {
                     + " // " + (val2r[4] - val1r[4])
                       + ", " + (val2r[7] - val1r[7])
             );
+            pw.println("Axes: x left to right, y forward, z bottom to top");
             pw.flush();
             String result = baos.toString(StandardCharsets.UTF_8.name());
             System.out.println(result);
@@ -5639,7 +5647,7 @@ class MeasurementPanel extends JPanel {
         var axl = l1L * Math.cos(phiL) * Math.cos(alpha1);
         var axr = l2R * Math.cos(phiR) * Math.cos(beta1);
         System.out.println(" l1="+l1L+"\n l2="+l2R+"\n "+"l: x="+axl+" y="+ayl+" z="+azl+"\n r: x="+axr+" y="+ayr+" z="+azr);
-        return new double[]{l1L,l2R,axl,ayl,azl,axr,ayr,azr};
+        return new double[]{l1L,l2R,axl,ayl,azl,axr,ayr,azr,Math.toDegrees(gamma1)};
     }
     static double sqr(double x) { return x*x; }
     MeasurementPanel setControls(MeasurementStatus ms) {
