@@ -5744,15 +5744,15 @@ class StereoPairParameters {
     static StereoPairParameters HazCam_100 = new StereoPairParameters("Curiosity HAZCAM .100(Rear)", 0.100, 2.10E-3, 2.10E-3, 2.1E3);
 
     // TODO: horizon=???
-    static StereoPairParameters PFHazCamV1 = new StereoPairParameters("Persev F HAZCAM .248(5K1px)", 0.248, 0.45E-3, 0.45E-3, 2.1E3);
-    static StereoPairParameters PFHazCamV2 = new StereoPairParameters("Persev F HAZCAM .248(1K2px)", 0.248, 1.84E-3, 1.84E-3, 2.1E3);
-    static StereoPairParameters PRHazCamV1 = new StereoPairParameters("Persev R HAZCAM .934(5K1px)", 0.934, 0.45E-3, 0.45E-3, 2.1E3);
-    static StereoPairParameters PRHazCamV2 = new StereoPairParameters("Persev R HAZCAM .934(1K2px)", 0.934, 1.84E-3, 1.84E-3, 2.1E3);
-    static StereoPairParameters PNavCamV1 =  new StereoPairParameters("Persev NAVCAM .424(5K1 px)",  0.424, 0.45E-3, 0.45E-3, 2.1E3);
-    static StereoPairParameters PNavCamV2 =  new StereoPairParameters("Persev NAVCAM .424(1K2 px)",  0.424, 1.84E-3, 1.84E-3, 2.1E3);
+    static StereoPairParameters PFHazCamV1 = new StereoPairParameters("Perseverance F HAZCAM .248(5K1px)",         0.248, 0.45E-3, 0.45E-3, 2.1E3);
+    static StereoPairParameters PFHazCamV2 = new StereoPairParameters("Perseverance F HAZCAM .248(1K2px)(wrong?)", 0.248, 1.84E-3, 1.84E-3, 2.1E3);
+    static StereoPairParameters PRHazCamV1 = new StereoPairParameters("Perseverance R HAZCAM .934(5K1px)",         0.934, 0.45E-3, 0.45E-3, 2.1E3);
+    static StereoPairParameters PRHazCamV2 = new StereoPairParameters("Perseverance R HAZCAM .934(1K2px)(wrong?)", 0.934, 1.84E-3, 1.84E-3, 2.1E3);
+    static StereoPairParameters PNavCamV1 =  new StereoPairParameters("Perseverance NAVCAM .424(5K1 px)",          0.424, 0.45E-3, 0.45E-3, 2.1E3);
+    static StereoPairParameters PNavCamV2 =  new StereoPairParameters("Perseverance NAVCAM .424(1K2 px)(wrong?)",  0.424, 1.84E-3, 1.84E-3, 2.1E3);
 
     static CustomStereoPairParameters Custom=new CustomStereoPairParameters(
-                                                               "Custom[========================]",0.100, 2.10E-3, 2.10E-3, 2.1E3);
+                                                               "Custom[=========================================]",0.100, 2.10E-3, 2.10E-3, 2.1E3);
 
     public static StereoPairParameters getUiDefault() { return NavCam; }
 
