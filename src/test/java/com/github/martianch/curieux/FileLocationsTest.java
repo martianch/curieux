@@ -378,6 +378,8 @@ public class FileLocationsTest {
         assertTrue(isBayered("file://foo/bar/NLE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
         assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00015/ids/edr/browse/ncam/NLE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
         assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00015/ids/edr/browse/ncam/NRE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00030/ids/edr/browse/shrlc/SI1_0030_0669612176_172ECM_N0030828SRLC07000_0000LUJ01.png"));
+        assertFalse(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00030/ids/edr/browse/shrlc/SIF_0030_0669612176_172EBY_N0030828SRLC07000_0000LUJ01.png"));
     }
     @Test
     public void getSolTest() {
