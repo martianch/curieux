@@ -386,6 +386,7 @@ class ImageAndPath {
                 '}';
     }
 }
+// MVC Model
 class RawData {
     final ImageAndPath left;
     final ImageAndPath right;
@@ -721,6 +722,7 @@ interface APoint {
         return "("+getPx()+", "+getPy()+"; ifov="+String.format("%.3e", getIfov())+")";
     }
 }
+// MVC Controller
 class UiController implements UiEventListener {
     X3DViewer x3dViewer;
     DisplayParameters displayParameters;
@@ -1260,6 +1262,7 @@ class UiController implements UiEventListener {
     }
 }
 
+// MVC View
 class X3DViewer {
     JButton lblL;
     JButton lblR;
