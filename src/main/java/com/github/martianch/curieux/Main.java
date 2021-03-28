@@ -2213,7 +2213,7 @@ class X3DViewer {
         transform.rotate(alpha);
         transform.translate(-width / 2.0, -height / 2.0);
 
-        BufferedImageOp operation = new AffineTransformOp(transform, AffineTransformOp.TYPE_BILINEAR);
+        BufferedImageOp operation = new AffineTransformOp(transform, AffineTransformOp.TYPE_BICUBIC);
 
         return operation.filter(originalImage, null);
     }
