@@ -1328,8 +1328,10 @@ class X3DViewer {
 
                 BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
                 BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
-                iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX, dp.offsetY, dp.imageResamplingModeL));
-                iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX, -dp.offsetY, dp.imageResamplingModeR));
+                int dw = (rotatedR.getWidth() - rotatedL.getWidth()) / 2;
+                int dh = (rotatedR.getHeight() - rotatedL.getHeight()) / 2;
+                iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL));
+                iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR));
             }
             lblL.setIcon(iconL);
             lblR.setIcon(iconR);
