@@ -1263,6 +1263,8 @@ class UiController implements UiEventListener {
 class X3DViewer {
     JButton lblL;
     JButton lblR;
+    JScrollPane componentL;
+    JScrollPane componentR;
     JComponent urlPanel;
     JLabel urlL;
     JLabel urlR;
@@ -1733,16 +1735,16 @@ class X3DViewer {
             lblR.setComponentPopupMenu(menuLR);
             lblL.setComponentPopupMenu(menuLR);
         }
-        JScrollPane compL=new JScrollPane(lblL);
-        JScrollPane compR=new JScrollPane(lblR);
+        componentL = new JScrollPane(lblL);
+        componentR = new JScrollPane(lblR);
         {
-            compL.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-            compR.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-            compL.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-            compR.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+            componentL.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+            componentR.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+            componentL.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+            componentR.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
             // synchronize them: make them share the same model
-            compL.getHorizontalScrollBar().setModel(compR.getHorizontalScrollBar().getModel());
-            compL.getVerticalScrollBar().setModel(compR.getVerticalScrollBar().getModel());
+            componentL.getHorizontalScrollBar().setModel(componentR.getHorizontalScrollBar().getModel());
+            componentL.getVerticalScrollBar().setModel(componentR.getVerticalScrollBar().getModel());
             new DragMover(lblL);
             new DragMover(lblR);
         }
@@ -1755,7 +1757,7 @@ class X3DViewer {
             gbc.weighty = 1.0;
             gbc.gridx = 0;
             gbc.gridy = 0;
-            gbl.setConstraints(compL, gbc);
+            gbl.setConstraints(componentL, gbc);
         }
         {
             GridBagConstraints gbc = new GridBagConstraints();
@@ -1764,7 +1766,7 @@ class X3DViewer {
             gbc.weighty = 1.0;
             gbc.gridx = 1;
             gbc.gridy = 0;
-            gbl.setConstraints(compR, gbc);
+            gbl.setConstraints(componentR, gbc);
         }
 
         JCheckBox showUrlsCheckox;
@@ -1992,8 +1994,8 @@ class X3DViewer {
         {
             frame.setLayout(gbl);
             frame.setSize(1366,800);
-            frame.add(compR);
-            frame.add(compL);
+            frame.add(componentR);
+            frame.add(componentL);
             frame.add(statusPanel);
             frame.add(statusPanel2);
         }
