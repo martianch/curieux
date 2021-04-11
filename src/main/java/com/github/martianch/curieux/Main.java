@@ -186,8 +186,9 @@ interface UiEventListener {
     void openInBrowser(SiteOpenCommand command, boolean isRight);
     void markPointWithMousePress(boolean isRight, MouseEvent e);
     void setWaitingForPoint(int forPointNumber);
-    void markedPointChanged(int coordId, int lrXy12);
+    void markedPointChanged(int coordId, double lrXy12);
     void clearAllMarks();
+    void setSubpixelPrecisionMarks(boolean precise);
     void stereoCameraChanged(StereoPairParameters v);
     void markShapeChanged(MeasurementPointMark v);
     void escapePressed();
@@ -242,9 +243,6 @@ class DisplayParameters {
         this.lColorCorrection = lColorCorrection;
         this.rColorCorrection = rColorCorrection;
     }
-//    public DisplayParameters copy() {
-//        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY);
-//    }
     public DisplayParameters swapped() {
         return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection);
     }
@@ -421,11 +419,13 @@ class MeasurementStatus {
     StereoPairParameters stereoPairParameters;
     boolean isWaitingForPoint;
     int pointIsWaitingFor;
+    boolean isSubpixelPrecision;
     public MeasurementStatus(PanelMeasurementStatus left, PanelMeasurementStatus right) {
         this.left = left;
         this.right = right;
         isWaitingForPoint = false;
         pointIsWaitingFor = 0;
+        isSubpixelPrecision = false;
         measurementPointMark = MeasurementPointMark.getUiDefault();
         stereoPairParameters = StereoPairParameters.getUiDefault(); // TODO: find out from file name ???
     }
@@ -451,6 +451,7 @@ class MeasurementStatus {
         res.stereoPairParameters = this.stereoPairParameters;
         res.isWaitingForPoint = this.isWaitingForPoint;
         res.pointIsWaitingFor = this.pointIsWaitingFor;
+        res.isSubpixelPrecision = this.isSubpixelPrecision;
         return res;
     }
     public MeasurementStatus copy() {
@@ -459,14 +460,17 @@ class MeasurementStatus {
         res.stereoPairParameters = this.stereoPairParameters;
         res.isWaitingForPoint = this.isWaitingForPoint;
         res.pointIsWaitingFor = this.pointIsWaitingFor;
+        res.isSubpixelPrecision = this.isSubpixelPrecision;
         return res;
     }
 }
+// TODO: remove this class, xN and yN are all double now!!!
 class PanelMeasurementStatusD {
     double x1 = -1, y1 = -1, x2 = -1, y2 = -1, x3 = -1, y3 = -1, x4=-1, y4=-1, x5=-1, y5=-1;
     int w = 0, h = 0;
     double ifov;
     String descr;
+    int centeringDX=0, centeringDY=0;
     final APoint first = new APoint() {
         @Override public double getAx() { return getAngle(x1, w); }
         @Override public double getAy() { return -getAngle(y1, h); }
@@ -532,6 +536,8 @@ class PanelMeasurementStatusD {
         res.h = this.h;
         res.ifov = this.ifov;
         res.descr = this.descr;
+        res.centeringDX = this.centeringDX;
+        res.centeringDY = this.centeringDY;
         return res;
     }
     double xrotated(double x, double y, double rho) { return w/2 + (x-w/2)*Math.cos(rho) - (y-h/2)*Math.sin(rho); }
@@ -567,10 +573,11 @@ class PanelMeasurementStatusD {
 
 // TODO: camera parameters: L/R
 class PanelMeasurementStatus {
-    int x1=-1, y1=-1, x2=-1, y2=-1, x3=-1, y3=-1, x4=-1, y4=-1, x5=-1, y5=-1;
+    double x1=-1, y1=-1, x2=-1, y2=-1, x3=-1, y3=-1, x4=-1, y4=-1, x5=-1, y5=-1;
     int w=0, h=0;
     double ifov;
     String descr;
+    int centeringDX=0, centeringDY=0;
     final APoint first = new APoint() {
         @Override public double getAx() { return getAngle(x1, w); }
         @Override public double getAy() { return -getAngle(y1, h); }
@@ -606,7 +613,7 @@ class PanelMeasurementStatus {
         @Override public double getPy() { return h/2-y5; }
         @Override public double getIfov() { return ifov; }
     };
-    private double getAngle(int xy, int wh) {
+    private double getAngle(double xy, int wh) {
         return ifov*(xy - wh/2);
     }
     public PanelMeasurementStatus copy() {
@@ -625,6 +632,8 @@ class PanelMeasurementStatus {
         res.h = this.h;
         res.ifov = this.ifov;
         res.descr = this.descr;
+        res.centeringDX = this.centeringDX;
+        res.centeringDY = this.centeringDY;
         return res;
     }
     public PanelMeasurementStatusD copyD() {
@@ -643,38 +652,38 @@ class PanelMeasurementStatus {
         res.h = this.h;
         res.ifov = this.ifov;
         res.descr = this.descr;
+        res.centeringDX = this.centeringDX;
+        res.centeringDY = this.centeringDY;
         return res;
     }
     public BufferedImage drawMarks(BufferedImage img, MeasurementPointMark measurementPointMark) {
         BufferedImage res = img;
-        // TODO: refactor
-        if (x1 >= 0 && y1 >= 0 && x1 < img.getWidth() && y1 < img.getHeight()) {
-            res = copyImage(img);
-            measurementPointMark.drawMark(res, x1, y1, 0xFF0000);
-        }
-        if (x2 >= 0 && y2 >= 0 && x2 < img.getWidth() && y2 < img.getHeight()) {
-            if (res == img) {
-                res = copyImage(img);
+        // old version (xN, yN used to be int)
+        int[] x = {(int)x1, (int)x2, (int)x3, (int)x4, (int)x5};
+        int[] y = {(int)y1, (int)y2, (int)y3, (int)y4, (int)y5};
+        int[] rgb = {0xFF0000, 0x00FF00, 0x0000FF, 0x00FFFF, 0xFF00FF};
+        for (int i=0; i<5; i++) {
+            if (x[i] >= 0 && y[i] >= 0 && x[i] < img.getWidth() && y[i] < img.getHeight()) {
+                if (res == img) {
+                    res = copyImage(img);
+                }
+                measurementPointMark.drawMark(res, x[i], y[i], rgb[i]);
             }
-            measurementPointMark.drawMark(res, x2, y2, 0x00FF00); //0x00a000
         }
-        if (x3 >= 0 && y3 >= 0 && x3 < img.getWidth() && y3 < img.getHeight()) {
-            if (res == img) {
-                res = copyImage(img);
+        return res;
+    }
+    public BufferedImage drawMarks(BufferedImage img, MeasurementPointMark measurementPointMark, AffineTransform transform, double zoomLevel, int offX, int offY) {
+        BufferedImage res = img;
+        double[] x = {x1, x2, x3, x4, x5};
+        double[] y = {y1, y2, y3, y4, y5};
+        int[] rgb = {0xFF0000, 0x00FF00, 0x0000FF, 0x00FFFF, 0xFF00FF};
+        for (int i=0; i<5; i++) {
+            if (x[i] >= 0 && y[i] >= 0 && x[i] < img.getWidth() && y[i] < img.getHeight()) {
+                if (res == img) {
+                    res = copyImage(img);
+                }
+                measurementPointMark.drawMark(res, X3DViewer.mult(x[i]+centeringDX+offX, zoomLevel), X3DViewer.mult(y[i]+centeringDY+offY, zoomLevel), rgb[i]);
             }
-            measurementPointMark.drawMark(res, x3, y3, 0x0000FF);
-        }
-        if (x4 >= 0 && y4 >= 0 && x4 < img.getWidth() && y4 < img.getHeight()) {
-            if (res == img) {
-                res = copyImage(img);
-            }
-            measurementPointMark.drawMark(res, x4, y4, 0x00FFFF);
-        }
-        if (x5 >= 0 && y5 >= 0 && x5 < img.getWidth() && y5 < img.getHeight()) {
-            if (res == img) {
-                res = copyImage(img);
-            }
-            measurementPointMark.drawMark(res, x5, y5, 0xFF00FF);
         }
         return res;
     }
@@ -1011,8 +1020,8 @@ class UiController implements UiEventListener {
             var zoom = displayParameters.zoom * (isRight ? displayParameters.zoomR : displayParameters.zoomL);
             var offX = Math.max(0, isRight ? -displayParameters.offsetX : displayParameters.offsetX);
             var offY = Math.max(0, isRight ? -displayParameters.offsetY : displayParameters.offsetY);
-            int x = (int) (e.getX() / zoom - offX);
-            int y = (int) (e.getY() / zoom - offY);
+            int x = (int) (e.getX() / zoom - offX - lr.centeringDX);
+            int y = (int) (e.getY() / zoom - offY - lr.centeringDY);
             switch (measurementStatus.pointWaitingFor()) {
                 case 1:
                     lr.x1 = x;
@@ -1046,7 +1055,7 @@ class UiController implements UiEventListener {
         x3dViewer.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
     }
     @Override
-    public void markedPointChanged(int coordId, int lrXy123) {
+    public void markedPointChanged(int coordId, double lrXy123) {
         switch (coordId) {
             case 0:  measurementStatus.left.x1 = lrXy123; break;
             case 1:  measurementStatus.left.y1 = lrXy123; break;
@@ -1094,6 +1103,11 @@ class UiController implements UiEventListener {
         measurementStatus.right.y4 =
         measurementStatus.right.x5 =
         measurementStatus.right.y5 = -1;
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+    }
+    @Override
+    public void setSubpixelPrecisionMarks(boolean precise) {
+        measurementStatus.isSubpixelPrecision = precise;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
@@ -1315,6 +1329,7 @@ class X3DViewer {
             ImageIcon iconL;
             ImageIcon iconR;
             {
+                final boolean PRECISE_MARKS = ms.isSubpixelPrecision;
                 BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
                 BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
 
@@ -1323,15 +1338,36 @@ class X3DViewer {
 
                 ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "x3d:L straight:R");
                 ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "x3d:R, straight:L");
-                imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
-                imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
+                if (!PRECISE_MARKS) {
+                    imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
+                    imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
+                }
 
-                BufferedImage rotatedL = rotate(imgL, dp.angle + dp.angleL);
-                BufferedImage rotatedR = rotate(imgR, dp.angle + dp.angleR);
+                AffineTransform transformL = rotationTransform(imgL, dp.angle + dp.angleL);
+                AffineTransform transformR = rotationTransform(imgL, dp.angle + dp.angleR);
+                BufferedImage rotatedL = rotate(imgL, transformL);
+                BufferedImage rotatedR = rotate(imgR, transformR);
                 int dw = (rotatedR.getWidth() - rotatedL.getWidth()) / 2;
                 int dh = (rotatedR.getHeight() - rotatedL.getHeight()) / 2;
-                iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL));
-                iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR));
+                ms.left.centeringDX = Math.max(0,dw);
+                ms.left.centeringDY = Math.max(0,dh);
+                ms.right.centeringDX = Math.max(0,-dw);
+                ms.right.centeringDY = Math.max(0,-dh);
+                if (!PRECISE_MARKS) {
+                    iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL));
+                    iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR));
+                } else {
+                    iconL = new ImageIcon(
+                            ms.left.drawMarks(
+                                    zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL),
+                                    ms.measurementPointMark, transformL, dp.zoom * dp.zoomL, Math.max(0, dp.offsetX + dw), Math.max(0, dp.offsetY + dh)
+                            ));
+                    iconR = new ImageIcon(
+                            ms.right.drawMarks(
+                                    zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR),
+                                    ms.measurementPointMark, transformR, dp.zoom * dp.zoomR, Math.max(0, -dp.offsetX - dw), Math.max(0, -dp.offsetY - dh)
+                            ));
+                }
             }
             lblL.setIcon(iconL);
             lblR.setIcon(iconR);
@@ -2201,10 +2237,14 @@ class X3DViewer {
         };
     }
 
-    static BufferedImage rotate(BufferedImage originalImage, double alphaDegrees) {
+    static BufferedImage rotate(BufferedImage originalImage, AffineTransform transform) {
         if (ImageAndPath.isDummyImage(originalImage)) {
             return originalImage;
         }
+        BufferedImageOp operation = new AffineTransformOp(transform, AffineTransformOp.TYPE_BICUBIC);
+        return operation.filter(originalImage, null);
+    }
+    static AffineTransform rotationTransform(BufferedImage originalImage, double alphaDegrees) {
         double alpha = Math.toRadians(alphaDegrees);
         double sinA = Math.sin(alpha);
         double cosA = Math.cos(alpha);
@@ -2218,9 +2258,7 @@ class X3DViewer {
         transform.rotate(alpha);
         transform.translate(-width / 2.0, -height / 2.0);
 
-        BufferedImageOp operation = new AffineTransformOp(transform, AffineTransformOp.TYPE_BICUBIC);
-
-        return operation.filter(originalImage, null);
+        return transform;
     }
     static BufferedImage zoom(BufferedImage originalImage, double zoomLevel, BufferedImage otherImage, double otherZoomLevel, int offX, int offY, ImageResamplingMode imageResamplingMode) {
         if (ImageAndPath.isDummyImage(originalImage) && ImageAndPath.isDummyImage(otherImage)) {
@@ -2236,10 +2274,10 @@ class X3DViewer {
         int otherCanvasHeight = Math.max(0, mult(-offY, otherZoomLevel)) + otherImageHeight;
         int canvasWidth = Math.max(thisCanvasWidth, otherCanvasWidth);
         int canvasHeight = Math.max(thisCanvasHeight, otherCanvasHeight);
-        int xToDrawFrom = mult(offX, zoomLevel);
-        int yToDrawFrom = mult(offY, zoomLevel);
-        int otherXToDrawFrom = mult(-offX, zoomLevel);
-        int otherYToDrawFrom = mult(-offY, zoomLevel);
+        int xToDrawFrom = Math.max(0, mult(offX, zoomLevel));
+        int yToDrawFrom = Math.max(0, mult(offY, zoomLevel));
+//        int otherXToDrawFrom = mult(-offX, zoomLevel);
+//        int otherYToDrawFrom = mult(-offY, zoomLevel);
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
 //        if (zoomLevel > 1.5) {
@@ -2247,8 +2285,8 @@ class X3DViewer {
 //        }
         g.drawImage(
                 originalImage,
-                Math.max(0, xToDrawFrom), // x
-                Math.max(0, yToDrawFrom), // y
+                xToDrawFrom, // x
+                yToDrawFrom, // y
                 newImageWidth,  // width
                 newImageHeight, // height
                 null
@@ -2261,6 +2299,9 @@ class X3DViewer {
         return (int) Math.round(orig * zoom);
     }
     static int mult(int v, double zoom) {
+        return (int)(v*zoom);
+    }
+    static int mult(double v, double zoom) {
         return (int)(v*zoom);
     }
 
@@ -2517,9 +2558,9 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
         return String.format("%+d, Shift: %+d", sign*increments[index1], sign*increments[index2]);
     }
 }
-class OffsetWrapper2 extends OffsetWrapper {
+class OffsetWrapper2 extends RotationAngleWrapper {
     {
-        increments = new int[]{1,3,30,100};
+        increments = new double[]{1,3,30,100};
     }
 }
 class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
@@ -5215,26 +5256,26 @@ class BuildVersion {
 
 class MeasurementPanel extends JPanel {
     final UiEventListener uiEventListener;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX1;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY1;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX2;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY2;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX3;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY3;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX4;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY4;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLX5;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcLY5;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX1;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY1;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX2;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY2;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX3;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY3;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX4;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY4;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRX5;
-    final DigitalZoomControl<Integer, OffsetWrapper2> dcRY5;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX5;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY5;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX5;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY5;
     final JTextArea textArea;
     final JScrollPane textAreaScroll;
     final StereoCamChooser stereoCamChooser;
@@ -5245,26 +5286,26 @@ class MeasurementPanel extends JPanel {
 
         GridBagLayout gbl = new GridBagLayout();
 
-        dcLX1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">X1L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(0,i); doCalculate7();});
-        dcLY1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">Y1L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(1,i); doCalculate7();});
-        dcLX2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">X2L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(2,i); doCalculate7();});
-        dcLY2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">Y2L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(3,i); doCalculate7();});
-        dcLX3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">X3L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(4,i); doCalculate7();});
-        dcLY3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">Y3L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(5,i); doCalculate7();});
-        dcLX4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(6,i); doCalculate7();});
-        dcLY4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(7,i); doCalculate7();});
-        dcLX5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(8,i); doCalculate7();});
-        dcLY5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5L:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(9,i); doCalculate7();});
-        dcRX1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(10,i); doCalculate7();});
-        dcRY1 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(11,i); doCalculate7();});
-        dcRX2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(12,i); doCalculate7();});
-        dcRY2 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(13,i); doCalculate7();});
-        dcRX3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">X3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(14,i); doCalculate7();});
-        dcRY3 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"blue\">Y3R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(15,i); doCalculate7();});
-        dcRX4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(16,i); doCalculate7();});
-        dcRY4 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(17,i); doCalculate7();});
-        dcRX5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(18,i); doCalculate7();});
-        dcRY5 = new DigitalZoomControl<Integer, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5R:</font></html>", 4, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(19,i); doCalculate7();});
+        dcLX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(0,i); doCalculate7();});
+        dcLY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(1,i); doCalculate7();});
+        dcLX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(2,i); doCalculate7();});
+        dcLY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(3,i); doCalculate7();});
+        dcLX3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">X3L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(4,i); doCalculate7();});
+        dcLY3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">Y3L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(5,i); doCalculate7();});
+        dcLX4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(6,i); doCalculate7();});
+        dcLY4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(7,i); doCalculate7();});
+        dcLX5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(8,i); doCalculate7();});
+        dcLY5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5L:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(9,i); doCalculate7();});
+        dcRX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(10,i); doCalculate7();});
+        dcRY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(11,i); doCalculate7();});
+        dcRX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(12,i); doCalculate7();});
+        dcRY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(13,i); doCalculate7();});
+        dcRX3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">X3R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(14,i); doCalculate7();});
+        dcRY3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">Y3R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(15,i); doCalculate7();});
+        dcRX4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(16,i); doCalculate7();});
+        dcRY4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(17,i); doCalculate7();});
+        dcRX5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(18,i); doCalculate7();});
+        dcRY5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5R:</font></html>", 9, new OffsetWrapper2(), i -> { uiEventListener.markedPointChanged(19,i); doCalculate7();});
         textArea = new JTextArea(18,120);
         textAreaScroll = new JScrollPane(textArea);
         stereoCamChooser = new StereoCamChooser(v -> { uiEventListener.stereoCameraChanged(v); doCalculate7(); });
@@ -5273,16 +5314,6 @@ class MeasurementPanel extends JPanel {
         var dcs = Arrays.asList(dcLX1, dcLY1, dcLX2, dcLY2, dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5, dcRX1, dcRY1, dcRX2, dcRY2, dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5);
         var dcRows = dcs.size()/4;
 
-        {
-            var text = new JLabel("X and Y coordinates of points 1 and 2 on the left and right images:");
-            GridBagConstraints gbc = new GridBagConstraints();
-            gbc.gridx = 0;
-            gbc.gridy = 1;
-            gbc.gridheight = 1;
-            gbc.gridwidth = 6;
-            gbl.setConstraints(text, gbc);
-            this.add(text);
-        }
         {
             var row = new JPanel();
             row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
@@ -5302,6 +5333,16 @@ class MeasurementPanel extends JPanel {
             row.add(text1);
             row.add(text3);
             row.add(text5);
+        }
+        {
+            var text = new JLabel("X and Y coordinates of points 1 and 2 on the left and right images:");
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 1;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(text, gbc);
+            this.add(text);
         }
 
         for (int lr = 0; lr<2; lr++) {
@@ -5345,13 +5386,23 @@ class MeasurementPanel extends JPanel {
             row.add(text2);
             row.add(measurementPointMarkChooser);
             var text3 = new JLabel("Image Scaling Interpolation:");
-            JButton setNearestNeighbor = new JButton("Set to NEAREST");
-            setNearestNeighbor.addActionListener(v -> {
-                uiEventListener.lImageResamplingModeChanged(ImageResamplingMode.NEAREST);
-                uiEventListener.rImageResamplingModeChanged(ImageResamplingMode.NEAREST);
-            });
             row.add(text3);
-            row.add(setNearestNeighbor);
+            {
+                JButton setNearestNeighbor = new JButton("Set to NEAREST");
+                setNearestNeighbor.addActionListener(v -> {
+                    uiEventListener.lImageResamplingModeChanged(ImageResamplingMode.NEAREST);
+                    uiEventListener.rImageResamplingModeChanged(ImageResamplingMode.NEAREST);
+                });
+                row.add(setNearestNeighbor);
+            }
+            {
+                JButton setBicubic = new JButton("Set to BICUBIC");
+                setBicubic.addActionListener(v -> {
+                    uiEventListener.lImageResamplingModeChanged(ImageResamplingMode.BICUBIC);
+                    uiEventListener.rImageResamplingModeChanged(ImageResamplingMode.BICUBIC);
+                });
+                row.add(setBicubic);
+            }
         }
         {
             var row = new JPanel();
@@ -5381,6 +5432,32 @@ class MeasurementPanel extends JPanel {
             gbl.setConstraints(row, gbc);
             this.add(row);
             row.add(textAreaScroll);
+        }
+        {
+            {
+                var row = new JPanel();
+                {
+                    var subpixelPrecisionMarksCheckbox = new JCheckBox("Position Marks with Subpixel Precision (1/N px for zoom factor N) — slow but more precise");
+                    subpixelPrecisionMarksCheckbox.addActionListener(
+                            e -> uiEventListener.setSubpixelPrecisionMarks(
+                                    subpixelPrecisionMarksCheckbox.isSelected()
+                            )
+                    );
+                    row.add(subpixelPrecisionMarksCheckbox);
+                }
+                {
+                    JButton clearAll = new JButton("Clear All Marks");
+                    clearAll.addActionListener(v -> uiEventListener.clearAllMarks());
+                    row.add(clearAll);
+                }
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = 14;         // MAGIC NUMBER // TODO: calculate
+                gbc.gridheight = 1;
+                gbc.gridwidth = 6;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
         }
         this.setLayout(gbl);
     }
