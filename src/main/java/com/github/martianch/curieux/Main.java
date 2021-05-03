@@ -199,7 +199,9 @@ interface UiEventListener {
 
 enum GoToImageOptions {
     CURIOSITY_FIRST_OF_SOL,
-    CURIOSITY_LATEST;
+    CURIOSITY_LATEST,
+    PERSEVERANCE_FIRST_OF_SOL,
+    PERSEVERANCE_LATEST;
 }
 
 class DisplayParameters {
@@ -950,6 +952,13 @@ class UiController implements UiEventListener {
             case CURIOSITY_LATEST:
                 System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight);
                 lrNavigator.toCuriosityLatest(this, true, true);
+                break;
+            case PERSEVERANCE_FIRST_OF_SOL:
+                System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight);
+                break;
+            case PERSEVERANCE_LATEST:
+                System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight);
+                lrNavigator.toPerseveranceLatest(this, true, true);
                 break;
         }
     }
@@ -1723,6 +1732,18 @@ class X3DViewer {
                 miGoTo.addActionListener(e ->
                         uiEventListener.gotoImage(
                                 GoToImageOptions.CURIOSITY_LATEST,
+                                isFromComponentsMenu(e, lblR),
+                                Optional.empty() // unused
+                        )
+                );
+            }
+            {
+                String title = "Go To The Latest Perseverance Image";
+                JMenuItem miGoTo = new JMenuItem(title);
+                menuLR.add(miGoTo);
+                miGoTo.addActionListener(e ->
+                        uiEventListener.gotoImage(
+                                GoToImageOptions.PERSEVERANCE_LATEST,
                                 isFromComponentsMenu(e, lblR),
                                 Optional.empty() // unused
                         )
@@ -4048,6 +4069,33 @@ class LRNavigator {
         }
         return this;
     }
+    LRNavigator toPerseveranceLatest(UiController uiController, boolean isRight, boolean isLeft) {
+        try {
+            var rfn = new RemoteFileNavigatorV2();
+            rfn.loadBySol(rfn.getLatestSol());
+//            rfn.loadFromDataStructure(NasaReader.dataStructureFromCuriositySolLatest(rfn.nToLoad));
+            String leftPath = rfn.toLastLoaded().getCurrentPath();
+            var leftRfn = rfn.copy();
+            String rightPath = rfn.toPrev().getCurrentPath();
+            var paths = FileLocations.twoPaths(leftPath, rightPath);
+
+            uiController.showInProgressViewsAndThen(paths,
+                    () ->  {
+                        if (Objects.equals(paths.get(0), leftPath)) {
+                            left = leftRfn;
+                            right = rfn;
+                        } else {
+                            right = leftRfn;
+                            left = rfn;
+                        }
+                        uiController.updateRawDataAsync(paths.get(0), paths.get(1));
+                    }
+            );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return this;
+    }
     LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo, String leftPath, String rightPath) {
         String newLeftPath = leftPath;
         String newRightPath = rightPath;
@@ -4468,6 +4516,12 @@ class NasaReaderV2 extends NasaReaderBase {
         Object res = JsonDiy.jsonToDataStructure(json);
         return res;
     }
+    static Object dataStructureForLatestSol() throws IOException {
+        String url = "https://mars.nasa.gov/rss/api/?feed=raw_images&category=mars2020&feedtype=json&latest=true";
+        String json = readUrl(new URL(url));
+        Object res = JsonDiy.jsonToDataStructure(json);
+        return res;
+    }
 
 }
 
@@ -4522,7 +4576,10 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
             }
             page++;
         } while (true);
-
+    }
+    int getLatestSol() throws IOException {
+        Object jsonObject = NasaReaderV2.dataStructureForLatestSol();
+        return JsonDiy.getInt(jsonObject,"latest_sol");
     }
     @Override
     protected void _loadInitial(String whereFrom) {
