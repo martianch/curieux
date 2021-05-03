@@ -224,8 +224,8 @@ class DisplayParameters {
     void setDefaultsMrMl() {
         setDefaults();
         zoomR = 3.;
-        offsetX = 240;
-        offsetY = 72;
+        offsetX = 700;//240;
+        offsetY = 450;//72;
     }
     private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
         this.zoom = zoom;
@@ -3758,7 +3758,7 @@ class JsonDiy {
                 obj = map.get(index);
             } else if (obj instanceof List) {
                 try {
-                    int i = Integer.valueOf(index);
+                    int i = Integer.parseInt(index);
                     List list = (List) obj;
                     obj = list.get(i);
                 } catch (Throwable t) {
