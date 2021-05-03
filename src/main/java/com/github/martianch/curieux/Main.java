@@ -3772,6 +3772,9 @@ class JsonDiy {
         }
         return obj;
     }
+    static int getInt(Object root, String... indexes) {
+        return Integer.parseInt(Objects.toString(get(root, indexes)));
+    }
     public static Object jsonToDataStructure(String jsonString) {
         var input = new InputState(jsonString);
         Object res = getElement(input, '\0');
@@ -4088,7 +4091,12 @@ class LRNavigator {
     }
     FileNavigator<Map<String, Object>> newIfNotSuitable(FileNavigator<Map<String, Object>> fileNavigator, String path) {
         var needRemote = FileLocations.isUrl(path);
-        if (null == fileNavigator || needRemote != (fileNavigator instanceof RemoteFileNavigator)) {
+        var needRemoteV2 = needRemote && path.contains("/mars2020");
+        var needRemoteV1 = needRemote & ! needRemoteV2;
+        if (null == fileNavigator
+           || needRemoteV1 != (fileNavigator instanceof RemoteFileNavigator)
+           || needRemoteV2 != (fileNavigator instanceof RemoteFileNavigatorV2)
+           ) {
             fileNavigator = FileNavigatorBase.makeNew(path);
         }
         return fileNavigator;
@@ -4116,7 +4124,10 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     int nToLoad=25;
     public static FileNavigatorBase makeNew(String path) {
         var needRemote = FileLocations.isUrl(path);
-        FileNavigatorBase res = needRemote ? new RemoteFileNavigator() : new LocalFileNavigator();
+        var needRemoteV2 = needRemote && path.contains("/mars2020");
+        FileNavigatorBase res = needRemoteV2 ? new RemoteFileNavigatorV2()
+                              : needRemote ? new RemoteFileNavigator()
+                              : new LocalFileNavigator();
         res._loadInitial(path);
         return res;
     }
@@ -4259,7 +4270,7 @@ class LocalFileNavigator extends FileNavigatorBase {
     protected void _cleanupLower() {}
 }
 
-class NasaReader {
+class NasaReaderBase {
     static final String USER_AGENT;
     static {
         //Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0
@@ -4301,6 +4312,20 @@ class NasaReader {
         }
     }
 
+    public static void setHttpHeaders(URLConnection uc) {
+        uc.setRequestProperty("User-Agent",USER_AGENT);
+        uc.setRequestProperty("Accept","text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+        uc.setRequestProperty("Accept-Language","en-US,en;q=0.5");
+        uc.setRequestProperty("DNT","1");
+//        uc.setRequestProperty("Pragma","no-cache");
+//        uc.setRequestProperty("Cache-Control","no-cache");
+        uc.setRequestProperty("Referer","https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc%2C+date_taken+desc&per_page=50&page=0&mission=msl");
+//        uc.setRequestProperty("Cookie","raw_images_filter=order=sol+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc%2C+date_taken+desc&per_page=50&page=0&mission=msl; _ga=GA1.3.113901165.1610160696; _gid=GA1.3.1829179841.1610160696; _gat_GSA_ENOR0=1; _gat_GSA_ENOR1=1; _gat_GSA_ENOR2=1; _ga=GA1.2.113901165.1610160696; _gid=GA1.2.1829179841.1610160696");
+//      uc.setRequestProperty("","");
+        uc.setConnectTimeout(7000); // 7 sec
+    }
+}
+class NasaReader extends NasaReaderBase {
     static String makeRequest(String parameters) {
         return "https://mars.nasa.gov/api/v1/raw_image_items/?" +
                 nasaEncode( parameters );
@@ -4309,7 +4334,7 @@ class NasaReader {
         System.out.println("dataStructureFromRequest("+parameters+")");
         String url = makeRequest(parameters);
         System.out.println("dataStructureFromRequest url = "+url);
-        String json = NasaReader.readUrl(new URL(url));
+        String json = readUrl(new URL(url));
         Object res = JsonDiy.jsonToDataStructure(json);
         return res;
     }
@@ -4426,11 +4451,161 @@ class NasaReader {
         }
     }
 }
-class RemoteFileNavigator extends FileNavigatorBase {
-    protected void setFrom(LocalFileNavigator other) {
-//        xxx = other.xxx;
-        super.setFrom(other);
+class NasaReaderV2 extends NasaReaderBase {
+    static String makeRequest(String parameters) {
+        return "https://mars.nasa.gov/rss/api/?feed=raw_images" +
+                "&category=mars2020" +
+                "&feedtype=json" +
+                "&num=100&" +
+                parameters;
+//                nasaEncode( parameters );
     }
+    static Object dataStructureFromRequest(String parameters) throws IOException {
+        System.out.println("dataStructureFromRequest("+parameters+")");
+        String url = makeRequest(parameters);
+        System.out.println("dataStructureFromRequest url = "+url);
+        String json = readUrl(new URL(url));
+        Object res = JsonDiy.jsonToDataStructure(json);
+        return res;
+    }
+
+}
+
+class RemoteFileNavigatorV2 extends FileNavigatorBase {
+    @Override
+    public String getPath(Map<String, Object> stringObjectMap) {
+        String res =
+                Optional
+                .ofNullable(stringObjectMap)
+                .map(map -> map.get("image_files"))
+                .filter(o -> o instanceof Map)
+                .map(map -> ((Map) map).get("full_res"))
+                .map(Object::toString)
+                .orElse(null);
+        return res;
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> copy() {
+        RemoteFileNavigatorV2 res = new RemoteFileNavigatorV2();
+        res.setFrom(this);
+        return res;
+    }
+
+    void loadFromDataStructure(Object jsonObject) {
+        try {
+            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, "images");
+            list.stream().forEach( o -> {
+                if (o instanceof Map) {
+                    Map m = (Map) o;
+                    String date = m.get("date_taken_mars").toString();
+                    String id = m.get("imageid").toString();
+                    // TODO: sol^mars_date^id
+                    String key = date + "^" + id;
+                    nmap.put(key, m);
+                }
+            });
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+    void loadBySol(Object sol) throws IOException {
+        int page=0;
+        do {
+            String params = "page=" + page + "&=,,,,&order=sol%20desc&condition_2=" + sol + ":sol:gte&condition_3=" + sol + ":sol:lte&extended=sample_type::full,";
+            Object jsonObject = NasaReaderV2.dataStructureFromRequest(params);
+            loadFromDataStructure(jsonObject);
+            int per_page = JsonDiy.getInt(jsonObject,"per_page");
+            int res_page = JsonDiy.getInt(jsonObject,"page");
+            int total_results = JsonDiy.getInt(jsonObject,"total_results");
+            if (total_results <= per_page * (1+res_page)) {
+                break;
+            }
+            page++;
+        } while (true);
+
+    }
+    @Override
+    protected void _loadInitial(String whereFrom) {
+        try {
+            String imageId = FileLocations.getFileNameNoExt(whereFrom);
+            Object sol = solFromPerseveranceImageId(imageId);
+            loadBySol(sol);
+            currentKey = nmap.keySet().stream()
+                    .filter(k -> k.endsWith(imageId))
+                    .findFirst()
+                    .orElseGet(() -> nmap.firstKey());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void _loadHigher() {
+        try {
+            String imageId = FileLocations.getFileNameNoExt(getCurrentPath());
+            Object sol = solFromPerseveranceImageId(imageId) + 1;
+            loadBySol(sol);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void _loadLower() {
+        try {
+            String imageId = FileLocations.getFileNameNoExt(getCurrentPath());
+            Object sol = solFromPerseveranceImageId(imageId) - 1;
+            loadBySol(sol);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void _onLoadResult(NavigableMap<String, Map<String, Object>> newData) {
+
+    }
+
+    static String getSolPrefix(String key) {
+        return key.substring(0, 9);
+    }
+
+    // TODO: remove unused keys from nmap
+    @Override
+    protected void _cleanupHigher() {
+        String lastSolPrefix = getSolPrefix(nmap.lastKey());
+        String currentSolPrefix = getSolPrefix(currentKey);
+        if (lastSolPrefix.compareTo(currentSolPrefix) > 0) {
+            var higherAll = nmap.tailMap(currentSolPrefix, false);
+            if(nmap.size() - higherAll.size() > 5) {
+                higherAll.clear();
+            }
+        }
+    }
+
+    // TODO: remove unused keys from nmap
+    @Override
+    protected void _cleanupLower() {
+        //NOTE: the current logic is that when we come to the last
+        //image from Sol N, this code removes images from Sol N-1
+        String firstSolPrefix = getSolPrefix(nmap.firstKey());
+        String currentSolPrefix = getSolPrefix(currentKey);
+        if (firstSolPrefix.compareTo(currentSolPrefix) < 0) {
+            var lowerAll = nmap.headMap(currentSolPrefix, false);
+            if(nmap.size() - lowerAll.size() > 5) {
+                lowerAll.clear();
+            }
+        }
+    }
+    static Integer solFromPerseveranceImageId(String imageId) {
+        return Integer.valueOf(imageId.substring(4,8));
+    }
+}
+class RemoteFileNavigator extends FileNavigatorBase {
+//    protected void setFrom(LocalFileNavigator other) {
+////        xxx = other.xxx;
+//        super.setFrom(other);
+//    }
     @Override
     public FileNavigator<Map<String, Object>> copy() {
         RemoteFileNavigator res = new RemoteFileNavigator();
