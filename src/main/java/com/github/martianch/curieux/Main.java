@@ -101,8 +101,10 @@ import static java.awt.Image.SCALE_SMOOTH;
 /** The app runner class */
 public class Main {
 
-    public static final String NASA_RAW_IMAGES_URL =
+    public static final String CURIOSITY_RAW_IMAGES_URL =
         "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl";
+    public static final String PERSEVERANCE_RAW_IMAGES_URL =
+        "https://mars.nasa.gov/mars2020/multimedia/raw-images/";
 
     public static final String[] PREFERRED_FONTS = {
             "Verdana"
@@ -183,7 +185,7 @@ interface UiEventListener {
     void resetToDefaults();
     void saveScreenshot();
     void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
-    void openInBrowser(SiteOpenCommand command, boolean isRight);
+    void openInBrowser(SiteOpenCommand command, boolean isRight, WhichRover whichRover);
     void markPointWithMousePress(boolean isRight, MouseEvent e);
     void setWaitingForPoint(int forPointNumber);
     void markedPointChanged(int coordId, double lrXy12);
@@ -1005,24 +1007,48 @@ class UiController implements UiEventListener {
     }
 
     @Override
-    public void openInBrowser(SiteOpenCommand command, boolean isRight) {
-        System.out.println("isRight="+isRight);
-        switch (command) {
-            case OPEN_CURRENT_SOL:
-                CompletableFuture.supplyAsync(() -> {
-                            NasaSiteOpener.openCurrentSol(rawData, isRight);
-                            return null;
-                        }
-                );
+    public void openInBrowser(SiteOpenCommand command, boolean isRight, WhichRover whichRover) {
+        System.out.println("isRight="+isRight+" whichRover="+whichRover);
+        switch (whichRover) {
+            case CURIOSITY:
+                switch (command) {
+                    case OPEN_CURRENT_SOL:
+                        CompletableFuture.supplyAsync(() -> {
+                                    CuriosityOpener.openCurrentSol(rawData, isRight);
+                                    return null;
+                                }
+                        );
+                        break;
+                    case OPEN_TAKEN_LATER:
+                        CuriosityOpener.openStartingFrom(rawData, isRight, true);
+                        break;
+                    case OPEN_TAKEN_EARLIER:
+                        CuriosityOpener.openStartingFrom(rawData, isRight, false);
+                        break;
+                    case OPEN_LATEST:
+                        CuriosityOpener.openLatest();
+                        break;
+                }
                 break;
-            case OPEN_TAKEN_LATER:
-                NasaSiteOpener.openStartingFrom(rawData, isRight, true);
-                break;
-            case OPEN_TAKEN_EARLIER:
-                NasaSiteOpener.openStartingFrom(rawData, isRight, false);
-                break;
-            case OPEN_LATEST:
-                NasaSiteOpener.openLatest();
+            case PERSEVERANCE:
+                switch (command) {
+                    case OPEN_CURRENT_SOL:
+                        CompletableFuture.supplyAsync(() -> {
+                                    PerseveranceOpener.openCurrentSol(rawData, isRight);
+                                    return null;
+                                }
+                        );
+                        break;
+//                    case OPEN_TAKEN_LATER:
+//                        CuriosityOpener.openStartingFrom(rawData, isRight, true);
+//                        break;
+//                    case OPEN_TAKEN_EARLIER:
+//                        CuriosityOpener.openStartingFrom(rawData, isRight, false);
+//                        break;
+                    case OPEN_LATEST:
+                        PerseveranceOpener.openLatest();
+                        break;
+                }
                 break;
         }
     }
@@ -1777,7 +1803,7 @@ class X3DViewer {
                 );
             }
             {
-                String menuTitle = "Open In Browser...";
+                String menuTitle = "Curiosity: Open In Browser...";
                 JMenu mOpen = new JMenu(menuTitle);
                 menuLR.add(mOpen);
                 {
@@ -1785,7 +1811,7 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mOpen.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_CURRENT_SOL, isFromComponentsSubmenu(e, lblR))
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_CURRENT_SOL, isFromComponentsSubmenu(e, lblR), WhichRover.CURIOSITY)
                     );
                 }
                 {
@@ -1793,7 +1819,7 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mOpen.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_LATER, isFromComponentsSubmenu(e, lblR))
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_LATER, isFromComponentsSubmenu(e, lblR), WhichRover.CURIOSITY)
                     );
                 }
                 {
@@ -1801,7 +1827,7 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mOpen.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_EARLIER, isFromComponentsSubmenu(e, lblR))
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_TAKEN_EARLIER, isFromComponentsSubmenu(e, lblR), WhichRover.CURIOSITY)
                     );
                 }
                 {
@@ -1809,7 +1835,28 @@ class X3DViewer {
                     JMenuItem mi = new JMenuItem(title);
                     mOpen.add(mi);
                     mi.addActionListener(e ->
-                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_LATEST, false)
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_LATEST, false, WhichRover.CURIOSITY)
+                    );
+                }
+            }
+            {
+                String menuTitle = "Perseverance: Open In Browser...";
+                JMenu mOpen = new JMenu(menuTitle);
+                menuLR.add(mOpen);
+                {
+                    String title = "Images from Current Sol";
+                    JMenuItem mi = new JMenuItem(title);
+                    mOpen.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_CURRENT_SOL, isFromComponentsSubmenu(e, lblR), WhichRover.PERSEVERANCE)
+                    );
+                }
+                {
+                    String title = "Latest Images";
+                    JMenuItem mi = new JMenuItem(title);
+                    mOpen.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.openInBrowser(SiteOpenCommand.OPEN_LATEST, false, WhichRover.PERSEVERANCE)
                     );
                 }
             }
@@ -1912,11 +1959,15 @@ class X3DViewer {
                         "<html>" +
                         "<h1>Curious: X3D Viewer</h1>" +
                         "Use Drag-and-Drop or the right mouse click menu to open a file or URL.<br>" +
-                        "For example, you may Drag-and-Drop raw image thumbnails "+
-                        "<a href=\""+ Main.NASA_RAW_IMAGES_URL+"\">"+
-                                "from the NASA site" +
+                        "For example, you may Drag-and-Drop raw image thumbnails from "+
+                        "<a href=\""+ Main.CURIOSITY_RAW_IMAGES_URL +"\">"+
+                                "Curiosity" +
                         "</a>" +
-                        ".<br>" +
+                        " or " +
+                        "<a href=\""+ Main.PERSEVERANCE_RAW_IMAGES_URL +"\">"+
+                        "Perseverance" +
+                        "</a>" +
+                        " pages.<br>" +
                         "<br>" +
                         "When either of the images has the input focus: <br>" +
                         "<b>LEFT</b>, <b>RIGHT</b>, <b>UP</b>, <b>DOWN</b>: scroll both images<br>" +
@@ -2871,6 +2922,7 @@ abstract class FileLocations {
             return fileNameExt.substring(indexOfDot);
         }
     }
+    // TODO: support Perseverance
     static Optional<Integer> getSol(String urlOrPath) {
         Pattern pattern = Pattern.compile("[/\\\\]([0-9]+)[/\\\\]");
         Matcher matcher = pattern.matcher(urlOrPath);
@@ -5453,7 +5505,7 @@ class BilinearDeglareWhite {
 enum SiteOpenCommand {
     OPEN_CURRENT_SOL, OPEN_TAKEN_LATER, OPEN_TAKEN_EARLIER, OPEN_LATEST;
 }
-class NasaSiteOpener {
+class CuriosityOpener {
     public static void openCurrentSol(RawData rawData, boolean isRight) {
         try {
             Integer sol = FileLocations.getSol(isRight ? rawData.right.path : rawData.left.path).orElse(1);
@@ -5485,7 +5537,38 @@ class NasaSiteOpener {
         }
     }
     public static void openLatest() {
-        HyperTextPane.openHyperlink(Main.NASA_RAW_IMAGES_URL);
+        HyperTextPane.openHyperlink(Main.CURIOSITY_RAW_IMAGES_URL);
+    }
+}
+
+class PerseveranceOpener {
+    public static void openCurrentSol(RawData rawData, boolean isRight) {
+        try {
+            String whereFrom = isRight ? rawData.right.path : rawData.left.path;
+            String fname = FileLocations.getFileNameNoExt(whereFrom);
+            String imageId = fname.substring(0, 1+fname.lastIndexOf("J"));
+            Integer sol = RemoteFileNavigatorV2.solFromPerseveranceImageId(imageId);
+            String url = "https://mars.nasa.gov/mars2020/multimedia/raw-images/?begin_sol="+sol+"&end_sol="+sol+"#raw-images";
+            HyperTextPane.openHyperlink(url);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+//    public static void openStartingFrom(RawData rawData, boolean isRight, boolean timeAsc) {
+//        try {
+//            Integer sol = FileLocations.getSol(isRight ? rawData.right.path : rawData.left.path).orElse(1);
+//
+//            String xsc = timeAsc ? "asc" : "desc";
+//            String url = "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+"+xsc+"%2C+date_taken+"+xsc+"%2C" +
+//                    "instrument_sort+asc%2Csample_type_sort+asc" +
+//                    "&per_page=100&page=0&mission=msl&begin_sol="+(timeAsc ? sol : 0)+"&end_sol="+(timeAsc ? "" : sol);
+//            HyperTextPane.openHyperlink(url);
+//        } catch (Throwable e) {
+//            e.printStackTrace();
+//        }
+//    }
+    public static void openLatest() {
+        HyperTextPane.openHyperlink(Main.PERSEVERANCE_RAW_IMAGES_URL);
     }
 }
 
