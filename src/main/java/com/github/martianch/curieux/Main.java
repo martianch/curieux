@@ -4639,7 +4639,8 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
     @Override
     protected void _loadInitial(String whereFrom) {
         try {
-            String imageId = FileLocations.getFileNameNoExt(whereFrom);
+            String fname = FileLocations.getFileNameNoExt(whereFrom);
+            String imageId = fname.substring(0, 1+fname.lastIndexOf("J"));
             Object sol = solFromPerseveranceImageId(imageId);
             loadBySol(sol);
             currentKey = nmap.keySet().stream()
