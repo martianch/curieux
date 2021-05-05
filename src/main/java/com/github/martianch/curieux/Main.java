@@ -192,7 +192,7 @@ interface UiEventListener {
     void stereoCameraChanged(StereoPairParameters v);
     void markShapeChanged(MeasurementPointMark v);
     void escapePressed();
-    Optional<Integer> getSol(boolean isRight);
+    Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
     DisplayParameters getDisplayParameters();
 }
@@ -202,6 +202,10 @@ enum GoToImageOptions {
     CURIOSITY_LATEST,
     PERSEVERANCE_FIRST_OF_SOL,
     PERSEVERANCE_LATEST;
+}
+enum WhichRover {
+    CURIOSITY,
+    PERSEVERANCE;
 }
 
 class DisplayParameters {
@@ -954,7 +958,10 @@ class UiController implements UiEventListener {
                 lrNavigator.toCuriosityLatest(this, true, true);
                 break;
             case PERSEVERANCE_FIRST_OF_SOL:
-                System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight);
+                sol.ifPresent(nSol -> {
+                    System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight);
+                    lrNavigator.toPerseveranceSol(this, true, true, nSol);
+                });
                 break;
             case PERSEVERANCE_LATEST:
                 System.out.println("gotoImage: " + goToImageOptions + " r:" + isRight);
@@ -1139,8 +1146,13 @@ class UiController implements UiEventListener {
         }
     }
     @Override
-    public Optional<Integer> getSol(boolean isRight) {
-        return FileLocations.getSol((isRight ? rawData.right : rawData.left).pathToLoad);
+    public Optional<Integer> getSol(boolean isRight, WhichRover whichRover) {
+        String currentPath = (isRight ? rawData.right : rawData.left).pathToLoad;
+        boolean isPerseverance = currentPath.contains("/mars2020");
+        if ((whichRover == WhichRover.PERSEVERANCE) != isPerseverance) {
+            return Optional.empty();
+        }
+        return FileLocations.getSol(currentPath);
     }
     @Override
     public MeasurementStatus getMeasurementStatus() {
@@ -1720,7 +1732,22 @@ class X3DViewer {
                             uiEventListener.gotoImage(
                                     GoToImageOptions.CURIOSITY_FIRST_OF_SOL,
                                     isRight,
-                                    askForNumber(uiEventListener.getSol(isRight).orElse(100), title  )
+                                    askForNumber(uiEventListener.getSol(isRight, WhichRover.CURIOSITY).orElse(100), title  )
+                            );
+                        }
+                );
+            }
+            {
+                String title = "Go To First Image Taken on Perseverance Sol...";
+                JMenuItem miGoTo = new JMenuItem(title);
+                menuLR.add(miGoTo);
+                miGoTo.addActionListener(e ->
+                        {
+                            boolean isRight = isFromComponentsMenu(e, lblR);
+                            uiEventListener.gotoImage(
+                                    GoToImageOptions.PERSEVERANCE_FIRST_OF_SOL,
+                                    isRight,
+                                    askForNumber(uiEventListener.getSol(isRight, WhichRover.PERSEVERANCE).orElse(70), title  )
                             );
                         }
                 );
@@ -4069,6 +4096,33 @@ class LRNavigator {
         }
         return this;
     }
+    LRNavigator toPerseveranceSol(UiController uiController, boolean isRight, boolean isLeft, int sol) {
+        try {
+            var rfn = new RemoteFileNavigatorV2();
+            rfn.loadBySol(sol);
+//            rfn.loadFromDataStructure(NasaReader.dataStructureFromCuriositySolStarting(sol, rfn.nToLoad));
+            String leftPath = rfn.toFirstLoaded().getCurrentPath();
+            var leftRfn = rfn.copy();
+            String rightPath = rfn.toNext().getCurrentPath();
+            var paths = FileLocations.twoPaths(leftPath, rightPath);
+
+            uiController.showInProgressViewsAndThen(paths,
+                    () ->  {
+                        if (Objects.equals(paths.get(0), leftPath)) {
+                            left = leftRfn;
+                            right = rfn;
+                        } else {
+                            right = leftRfn;
+                            left = rfn;
+                        }
+                        uiController.updateRawDataAsync(paths.get(0), paths.get(1));
+                    }
+            );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return this;
+    }
     LRNavigator toPerseveranceLatest(UiController uiController, boolean isRight, boolean isLeft) {
         try {
             var rfn = new RemoteFileNavigatorV2();
@@ -4172,6 +4226,7 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     int nToLoad=25;
     public static FileNavigatorBase makeNew(String path) {
         var needRemote = FileLocations.isUrl(path);
+        // TODO: move this check to FileLocations or HttpLocations or sth like that
         var needRemoteV2 = needRemote && path.contains("/mars2020");
         FileNavigatorBase res = needRemoteV2 ? new RemoteFileNavigatorV2()
                               : needRemote ? new RemoteFileNavigator()
