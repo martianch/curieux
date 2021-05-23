@@ -211,6 +211,28 @@ enum WhichRover {
     PERSEVERANCE;
 }
 
+class ColorRange {
+    final int r0,g0,b0,r1,g1,b1;
+
+    private ColorRange(int r0, int g0, int b0, int r1, int g1, int b1) {
+        this.r0 = r0;
+        this.g0 = g0;
+        this.b0 = b0;
+        this.r1 = r1;
+        this.g1 = g1;
+        this.b1 = b1;
+    }
+
+    public static ColorRange fromRgbToRgb(int r0, int g0, int b0, int r1, int g1, int b1) {
+        var res = new ColorRange(r0, g0, b0, r1, g1, b1);
+        return res;
+    }
+
+    public static ColorRange fullRange() {
+        var res = new ColorRange(0, 0, 0, 255, 255, 255);
+        return res;
+    }
+}
 class DisplayParameters {
     double zoom, zoomL, zoomR;
     int offsetX, offsetY;
@@ -229,7 +251,7 @@ class DisplayParameters {
         angle = angleL = angleR = 0.;
         debayerL = debayerR = DebayerMode.getUiDefault();
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
-        lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST);
+        lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, ColorRange.fullRange());
         measurementShown = true;
     }
     void setDefaultsMrMl() {
@@ -4886,9 +4908,11 @@ class RemoteFileNavigator extends FileNavigatorBase {
 
 class ColorCorrection {
     final List<ColorCorrectionAlgo> algos;
+    final ColorRange explicitColorRange;
 
-    public ColorCorrection(List<ColorCorrectionAlgo> algos) {
+    public ColorCorrection(List<ColorCorrectionAlgo> algos, ColorRange colorRange) {
         this.algos = Collections.unmodifiableList(new ArrayList<>(algos));
+        this.explicitColorRange = colorRange;
     }
     public List<ColorCorrectionAlgo> getAlgos() {
         return algos;
@@ -5026,12 +5050,43 @@ class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {
     }
 }
 
+class ColorRangeChooser extends JPanel {
+    final DigitalZoomControl<Integer, OffsetWrapper> dcR0;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcG0;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcB0;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcR1;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcG1;
+    final DigitalZoomControl<Integer, OffsetWrapper> dcB1;
+    int r0,g0,b0;
+    int r1,g1,b1;
+
+    ColorRangeChooser() {
+        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        JLabel custom_rgb_range = new JLabel("Custom RGB Range");
+        custom_rgb_range.setAlignmentX(Component.CENTER_ALIGNMENT);
+        this.add(custom_rgb_range);
+        this.add(dcR0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {r0=i;}));
+        this.add(dcG0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {g0=i;}));
+        this.add(dcB0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {b0=i;}));
+        this.add(dcR1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {r1=i;}));
+        this.add(dcG1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {g1=i;}));
+        this.add(dcB1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {b1=i;}));
+        JButton get_from_viewport = new JButton("Get from Viewport");
+        get_from_viewport.setAlignmentX(Component.CENTER_ALIGNMENT);
+        this.add(get_from_viewport);
+    }
+    ColorRange getColorRange() {
+        return ColorRange.fromRgbToRgb(r0, g0, b0, r1, g1, b1);
+    }
+}
 class ColorCorrectionPane extends JPanel {
     final UiEventListener uiEventListener;
     final List<ColorCorrectionModeChooser> lChoosers = new ArrayList<>();
     final List<ColorCorrectionModeChooser> rChoosers = new ArrayList<>();
     final ImageResamplingModeChooser lImageResamplingModeChooser;
     final ImageResamplingModeChooser rImageResamplingModeChooser;
+    final ColorRangeChooser lColorRangeChooser = new ColorRangeChooser();
+    final ColorRangeChooser rColorRangeChooser = new ColorRangeChooser();
 
     public ColorCorrectionPane(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
@@ -5054,11 +5109,11 @@ class ColorCorrectionPane extends JPanel {
                 ColorCorrectionModeChooser chooser = new ColorCorrectionModeChooser(x -> {
                     if (isLeft) {
                         javax.swing.SwingUtilities.invokeLater( () ->
-                            uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers))
+                            uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers, lColorRangeChooser))
                         );
                     } else {
                         javax.swing.SwingUtilities.invokeLater( () ->
-                            uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers))
+                            uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers, rColorRangeChooser))
                         );
                     }
                 });
@@ -5087,6 +5142,26 @@ class ColorCorrectionPane extends JPanel {
             row.add(lImageResamplingModeChooser = new ImageResamplingModeChooser(v -> uiEventListener.lImageResamplingModeChanged(v)));
             row.add(rImageResamplingModeChooser = new ImageResamplingModeChooser(v -> uiEventListener.rImageResamplingModeChanged(v)));
         }
+        {
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.fill = GridBagConstraints.BOTH;
+            gbc.weightx = 1.0;
+            gbc.weighty = 1.0;
+            gbc.gridx = 0;
+            gbc.gridy = 8;
+            gbl.setConstraints(lColorRangeChooser, gbc);
+            this.add(lColorRangeChooser);
+        }
+        {
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.fill = GridBagConstraints.BOTH;
+            gbc.weightx = 1.0;
+            gbc.weighty = 1.0;
+            gbc.gridx = 3;
+            gbc.gridy = 8;
+            gbl.setConstraints(rColorRangeChooser, gbc);
+            this.add(rColorRangeChooser);
+        }
         this.setLayout(gbl);
     }
 
@@ -5094,9 +5169,9 @@ class ColorCorrectionPane extends JPanel {
         JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
     }
 
-    ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers) {
+    ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers, ColorRangeChooser colorRangeChooser) {
         var algos = choosers.stream().map(c -> (ColorCorrectionAlgo)c.getSelectedItem()).collect(Collectors.toList());
-        return new ColorCorrection(algos);
+        return new ColorCorrection(algos, colorRangeChooser.getColorRange());
     }
     ColorCorrectionPane setColorCorrectionValue(boolean isRight, ColorCorrection colorCorrection) {
         var algos = colorCorrection.getAlgos();
