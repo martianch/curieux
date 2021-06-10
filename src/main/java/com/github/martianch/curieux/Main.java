@@ -21,6 +21,8 @@ import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.metadata.IIOMetadataNode;
 import javax.imageio.stream.ImageOutputStream;
 import javax.swing.*;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import javax.swing.event.MouseInputAdapter;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -198,6 +200,9 @@ interface UiEventListener {
     Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
     DisplayParameters getDisplayParameters();
+    ColorRange getViewportColorRange(boolean isRight);
+    CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
+    void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight); //???
 }
 
 enum GoToImageOptions {
@@ -212,25 +217,102 @@ enum WhichRover {
 }
 
 class ColorRange {
-    final int r0,g0,b0,r1,g1,b1;
+    int minR, minG, minB, maxR, maxG, maxB;
 
-    private ColorRange(int r0, int g0, int b0, int r1, int g1, int b1) {
-        this.r0 = r0;
-        this.g0 = g0;
-        this.b0 = b0;
-        this.r1 = r1;
-        this.g1 = g1;
-        this.b1 = b1;
+    private ColorRange(int minR, int minG, int minB, int maxR, int maxG, int maxB) {
+        this.minR = minR;
+        this.minG = minG;
+        this.minB = minB;
+        this.maxR = maxR;
+        this.maxG = maxG;
+        this.maxB = maxB;
+    }
+    public ColorRange copy() {
+        return new ColorRange(minR, minG, minB, maxR, maxG, maxB);
     }
 
-    public static ColorRange fromRgbToRgb(int r0, int g0, int b0, int r1, int g1, int b1) {
-        var res = new ColorRange(r0, g0, b0, r1, g1, b1);
-        return res;
-    }
-
-    public static ColorRange fullRange() {
+    public static ColorRange newFullRange() {
         var res = new ColorRange(0, 0, 0, 255, 255, 255);
         return res;
+    }
+    public static ColorRange newEmptyRange() {
+        var res = new ColorRange(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, 0, 0, 0);
+        return res;
+    }
+    boolean isEmpty() {
+        return minR >= maxR || minG >= maxG || minB >= maxB;
+    }
+    boolean isFullRange() {
+        return minR == 0 && maxR == 255
+            && minG == 0 && maxG == 255
+            && minB == 0 && maxB == 255;
+    }
+    @Override
+    public String toString() {
+        return "ColorRange{" +
+                minR + ".." + maxR + ", " +
+                minG + ".." + maxG + ", " +
+                minB + ".." + maxB +
+                (isEmpty() ? " (empty)" : "") +
+                (isFullRange() ? " (full-range)" : "") +
+                '}';
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ColorRange that = (ColorRange) o;
+        return minR == that.minR &&
+                minG == that.minG &&
+                minB == that.minB &&
+                maxR == that.maxR &&
+                maxG == that.maxG &&
+                maxB == that.maxB;
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(minR, minG, minB, maxR, maxG, maxB);
+    }
+}
+class CustomStretchRgbParameters {
+    ColorRange colorRange;
+    boolean isPerChannel;
+    boolean isSaturated;
+
+    public CustomStretchRgbParameters(ColorRange colorRange, boolean isPerChannel, boolean isSaturated) {
+        this.colorRange = colorRange.copy();
+        this.isPerChannel = isPerChannel;
+        this.isSaturated = isSaturated;
+    }
+    public CustomStretchRgbParameters copy() {
+        return new CustomStretchRgbParameters(colorRange, isPerChannel, isSaturated);
+    }
+    public static CustomStretchRgbParameters newEmpty() {
+        return new CustomStretchRgbParameters(ColorRange.newEmptyRange(), true, true);
+    }
+    public static CustomStretchRgbParameters newFullRange() {
+        return new CustomStretchRgbParameters(ColorRange.newFullRange(), true, true);
+    }
+    @Override
+    public String toString() {
+        return "CustomStretchRgbParameters{" +
+                "colorRange=" + colorRange +
+                ", isPerChannel=" + isPerChannel +
+                ", isSaturated=" + isSaturated +
+                '}';
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CustomStretchRgbParameters that = (CustomStretchRgbParameters) o;
+        return isPerChannel == that.isPerChannel &&
+                isSaturated == that.isSaturated &&
+                Objects.equals(colorRange, that.colorRange);
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(colorRange, isPerChannel, isSaturated);
     }
 }
 class DisplayParameters {
@@ -251,7 +333,7 @@ class DisplayParameters {
         angle = angleL = angleR = 0.;
         debayerL = debayerR = DebayerMode.getUiDefault();
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
-        lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, ColorRange.fullRange());
+        lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, CustomStretchRgbParameters.newFullRange());
         measurementShown = true;
     }
     void setDefaultsMrMl() {
@@ -279,6 +361,20 @@ class DisplayParameters {
     }
     public DisplayParameters swapped() {
         return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection, measurementShown);
+    }
+    public DisplayParameters withColorCorrection(ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, measurementShown);
+    }
+    public DisplayParameters withColorCorrection(boolean isRight, ColorCorrection cc) {
+        ColorCorrection lColorCorrection = isRight ? this.lColorCorrection : cc;
+        ColorCorrection rColorCorrection = isRight ? cc : this.rColorCorrection;
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, measurementShown);
+    }
+    public DisplayParameters withMeasurementShown(boolean measurementShown) {
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, measurementShown);
+    }
+    ColorCorrection getColorCorrection(boolean isRight) {
+        return isRight ? rColorCorrection : lColorCorrection;
     }
 }
 class ImageAndPath {
@@ -1226,6 +1322,37 @@ class UiController implements UiEventListener {
             return urlsOrFiles;
         }
     }
+    private ColorCorrection insertSrgb3IfNotThere(ColorCorrection cc) {
+        if (!cc.getAlgos().contains(ColorCorrectionAlgo.STRETCH_CONTRAST_RGB_RGB3)) {
+            cc = cc.copyWith(Arrays.asList(ColorCorrectionAlgo.STRETCH_CONTRAST_RGB_RGB3));
+        }
+        return cc;
+    }
+    @Override
+    public ColorRange getViewportColorRange(boolean isRight) {
+        Rectangle visibleArea = x3dViewer.getViewportRectangle(isRight);
+        ColorCorrection lcc = insertSrgb3IfNotThere(displayParameters.lColorCorrection);
+        ColorCorrection rcc = insertSrgb3IfNotThere(displayParameters.rColorCorrection);
+        var dp = displayParameters
+                .withColorCorrection(lcc, rcc)
+                .withMeasurementShown(false);
+        var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE);
+        var bi = bis.get(isRight ? 1 : 0);
+        var cr = ColorBalancer.getColorRangeFromImage(visibleArea, bi);
+        return cr;
+    }
+    @Override
+    public CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight) {
+        return displayParameters.getColorCorrection(isRight).customStretchRgbParameters;
+    }
+    @Override
+    public void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight) {
+        ColorCorrection cc = displayParameters
+                .getColorCorrection(isRight)
+                .copyWith(customStretchRgbParameters);
+        var newDp = displayParameters.withColorCorrection(isRight, cc);
+        x3dViewer.updateViews(rawData, displayParameters=newDp, measurementStatus);
+    }
     public void createAndShowViews() {
         x3dViewer.createViews(rawData, displayParameters, measurementStatus, this);
     }
@@ -1404,53 +1531,71 @@ class X3DViewer {
         lblL.setCursor(cursor);
         lblR.setCursor(cursor);
     }
+    Rectangle getViewportRectangle(boolean isRight) {
+        var scrollPane = isRight?componentR:componentL;
+        Point pos = scrollPane.getViewport().getViewPosition();
+        Dimension size = scrollPane.getViewport().getExtentSize();
+        var res = new Rectangle(
+            (int) pos.getX(),
+            (int) pos.getY(),
+            (int) size.getWidth(),
+            (int) size.getHeight()
+        );
+        return res;
+    }
+    List<BufferedImage> processBothImages(RawData rd, DisplayParameters dp, MeasurementStatus ms, ColorCorrection.Command command) {
+        final boolean PRECISE_MARKS = ms.isSubpixelPrecision;
+        BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
+        BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
+
+        imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
+        imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
+
+        ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "x3d:L straight:R");
+        ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "x3d:R, straight:L");
+        if (!PRECISE_MARKS && dp.measurementShown) {
+            imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
+            imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
+        }
+
+        AffineTransform transformL = rotationTransform(imgL, dp.angle + dp.angleL);
+        AffineTransform transformR = rotationTransform(imgL, dp.angle + dp.angleR);
+        BufferedImage rotatedL = rotate(imgL, transformL);
+        BufferedImage rotatedR = rotate(imgR, transformR);
+        int dw = (rotatedR.getWidth() - rotatedL.getWidth()) / 2;
+        int dh = (rotatedR.getHeight() - rotatedL.getHeight()) / 2;
+        ms.left.centeringDX = Math.max(0,dw);
+        ms.left.centeringDY = Math.max(0,dh);
+        ms.right.centeringDX = Math.max(0,-dw);
+        ms.right.centeringDY = Math.max(0,-dh);
+        if (!PRECISE_MARKS || !dp.measurementShown) {
+            return Arrays.asList(
+                    zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL),
+                    zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR)
+            );
+        } else {
+            return Arrays.asList(
+                    ms.left.drawMarks(
+                            zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL),
+                            ms.measurementPointMark, transformL, dp.zoom * dp.zoomL, Math.max(0, dp.offsetX + dw), Math.max(0, dp.offsetY + dh)
+                    ),
+                    ms.right.drawMarks(
+                            zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR),
+                            ms.measurementPointMark, transformR, dp.zoom * dp.zoomR, Math.max(0, -dp.offsetX - dw), Math.max(0, -dp.offsetY - dh)
+                    )
+            );
+        }
+    }
     public void updateViews(RawData rd, DisplayParameters dp, MeasurementStatus ms) {
         {
-            ImageIcon iconL;
-            ImageIcon iconR;
             {
-                final boolean PRECISE_MARKS = ms.isSubpixelPrecision;
-                BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
-                BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
-
-                imgL = dp.lColorCorrection.doColorCorrection(imgL);
-                imgR = dp.rColorCorrection.doColorCorrection(imgR);
-
-                ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "x3d:L straight:R");
-                ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "x3d:R, straight:L");
-                if (!PRECISE_MARKS && dp.measurementShown) {
-                    imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
-                    imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
-                }
-
-                AffineTransform transformL = rotationTransform(imgL, dp.angle + dp.angleL);
-                AffineTransform transformR = rotationTransform(imgL, dp.angle + dp.angleR);
-                BufferedImage rotatedL = rotate(imgL, transformL);
-                BufferedImage rotatedR = rotate(imgR, transformR);
-                int dw = (rotatedR.getWidth() - rotatedL.getWidth()) / 2;
-                int dh = (rotatedR.getHeight() - rotatedL.getHeight()) / 2;
-                ms.left.centeringDX = Math.max(0,dw);
-                ms.left.centeringDY = Math.max(0,dh);
-                ms.right.centeringDX = Math.max(0,-dw);
-                ms.right.centeringDY = Math.max(0,-dh);
-                if (!PRECISE_MARKS || !dp.measurementShown) {
-                    iconL = new ImageIcon(zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL));
-                    iconR = new ImageIcon(zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR));
-                } else {
-                    iconL = new ImageIcon(
-                            ms.left.drawMarks(
-                                    zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL),
-                                    ms.measurementPointMark, transformL, dp.zoom * dp.zoomL, Math.max(0, dp.offsetX + dw), Math.max(0, dp.offsetY + dh)
-                            ));
-                    iconR = new ImageIcon(
-                            ms.right.drawMarks(
-                                    zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR),
-                                    ms.measurementPointMark, transformR, dp.zoom * dp.zoomR, Math.max(0, -dp.offsetX - dw), Math.max(0, -dp.offsetY - dh)
-                            ));
-                }
+                var bufferedImageList = processBothImages(rd, dp, ms, ColorCorrection.Command.SHOW);
+                ImageIcon iconL = new ImageIcon(bufferedImageList.get(0));
+                ImageIcon iconR = new ImageIcon(bufferedImageList.get(1));
+                lblL.setIcon(iconL);
+                lblR.setIcon(iconR);
             }
-            lblL.setIcon(iconL);
-            lblR.setIcon(iconR);
+
             lblL.setBorder(null);
             lblR.setBorder(null);
             lblL.setMargin(new Insets(0, 0, 0, 0));
@@ -2632,9 +2777,6 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     public String toString() {
         return label.getText()+super.toString();
     }
-//    DigitalZoomControl kbShortcut(int key, int modifiers) {
-//        return this;
-//    }
 
     static void loadIcon(JButton button, String resourcePath, String altText) {
         button.setMargin(new Insets(0, 0, 0, 0));
@@ -4908,11 +5050,19 @@ class RemoteFileNavigator extends FileNavigatorBase {
 
 class ColorCorrection {
     final List<ColorCorrectionAlgo> algos;
-    final ColorRange explicitColorRange;
+    final CustomStretchRgbParameters customStretchRgbParameters;
 
-    public ColorCorrection(List<ColorCorrectionAlgo> algos, ColorRange colorRange) {
+    public enum Command{SHOW, GET_RANGE}
+
+    public ColorCorrection copyWith(List<ColorCorrectionAlgo> algos) {
+        return new ColorCorrection(algos, this.customStretchRgbParameters);
+    }
+    public ColorCorrection copyWith(CustomStretchRgbParameters customStretchRgbParameters) {
+        return new ColorCorrection(this.algos, customStretchRgbParameters);
+    }
+    public ColorCorrection(List<ColorCorrectionAlgo> algos, CustomStretchRgbParameters customStretchRgbParameters) {
         this.algos = Collections.unmodifiableList(new ArrayList<>(algos));
-        this.explicitColorRange = colorRange;
+        this.customStretchRgbParameters = customStretchRgbParameters.copy();
     }
     public List<ColorCorrectionAlgo> getAlgos() {
         return algos;
@@ -4924,18 +5074,26 @@ class ColorCorrection {
                 .collect(Collectors.joining(","));
         return res;
     }
-    BufferedImage doColorCorrection(BufferedImage image) {
+    BufferedImage doColorCorrection(BufferedImage image, Command command) {
         BufferedImage res = image;
+        loop:
         for (ColorCorrectionAlgo algo : algos) {
             switch (algo) {
                 default:
                 case DO_NOTHING:
                     break;
                 case STRETCH_CONTRAST_RGB_RGB:
-                    res = ColorBalancer.balanceColors(res, true);
+                    res = ColorBalancer.stretchColorsRgb(res, true);
                     break;
                 case STRETCH_CONTRAST_RGB_V:
-                    res = ColorBalancer.balanceColors(res, false);
+                    res = ColorBalancer.stretchColorsRgb(res, false);
+                    break;
+                case STRETCH_CONTRAST_RGB_RGB3:
+                    if (command == Command.GET_RANGE) {
+                        break loop;
+                    } else {
+                        res = ColorBalancer.stretchColorsRgb(res, customStretchRgbParameters);
+                    }
                     break;
                 case STRETCH_CONTRAST_HSV_S:
                     res = HSVColorBalancer.balanceColors(res, false, true, false);
@@ -5000,6 +5158,7 @@ enum ColorCorrectionAlgo {
     DO_NOTHING("as is", ""),
     STRETCH_CONTRAST_RGB_RGB("stretch R,G,B separately in RGB space", "sRGB"),
     STRETCH_CONTRAST_RGB_V("stretch R,G,B together in RGB space", "sRGB2"),
+    STRETCH_CONTRAST_RGB_RGB3("stretch R,G,B in RGB space, custom parameters", "sRGB3"),
     STRETCH_CONTRAST_HSV_V("stretch V in HSV space", "sHSVv"),
     STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
     STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space", "sHSV"),
@@ -5050,33 +5209,173 @@ class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {
     }
 }
 
-class ColorRangeChooser extends JPanel {
+class ColorRangeAndFlagsChooser extends JPanel {
+    final UiEventListener uiEventListener;
+    final boolean isRight;
+    CustomStretchRgbParameters old;
+    CustomStretchRgbParameters usedNow;
+    CustomStretchRgbParameters proposed;
+    final JLabel lblPleaseSelectSrgb3;
     final DigitalZoomControl<Integer, OffsetWrapper> dcR0;
     final DigitalZoomControl<Integer, OffsetWrapper> dcG0;
     final DigitalZoomControl<Integer, OffsetWrapper> dcB0;
     final DigitalZoomControl<Integer, OffsetWrapper> dcR1;
     final DigitalZoomControl<Integer, OffsetWrapper> dcG1;
     final DigitalZoomControl<Integer, OffsetWrapper> dcB1;
-    int r0,g0,b0;
-    int r1,g1,b1;
+    final JCheckBox cbPerChannel;
+    final JCheckBox cbSaturation;
+    final JButton buttonSet;
 
-    ColorRangeChooser() {
+    final Color normalButtonColor;
+    final Color highlightedButtonColor = new Color(250,127,127);
+    private final String pleaseSelectSrgb3Norm;
+    private final String pleaseSelectSrgb3Hili;
+
+    ColorRangeAndFlagsChooser(UiEventListener uiEventListener, boolean isRight) {
+        this.uiEventListener = uiEventListener;
+        this.isRight = isRight;
+        this.proposed = CustomStretchRgbParameters.newFullRange();
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-        JLabel custom_rgb_range = new JLabel("Custom RGB Range");
-        custom_rgb_range.setAlignmentX(Component.CENTER_ALIGNMENT);
-        this.add(custom_rgb_range);
-        this.add(dcR0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {r0=i;}));
-        this.add(dcG0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {g0=i;}));
-        this.add(dcB0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {b0=i;}));
-        this.add(dcR1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {r1=i;}));
-        this.add(dcG1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {g1=i;}));
-        this.add(dcB1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {b1=i;}));
-        JButton get_from_viewport = new JButton("Get from Viewport");
-        get_from_viewport.setAlignmentX(Component.CENTER_ALIGNMENT);
-        this.add(get_from_viewport);
+        {
+            JLabel title = new JLabel("<html><center><h3>Custom RGB Range</h3></center></html>", SwingConstants.CENTER);
+            title.setAlignmentX(Component.CENTER_ALIGNMENT);
+            this.add(title);
+            title.setToolTipText("Parameters for the sRGB3 effect");
+        }
+        {
+            pleaseSelectSrgb3Norm = "<html><center>To use these, please select<br/>the sRGB3 effect in the list above</center></html>";
+            pleaseSelectSrgb3Hili = "<html><center><font color='red'>To use these, please select<br/>the sRGB3 effect in the list above</font></center></html>";
+            lblPleaseSelectSrgb3 = new JLabel(pleaseSelectSrgb3Norm, SwingConstants.CENTER);
+            lblPleaseSelectSrgb3.setAlignmentX(Component.CENTER_ALIGNMENT);
+            this.add(lblPleaseSelectSrgb3);
+        }
+        this.add(dcR0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {
+            proposed.colorRange.minR=i; whenUpdated();}));
+        this.add(dcG0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {
+            proposed.colorRange.minG=i; whenUpdated();}));
+        this.add(dcB0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
+            proposed.colorRange.minB=i; whenUpdated();}));
+        this.add(dcR1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {
+            proposed.colorRange.maxR=i; whenUpdated();}));
+        this.add(dcG1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {
+            proposed.colorRange.maxG=i; whenUpdated();}));
+        this.add(dcB1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
+            proposed.colorRange.maxB=i; whenUpdated();}));
+        this.addAncestorListener(new AncestorListener() {
+            @Override
+            public void ancestorAdded(AncestorEvent ancestorEvent) {
+                whenShown();
+            }
+            @Override
+            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+            }
+            @Override
+            public void ancestorMoved(AncestorEvent ancestorEvent) {
+            }
+        });
+        {
+            cbPerChannel = new JCheckBox("Per Channel");
+            this.add(cbPerChannel);
+            cbPerChannel.addActionListener(
+                    e -> { proposed.isPerChannel = cbPerChannel.isSelected(); whenUpdated(); }
+            );
+            cbPerChannel.setToolTipText("Stretch Red/Green/Blue channels independently");
+        }
+        {
+            cbSaturation = new JCheckBox("Saturation");
+            this.add(cbSaturation);
+            cbSaturation.addActionListener(
+                    e -> { proposed.isSaturated = cbSaturation.isSelected(); whenUpdated(); }
+            );
+            cbSaturation.setToolTipText("Too bright pixels must remain white or \"wrap around\" to dark?");
+        }
+        {
+            JButton button = new JButton("Get from Viewport");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionCalculateViewportColorRange());
+            button.setToolTipText("First zoom/resize/scroll the window to exclude pixels that are too dark/too bright");
+            this.add(button);
+        }
+        {
+            JButton button = new JButton("Reset to Original");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionResetToOriginal());
+            button.setToolTipText("The \"original\" values are saved when this dialog opens");
+            this.add(button);
+        }
+        {
+            buttonSet = new JButton("Set Custom Color Range");
+            buttonSet.setAlignmentX(Component.CENTER_ALIGNMENT);
+            buttonSet.addActionListener(e -> actionSetCustomStretchRgbParameters());
+            this.add(buttonSet);
+            normalButtonColor = buttonSet.getBackground();
+            buttonSet.setToolTipText("Applying incomplete changes is meaningless, so first choose parameters, then click this");
+        }
     }
-    ColorRange getColorRange() {
-        return ColorRange.fromRgbToRgb(r0, g0, b0, r1, g1, b1);
+    private void whenShown() {
+        usedNow = uiEventListener.getCurrentCustomStretchRgbParameters(isRight).copy();
+        old = usedNow.copy();
+        proposed = old.copy();
+        customStretchRgbParametersToControls(proposed);
+        whenUpdated();
+    }
+    private void whenUpdated() {
+        var isChanged = !usedNow.equals(proposed);
+        buttonSet.setBackground(isChanged ? highlightedButtonColor : normalButtonColor);
+        buttonSet.setOpaque(true);
+//        System.out.println("whenUpdated: isChanged="+isChanged+";");
+//        System.out.println("     old="+old);
+//        System.out.println(" usedNow="+usedNow);
+//        System.out.println("proposed="+proposed);
+//        System.out.println(" from_ui="+uiEventListener.getCurrentCustomStretchRgbParameters(isRight));
+        var isSrgb3Used = uiEventListener
+                .getDisplayParameters()
+                .getColorCorrection(isRight).getAlgos()
+                .contains(ColorCorrectionAlgo.STRETCH_CONTRAST_RGB_RGB3);
+        var isTrivial = proposed.colorRange.isFullRange()
+                     || proposed.colorRange.isEmpty();
+        lblPleaseSelectSrgb3.setText(
+                  isSrgb3Used || isTrivial
+                ? pleaseSelectSrgb3Norm
+                : pleaseSelectSrgb3Hili
+        );
+    }
+    public void notifyOfUpdates() {
+        usedNow = uiEventListener.getCurrentCustomStretchRgbParameters(isRight).copy();
+        whenUpdated();
+    }
+    private void actionCalculateViewportColorRange() {
+        ColorRange cr = uiEventListener.getViewportColorRange(isRight);
+        colorRangeToControls(cr);
+        proposed.colorRange = cr.copy();
+        whenUpdated();
+    }
+    private void customStretchRgbParametersToControls(CustomStretchRgbParameters param) {
+        ColorRange cr = param.colorRange;
+        colorRangeToControls(cr);
+        cbPerChannel.setSelected(param.isPerChannel);
+        cbSaturation.setSelected(param.isSaturated);
+    }
+    private void colorRangeToControls(ColorRange cr) {
+        dcR0.setValueAndText(cr.minR);
+        dcG0.setValueAndText(cr.minG);
+        dcB0.setValueAndText(cr.minB);
+        dcR1.setValueAndText(cr.maxR);
+        dcG1.setValueAndText(cr.maxG);
+        dcB1.setValueAndText(cr.maxB);
+    }
+    private void actionResetToOriginal() {
+        proposed = old.copy();
+        customStretchRgbParametersToControls(proposed);
+        whenUpdated();
+    }
+    private void actionSetCustomStretchRgbParameters() {
+        uiEventListener.setCustomStretchRgbParameters(proposed.copy(), isRight);
+        usedNow = proposed.copy();
+        whenUpdated();
+    }
+    CustomStretchRgbParameters getCustomStretchRgbParameters() {
+        return proposed.copy();
     }
 }
 class ColorCorrectionPane extends JPanel {
@@ -5085,11 +5384,13 @@ class ColorCorrectionPane extends JPanel {
     final List<ColorCorrectionModeChooser> rChoosers = new ArrayList<>();
     final ImageResamplingModeChooser lImageResamplingModeChooser;
     final ImageResamplingModeChooser rImageResamplingModeChooser;
-    final ColorRangeChooser lColorRangeChooser = new ColorRangeChooser();
-    final ColorRangeChooser rColorRangeChooser = new ColorRangeChooser();
+    final ColorRangeAndFlagsChooser lColorRangeChooser;
+    final ColorRangeAndFlagsChooser rColorRangeChooser;
 
     public ColorCorrectionPane(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
+        lColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, false);
+        rColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, true);
 
         GridBagLayout gbl = new GridBagLayout();
 
@@ -5108,13 +5409,15 @@ class ColorCorrectionPane extends JPanel {
             for (int row = 0; row < 5; row++) {
                 ColorCorrectionModeChooser chooser = new ColorCorrectionModeChooser(x -> {
                     if (isLeft) {
-                        javax.swing.SwingUtilities.invokeLater( () ->
-                            uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers, lColorRangeChooser))
-                        );
+                        javax.swing.SwingUtilities.invokeLater( () -> {
+                            uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers, lColorRangeChooser));
+                            lColorRangeChooser.notifyOfUpdates();
+                        });
                     } else {
-                        javax.swing.SwingUtilities.invokeLater( () ->
-                            uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers, rColorRangeChooser))
-                        );
+                        javax.swing.SwingUtilities.invokeLater( () -> {
+                            uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers, rColorRangeChooser));
+                            rColorRangeChooser.notifyOfUpdates();
+                        });
                     }
                 });
                 (isLeft ? lChoosers : rChoosers).add(chooser);
@@ -5169,9 +5472,9 @@ class ColorCorrectionPane extends JPanel {
         JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
     }
 
-    ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers, ColorRangeChooser colorRangeChooser) {
+    ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers, ColorRangeAndFlagsChooser colorRangeChooser) {
         var algos = choosers.stream().map(c -> (ColorCorrectionAlgo)c.getSelectedItem()).collect(Collectors.toList());
-        return new ColorCorrection(algos, colorRangeChooser.getColorRange());
+        return new ColorCorrection(algos, colorRangeChooser.getCustomStretchRgbParameters());
     }
     ColorCorrectionPane setColorCorrectionValue(boolean isRight, ColorCorrection colorCorrection) {
         var algos = colorCorrection.getAlgos();
@@ -5195,85 +5498,114 @@ class ColorCorrectionPane extends JPanel {
 }
 
 class ColorBalancer {
-    public static BufferedImage balanceColors(BufferedImage src, boolean perChannel) {
-//        if (ImageAndPath.isDummyImage(src)) {
-//            return src;
-//        }
+    static ColorRange getColorRangeFromImage(Rectangle rectangle, BufferedImage src) {
+        int iStart = (int) rectangle.getX();
+        int iFinal = (int) rectangle.getMaxX();
+        int jStart = (int) rectangle.getY();
+        int jFinal = (int) rectangle.getMaxY();
+        return getColorRangeFromImage(iStart, iFinal, jStart, jFinal, src);
+    }
+    static ColorRange getColorRangeFromImage(int iStart, int iFinal, int jStart, int jFinal, BufferedImage src) {
+        ColorRange cr = ColorRange.newEmptyRange();
+        for (int j = jStart; j < jFinal; j++) {
+            for (int i = iStart; i < iFinal; i++) {
+                int color = src.getRGB(i, j);
+                cr.minR = Math.min(cr.minR, 0xff & (color >> 16));
+                cr.minG = Math.min(cr.minG, 0xff & (color >> 8));
+                cr.minB = Math.min(cr.minB, 0xff & (color));
+                cr.maxR = Math.max(cr.maxR, 0xff & (color >> 16));
+                cr.maxG = Math.max(cr.maxG, 0xff & (color >> 8));
+                cr.maxB = Math.max(cr.maxB, 0xff & (color));
+            }
+        }
+        return cr;
+    }
+    public static BufferedImage stretchColorsRgb(BufferedImage src, boolean perChannel) {
         try {
             final int M = 16;
-            int minR = Integer.MAX_VALUE, minG = Integer.MAX_VALUE, minB = Integer.MAX_VALUE, maxR = 0, maxG = 0, maxB = 0;
             int width = src.getWidth();
             int height = src.getHeight();
-            long avgR = 0, avgG = 0, avgB = 0, avgW = 0;
-            for (int j = M; j < height - M; j++) {
-                for (int i = M; i < width - M; i++) {
-                    int color = src.getRGB(i, j);
-                    minR = Math.min(minR, 0xff & (color >> 16));
-                    minG = Math.min(minG, 0xff & (color >> 8));
-                    minB = Math.min(minB, 0xff & (color));
-                    maxR = Math.max(maxR, 0xff & (color >> 16));
-                    maxG = Math.max(maxG, 0xff & (color >> 8));
-                    maxB = Math.max(maxB, 0xff & (color));
-                    avgR += 0xff & (color >> 16);
-                    avgG += 0xff & (color >> 8);
-                    avgB += 0xff & (color);
-                }
-            }
-            {
-                avgW = avgR + avgG + avgB;
-                long N = (height - 2 * M) * (width - 2 * M);
-                avgR /= N;
-                avgG /= N;
-                avgB /= N;
-                avgW /= 3 * N;
-            }
-            int minV = Math.min(minR, Math.min(minG, minB));
-            int maxV = Math.max(maxR, Math.max(maxG, maxB));
-            int dv = maxV - minV;
+            ColorRange cr = getColorRangeFromImage(M, width - M, M, height - M, src);
+            BufferedImage res = stretchColorsUsingRgbRange(cr, src, perChannel, false);
+            return res;
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
+        }
+    }
+    public static BufferedImage stretchColorsRgb(BufferedImage src, CustomStretchRgbParameters customStretchRgbParameters) {
+        if (customStretchRgbParameters.colorRange.isEmpty()
+         || customStretchRgbParameters.colorRange.isFullRange()
+        ) {
+            System.out.println("stretchColorsRgb: full or empty range");
+            return src;
+        }
+        boolean perChannel = customStretchRgbParameters.isPerChannel;
+        ColorRange cr = customStretchRgbParameters.colorRange;
+        boolean saturate = customStretchRgbParameters.isSaturated;
+        try {
+            return stretchColorsUsingRgbRange(cr, src, perChannel, saturate);
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
+        }
+    }
 
-            int dr = maxR - minR;
-            int dg = maxG - minG;
-            int db = maxB - minB;
-            //int dw = Math.max(dr, Math.max(dg, db));
-            System.out.println("balanceColors("+//src+
-                    ", perChannel="+perChannel+")");
-            System.out.println("min: " + minR + " " + minG + " " + minB);
-            System.out.println("max: " + maxR + " " + maxG + " " + maxB);
-            System.out.println("avg: " + avgR + " " + avgG + " " + avgB + "  " + avgW);
-            System.out.println("d: " + dr + " " + dg + " " + db);
-            System.out.println("avgd: " + (avgR - minR) + " " + (avgG - minG) + " " + (avgB - minB));
+    static BufferedImage stretchColorsUsingRgbRange(ColorRange cr, BufferedImage src, boolean perChannel, boolean saturate) {
+        int width = src.getWidth();
+        int height = src.getHeight();
+        int minR = cr.minR, minG = cr.minG, minB = cr.minB, maxR = cr.maxR, maxG = cr.maxG, maxB = cr.maxB;
+        int minV = Math.min(minR, Math.min(minG, minB));
+        int maxV = Math.max(maxR, Math.max(maxG, maxB));
+        int dv = maxV - minV;
 
-            if (!perChannel) {
-                maxR = maxG = maxB = maxV;
-                minR = minG = minB = minV;
-                dr = dg = db = dv;
-            }
+        int dr = maxR - minR;
+        int dg = maxG - minG;
+        int db = maxB - minB;
+        //int dw = Math.max(dr, Math.max(dg, db));
+        System.out.println("balanceColors("+//src+
+                ", perChannel="+perChannel+")");
+        System.out.println("min: " + minR + " " + minG + " " + minB);
+        System.out.println("max: " + maxR + " " + maxG + " " + maxB);
+        System.out.println("d: " + dr + " " + dg + " " + db);
 
-            var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        if (!perChannel) {
+            maxR = maxG = maxB = maxV;
+            minR = minG = minB = minV;
+            dr = dg = db = dv;
+        }
+
+        var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        if (saturate) {
             for (int j = 0; j < height; j++) {
                 for (int i = 0; i < width; i++) {
                     int color = src.getRGB(i, j);
                     int r = 0xff & (color >> 16);
                     int g = 0xff & (color >> 8);
                     int b = 0xff & (color);
-//                    int r1 = (int) (r * avgB*avgG/avgR/255);//r * 255 / maxR;//(r - minR) * 255 / dr;
-//                    int g1 = (int) (g * avgB*avgR/avgG/255); //g * 255 / maxG;//(g - minG) * 255 / dg;
-//                    int b1 = (int) (b * avgG*avgR/avgB/255); //b * 255 / maxB;// b * (b - minB) * 255 / db;
-                    int r1 = (r - minR) * 255 / dr;
-                    int g1 = (g - minG) * 255 / dg;
-                    int b1 = (b - minB) * 255 / db;
-//                    int r1 = (r - minR) * maxR / dr;
-//                    int g1 = (g - minG) * maxG / dg;
-//                    int b1 = (b - minB) * maxB / db;
+                    int r1 = Math.max(0, Math.min(255, (r - minR) * 255 / dr));
+                    int g1 = Math.max(0, Math.min(255, (g - minG) * 255 / dg));
+                    int b1 = Math.max(0, Math.min(255, (b - minB) * 255 / db));
                     int color1 = (r1 << 16) | (g1 << 8) | (b1);
                     res.setRGB(i, j, color1);
                 }
             }
-            return res;
-        } catch (ArithmeticException e) {
-            e.printStackTrace();
-            return src;
+        } else {
+            for (int j = 0; j < height; j++) {
+                for (int i = 0; i < width; i++) {
+                    int color = src.getRGB(i, j);
+                    int r = 0xff & (color >> 16);
+                    int g = 0xff & (color >> 8);
+                    int b = 0xff & (color);
+                    int r1 = 0xff & (r - minR) * 255 / dr;
+                    int g1 = 0xff & (g - minG) * 255 / dg;
+                    int b1 = 0xff & (b - minB) * 255 / db;
+                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                    res.setRGB(i, j, color1);
+                }
+            }
         }
+        return res;
     }
 }
 
