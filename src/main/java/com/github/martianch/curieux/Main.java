@@ -1120,7 +1120,7 @@ class UiController implements UiEventListener {
 
     @Override
     public void saveScreenshot() {
-        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame,rawData);
+        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame,rawData, displayParameters);
     }
 
     @Override
@@ -3940,12 +3940,13 @@ class ScreenshotSaver {
     public interface SaveAction {
         public void apply(File imgFile, File srcFile) throws Exception;
     }
-    public void takeAndSaveScreenshot(JFrame frame, RawData rawData) {
+    public void takeAndSaveScreenshot(JFrame frame, RawData rawData, DisplayParameters displayParameters) {
         try {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
             showSaveDialog(
                     frame,
                     FileLocations.getSol(rawData.left.path).map(x -> String.format("%04d-",x)).orElse(""),
+                    "-x" + toSuffixNumber(displayParameters.zoom * displayParameters.zoomL),
                     (imgFile, srcFile) -> {
                         String description = "Left, Right:\n" + rawData.left.path + "\n" + rawData.right.path + "\n";
                         ScreenshotSaver.writePng(imgFile, bi,
@@ -3957,11 +3958,15 @@ class ScreenshotSaver {
         } catch (Exception exc) {
             exc.printStackTrace();
         }
-
     }
-    void showSaveDialog(JFrame frame, String prefix, SaveAction howToSave) throws Exception {
+    String toSuffixNumber(double f) {
+        int i = (int) f;
+        int d = ((int) (f*10)) % 10;
+        return ("" + i) + ( d==0 ? "" : "_"+d );
+    }
+    void showSaveDialog(JFrame frame, String prefix, String suffix, SaveAction howToSave) throws Exception {
         fileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
-        fileChooser.setSelectedFile(new File(prefix+"stereo.png"));
+        fileChooser.setSelectedFile(new File(prefix+"stereo"+suffix+".png"));
 //        File imgFile;
         while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
             File imgFile = fileChooser.getSelectedFile();
