@@ -17,8 +17,10 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageTypeSpecifier;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOInvalidTreeException;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.FileImageOutputStream;
 import javax.imageio.stream.ImageOutputStream;
 import javax.swing.*;
 import javax.swing.event.AncestorEvent;
@@ -45,6 +47,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
+import java.awt.image.RenderedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -1120,7 +1123,7 @@ class UiController implements UiEventListener {
 
     @Override
     public void saveScreenshot() {
-        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame,rawData, displayParameters);
+        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame, x3dViewer.componentL, x3dViewer.componentR, rawData, displayParameters);
     }
 
     @Override
@@ -3938,21 +3941,27 @@ class ScreenshotSaver {
     }
 
     public interface SaveAction {
-        public void apply(File imgFile, File srcFile) throws Exception;
+        void apply(File imgFile, File srcFile, File gifFile) throws Exception;
     }
-    public void takeAndSaveScreenshot(JFrame frame, RawData rawData, DisplayParameters displayParameters) {
+    public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters) {
         try {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
             showSaveDialog(
                     frame,
                     FileLocations.getSol(rawData.left.path).map(x -> String.format("%04d-",x)).orElse(""),
                     "-x" + toSuffixNumber(displayParameters.zoom * displayParameters.zoomL),
-                    (imgFile, srcFile) -> {
+                    (imgFile, srcFile, gifFile) -> {
                         String description = "Left, Right:\n" + rawData.left.path + "\n" + rawData.right.path + "\n";
                         ScreenshotSaver.writePng(imgFile, bi,
                             "Software", "Curious: X3D Viewer",
                             "Description", description);
                         ScreenshotSaver.writeText(srcFile, description);
+                        GifSequenceWriter.saveAsGif(
+                                gifFile,
+                                1000,
+                                () -> ScreenshotSaver.getScreenshot(leftC),
+                                () -> ScreenshotSaver.getScreenshot(rightC)
+                        );
                     }
             );
         } catch (Exception exc) {
@@ -3964,13 +3973,20 @@ class ScreenshotSaver {
         int d = ((int) (f*10)) % 10;
         return ("" + i) + ( d==0 ? "" : "_"+d );
     }
+    String toGif(String filename) {
+        if (filename.length() > 4 && filename.endsWith(".png")) {
+            return filename.substring(0, filename.length()-4) + ".gif";
+        } else {
+            return filename + ".gif";
+        }
+    }
     void showSaveDialog(JFrame frame, String prefix, String suffix, SaveAction howToSave) throws Exception {
         fileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
         fileChooser.setSelectedFile(new File(prefix+"stereo"+suffix+".png"));
-//        File imgFile;
         while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
             File imgFile = fileChooser.getSelectedFile();
             File srcFile = new File(imgFile.getAbsolutePath()+".source");
+            File gifFile = new File(toGif(imgFile.getAbsolutePath()));
             if (!endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
                 JOptionPane.showMessageDialog(frame, "File name must end with \"png\"");
             } else if (
@@ -3978,10 +3994,12 @@ class ScreenshotSaver {
                         || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + imgFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
                     ) && ( !srcFile.exists()
                         || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + srcFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
+                    ) && ( !gifFile.exists()
+                        || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + gifFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
                     )
             ) {
                 System.out.println("Saving to " + imgFile);
-                howToSave.apply(imgFile, srcFile);
+                howToSave.apply(imgFile, srcFile, gifFile);
                 break;
             }
         }
@@ -4028,9 +4046,10 @@ class ScreenshotSaver {
             out.print(text);
         }
     }
-    public static BufferedImage getScreenshot(JFrame frame) throws AWTException {
+    public static BufferedImage getScreenshot(Component frame) throws AWTException {
         Robot robot = new Robot();
-        Rectangle appRect = new Rectangle(frame.getX(), frame.getY(), frame.getWidth(), frame.getHeight());
+        Point loc = frame.getLocationOnScreen();
+        Rectangle appRect = new Rectangle(loc.x, loc.y, frame.getWidth(), frame.getHeight());
         BufferedImage bi = robot.createScreenCapture(appRect);
         return bi;
     }
@@ -6737,5 +6756,96 @@ class MeasurementPointMarkChooser extends JComboBox<MeasurementPointMark> {
     }
     public void setValue(MeasurementPointMark markType) {
         setSelectedItem(markType);
+    }
+}
+
+/*
+ * This class was borrowed from https://memorynotfound.com/generate-gif-image-java-delay-infinite-loop-example/
+ */
+class GifSequenceWriter {
+
+    protected ImageWriter writer;
+    protected ImageWriteParam params;
+    protected IIOMetadata metadata;
+
+    public GifSequenceWriter(ImageOutputStream out, int imageType, int delay, boolean loop) throws IOException {
+        writer = ImageIO.getImageWritersBySuffix("gif").next();
+        params = writer.getDefaultWriteParam();
+
+        ImageTypeSpecifier imageTypeSpecifier = ImageTypeSpecifier.createFromBufferedImageType(imageType);
+        metadata = writer.getDefaultImageMetadata(imageTypeSpecifier, params);
+
+        configureRootMetadata(delay, loop);
+
+        writer.setOutput(out);
+        writer.prepareWriteSequence(null);
+    }
+
+    private void configureRootMetadata(int delay, boolean loop) throws IIOInvalidTreeException {
+        String metaFormatName = metadata.getNativeMetadataFormatName();
+        IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(metaFormatName);
+
+        IIOMetadataNode graphicsControlExtensionNode = getNode(root, "GraphicControlExtension");
+        graphicsControlExtensionNode.setAttribute("disposalMethod", "none");
+        graphicsControlExtensionNode.setAttribute("userInputFlag", "FALSE");
+        graphicsControlExtensionNode.setAttribute("transparentColorFlag", "FALSE");
+        graphicsControlExtensionNode.setAttribute("delayTime", Integer.toString(delay / 10));
+        graphicsControlExtensionNode.setAttribute("transparentColorIndex", "0");
+
+        IIOMetadataNode commentsNode = getNode(root, "CommentExtensions");
+        commentsNode.setAttribute("CommentExtension", "Created by: https://memorynotfound.com");
+
+        IIOMetadataNode appExtensionsNode = getNode(root, "ApplicationExtensions");
+        IIOMetadataNode child = new IIOMetadataNode("ApplicationExtension");
+        child.setAttribute("applicationID", "NETSCAPE");
+        child.setAttribute("authenticationCode", "2.0");
+
+        int loopContinuously = loop ? 0 : 1;
+        child.setUserObject(new byte[]{ 0x1, (byte) (loopContinuously & 0xFF), (byte) ((loopContinuously >> 8) & 0xFF)});
+        appExtensionsNode.appendChild(child);
+        metadata.setFromTree(metaFormatName, root);
+    }
+
+    private static IIOMetadataNode getNode(IIOMetadataNode rootNode, String nodeName){
+        int nNodes = rootNode.getLength();
+        for (int i = 0; i < nNodes; i++){
+            if (rootNode.item(i).getNodeName().equalsIgnoreCase(nodeName)){
+                return (IIOMetadataNode) rootNode.item(i);
+            }
+        }
+        IIOMetadataNode node = new IIOMetadataNode(nodeName);
+        rootNode.appendChild(node);
+        return(node);
+    }
+
+    public void writeToSequence(RenderedImage img) throws IOException {
+        writer.writeToSequence(new IIOImage(img, null, metadata), params);
+    }
+
+    public void close() throws IOException {
+        writer.endWriteSequence();
+    }
+    // end of code borrowed from https://memorynotfound.com/generate-gif-image-java-delay-infinite-loop-example/
+
+    interface BufferedImageSupplier {
+        BufferedImage get() throws Exception;
+    }
+    public static void saveAsGif(File outFile, int delay, BufferedImageSupplier firstImageSupplier, BufferedImageSupplier... imageSuppliers) throws Exception {
+        ImageOutputStream output = new FileImageOutputStream(outFile);
+
+        GifSequenceWriter writer;
+        {
+            var first = firstImageSupplier.get();
+            writer = new GifSequenceWriter(output, first.getType(), delay, true);
+            writer.writeToSequence(first);
+        }
+
+        for (var supplier : imageSuppliers) {
+            BufferedImage next = supplier.get();
+            writer.writeToSequence(next);
+        }
+
+        writer.close();
+        output.close();
     }
 }
