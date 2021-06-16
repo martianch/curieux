@@ -199,6 +199,7 @@ interface UiEventListener {
     void stereoCameraChanged(StereoPairParameters v);
     void markShapeChanged(MeasurementPointMark v);
     void measurementShownChanged(boolean newIsShown);
+    void adjustOffsets();
     void escapePressed();
     Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
@@ -1295,6 +1296,13 @@ class UiController implements UiEventListener {
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
+    public void adjustOffsets() {
+        displayParameters.offsetX = (int) (measurementStatus.right.x1 - measurementStatus.left.x1);
+        displayParameters.offsetY = (int) (measurementStatus.right.y1 - measurementStatus.left.y1);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus);
+    }
+    @Override
     public void escapePressed() {
         if (measurementStatus.isWaitingForPoint()) {
             measurementStatus.clearWaitingForPoint();
@@ -1749,6 +1757,13 @@ class X3DViewer {
                                 isFromComponentsMenu(e, lblR),
                                 OneOrBothPanes.BOTH_PANES
                         ));
+            }
+            {
+                JMenuItem miAdjustOffsets = new JMenuItem("Adjust Offsets Using Measurement Red Marks");
+                menuLR.add(miAdjustOffsets);
+                miAdjustOffsets.addActionListener(e ->
+                        uiEventListener.adjustOffsets()
+                );
             }
             {
                 String menuTitle = "Measurement...";
