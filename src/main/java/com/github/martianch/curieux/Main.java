@@ -1866,6 +1866,12 @@ class X3DViewer {
                             "<b>Alt H</b> set the 3rd (blue) mark<br>" +
                             "<b>Alt T</b> show distance measurement panel<br>" +
                             "<br>" +
+                            "It's not really about measurement, but it is possible to use the red (1st) marks to set both offsets at once (horizontal and vertical).<br>" +
+                            "Mark the same object in both panes (Alt R, click the mouse on some object in the left pane, Alt R, click mouse on the same object in the right pane),<br>" +
+                            "select \"Adjust Offsets Using Measurement Red Marks\" in the menu, then hide the measurement marks in the menu.<br>" +
+                            "Then, use the offsetX and offsetY controls to further adjust offsets with one-pixel precision: press Shift and click on the + or - button to adjust by 1 pixel,<br>" +
+                            "do not press Shift to adjust offset by 3 pixels.<br>" +
+                            "<br>" +
                         "</html>");
                     mi.addActionListener(e ->
                         JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
@@ -2183,6 +2189,8 @@ class X3DViewer {
                         "<b>Ctrl LEFT</b>, <b>Ctrl RIGHT</b>: change horizontal offset by 30<br>" +
                         "<b>Shift UP</b>, <b>Shift DOWN</b>: change vertical offset by 3<br>" +
                         "<b>Ctrl UP</b>, <b>Ctrl DOWN</b>: change vertical offset by 30<br>" +
+                        "Note: to set both vertical and horizontal offsets, mark the same object with <b>Alt R</b> in the left and right panes, and then<br>" +
+                        "select \"Adjust Offsets...\" in the menu. Then, use the menu to hide the measurement marks.<br>" +
                         "<b>Alt B</b>: Toggle the \"drag-and-drop to both panes\" mode<br>" +
                         "<b>Ctrl U</b>: Swap the left and right images<br>" +
                         "<b>Alt R/Alt G/Alt T</b>: Set the red/green marks, show <b>distance measurement</b> panel; more options in the context menu<br>" +
