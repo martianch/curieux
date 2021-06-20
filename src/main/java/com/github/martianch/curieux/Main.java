@@ -3964,7 +3964,7 @@ class ScreenshotSaver {
     }
 
     public interface SaveAction {
-        void apply(File imgFile, File srcFile, File gifFile) throws Exception;
+        void apply(File imgFile) throws Exception;
     }
     public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters) {
         try {
@@ -3973,15 +3973,17 @@ class ScreenshotSaver {
                     frame,
                     FileLocations.getSol(rawData.left.path).map(x -> String.format("%04d-",x)).orElse(""),
                     "-x" + toSuffixNumber(displayParameters.zoom * displayParameters.zoomL),
-                    (imgFile, srcFile, gifFile) -> {
+                    (imgFile) -> {
                         String description = "Left, Right:\n" + rawData.left.path + "\n" + rawData.right.path + "\n";
                         ScreenshotSaver.writePng(imgFile, bi,
                             "Software", "Curious: X3D Viewer",
                             "Description", description);
-                        ScreenshotSaver.writeText(srcFile, description);
+                        ScreenshotSaver.writeText(toSrcFile(imgFile), description);
+                        ScreenshotSaver.writePng(toLeftFile(imgFile), ScreenshotSaver.getScreenshot(leftC), "Description", description+"this is left\n");
+                        ScreenshotSaver.writePng(toRightFile(imgFile), ScreenshotSaver.getScreenshot(rightC), "Description", description+"this is right\n");
                         GifSequenceWriter.saveAsGif(
-                                gifFile,
-                                1000,
+                                toGifFile(imgFile),
+                                500,
                                 () -> ScreenshotSaver.getScreenshot(leftC),
                                 () -> ScreenshotSaver.getScreenshot(rightC)
                         );
@@ -3991,41 +3993,55 @@ class ScreenshotSaver {
             exc.printStackTrace();
         }
     }
-    String toSuffixNumber(double f) {
+    static String toSuffixNumber(double f) {
         int i = (int) f;
         int d = ((int) (f*10)) % 10;
         return ("" + i) + ( d==0 ? "" : "_"+d );
     }
-    String toGif(String filename) {
+    static String toBase(String filename) {
         if (filename.length() > 4 && filename.endsWith(".png")) {
-            return filename.substring(0, filename.length()-4) + ".gif";
+            return filename.substring(0, filename.length()-4);
         } else {
-            return filename + ".gif";
+            return filename;
         }
+    }
+    static String toGif(String filename) {
+        return toBase(filename)  + ".gif";
     }
     void showSaveDialog(JFrame frame, String prefix, String suffix, SaveAction howToSave) throws Exception {
         fileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
         fileChooser.setSelectedFile(new File(prefix+"stereo"+suffix+".png"));
         while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
             File imgFile = fileChooser.getSelectedFile();
-            File srcFile = new File(imgFile.getAbsolutePath()+".source");
-            File gifFile = new File(toGif(imgFile.getAbsolutePath()));
             if (!endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
                 JOptionPane.showMessageDialog(frame, "File name must end with \"png\"");
-            } else if (
-                        (  !imgFile.exists()
-                        || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + imgFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
-                    ) && ( !srcFile.exists()
-                        || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + srcFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
-                    ) && ( !gifFile.exists()
-                        || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + gifFile + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION)
-                    )
+            } else if (checkAskOverwrite(frame, imgFile)
+                    && checkAskOverwrite(frame, toSrcFile(imgFile))
+                    && checkAskOverwrite(frame, toGifFile(imgFile))
+                    && checkAskOverwrite(frame, toLeftFile(imgFile))
+                    && checkAskOverwrite(frame, toRightFile(imgFile))
             ) {
                 System.out.println("Saving to " + imgFile);
-                howToSave.apply(imgFile, srcFile, gifFile);
+                howToSave.apply(imgFile);
                 break;
             }
         }
+    }
+    private boolean checkAskOverwrite(JFrame frame, File file) {
+        return !file.exists()
+            || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + file + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION);
+    }
+    static File toGifFile(File imgFile) {
+        return new File(toGif(imgFile.getAbsolutePath()));
+    }
+    static File toSrcFile(File imgFile) {
+        return new File(imgFile.getAbsolutePath()+".source");
+    }
+    static File toLeftFile(File imgFile) {
+        return new File(toBase(imgFile.getAbsolutePath())+".left.png");
+    }
+    static File toRightFile(File imgFile) {
+        return new File(toBase(imgFile.getAbsolutePath())+".right.png");
     }
     static boolean endsWithIgnoreCase(String text, String suffix) {
         if (text.length() < suffix.length()) {
