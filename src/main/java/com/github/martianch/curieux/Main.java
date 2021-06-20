@@ -149,7 +149,8 @@ public class Main {
         var xv = new X3DViewer();
         var ms = new MeasurementStatus();
         var lrn = new LRNavigator();
-        var uic = new UiController(xv, lrn, rd0, dp, ms);
+        var so = new SaveOptions();
+        var uic = new UiController(xv, lrn, rd0, dp, ms, so);
         javax.swing.SwingUtilities.invokeLater(
                 () -> uic.createAndShowViews()
         );
@@ -207,6 +208,7 @@ interface UiEventListener {
     ColorRange getViewportColorRange(boolean isRight);
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
     void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight); //???
+    void setSaveOptions(boolean saveGif, boolean saveLeftRIght);
 }
 
 enum GoToImageOptions {
@@ -318,6 +320,10 @@ class CustomStretchRgbParameters {
     public int hashCode() {
         return Objects.hash(colorRange, isPerChannel, isSaturated);
     }
+}
+class SaveOptions {
+    boolean saveGif = true;
+    boolean saveLeftRightImages = true;
 }
 class DisplayParameters {
     double zoom, zoomL, zoomR;
@@ -871,17 +877,20 @@ class UiController implements UiEventListener {
     DisplayParameters displayParameters;
     RawData rawData;
     MeasurementStatus measurementStatus;
+    SaveOptions saveOptions;
+
     final LRNavigator lrNavigator;
     boolean dndOneToBoth = true;
     boolean unthumbnail = true;
     volatile long lastLoadTimestampL;
     volatile long lastLoadTimestampR;
-    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms) {
+    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms, SaveOptions so) {
         x3dViewer = xv;
         displayParameters = dp;
         rawData = rd;
         measurementStatus = ms;
         lrNavigator = lrn;
+        saveOptions = so;
     }
     @Override
     public void zoomChanged(double newZoom) {
@@ -927,13 +936,13 @@ class UiController implements UiEventListener {
     public void lImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeL) {
         displayParameters.imageResamplingModeL = newImageResamplingModeL;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
     }
     @Override
     public void rImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeR) {
         displayParameters.imageResamplingModeR = newImageResamplingModeR;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
     }
     @Override
     public void xOffsetChanged(int newXOff) {
@@ -959,14 +968,14 @@ class UiController implements UiEventListener {
     public void swapImages() {
         System.out.println("swapImages "+Thread.currentThread());
         x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters = displayParameters.swapped(), measurementStatus = measurementStatus.swapped());
-        x3dViewer.updateControls(displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
         lrNavigator.swap();
     }
     @Override
     public void swapImageUrls() {
         System.out.println("swapImageUrls "+Thread.currentThread());
         x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
         lrNavigator.swap();
     }
 
@@ -1117,14 +1126,14 @@ class UiController implements UiEventListener {
         } else {
             displayParameters.setDefaults();
         }
-        x3dViewer.updateControls(displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
         // TODO: reset measurementStatus
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
 
     @Override
     public void saveScreenshot() {
-        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame, x3dViewer.componentL, x3dViewer.componentR, rawData, displayParameters);
+        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame, x3dViewer.componentL, x3dViewer.componentR, rawData, displayParameters, saveOptions);
     }
 
     @Override
@@ -1300,7 +1309,7 @@ class UiController implements UiEventListener {
         displayParameters.offsetX = (int) (measurementStatus.right.x1 - measurementStatus.left.x1);
         displayParameters.offsetY = (int) (measurementStatus.right.y1 - measurementStatus.left.y1);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
     }
     @Override
     public void escapePressed() {
@@ -1363,6 +1372,12 @@ class UiController implements UiEventListener {
                 .copyWith(customStretchRgbParameters);
         var newDp = displayParameters.withColorCorrection(isRight, cc);
         x3dViewer.updateViews(rawData, displayParameters=newDp, measurementStatus);
+    }
+    @Override
+    public void setSaveOptions(boolean saveGif, boolean saveLeftRIght) {
+        saveOptions.saveGif = saveGif;
+        saveOptions.saveLeftRightImages = saveLeftRIght;
+        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
     }
     public void createAndShowViews() {
         x3dViewer.createViews(rawData, displayParameters, measurementStatus, this);
@@ -1505,6 +1520,7 @@ class X3DViewer {
     JLabel colorCorrectionDescriptionR;
     ColorCorrectionPane colorCorrectionPane;
     MeasurementPanel measurementPanel;
+    SettingsPanel settingsPanel;
     JCheckBoxMenuItem showMeasurementCbMenuItem;
     JFrame frame;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
@@ -1520,7 +1536,7 @@ class X3DViewer {
     JButton helpButton;
     ScreenshotSaver screenshotSaver = new ScreenshotSaver(new JFileChooser());
 
-    public void updateControls(DisplayParameters dp, MeasurementStatus ms) {
+    public void updateControls(DisplayParameters dp, MeasurementStatus ms, SaveOptions so) {
         dcZoom.setValueAndText(dp.zoom);
         dcZoomL.setValueAndText(dp.zoomL);
         dcZoomR.setValueAndText(dp.zoomR);
@@ -1537,6 +1553,7 @@ class X3DViewer {
         colorCorrectionPane.setImageResamplingModeValue(true, dp.imageResamplingModeR);
         showMeasurementCbMenuItem.setState(dp.measurementShown);
         measurementPanel.setControls(ms);
+        settingsPanel.setControls(so);
     }
     void setCursor(Cursor cursor) {
         lblL.setCursor(cursor);
@@ -1647,6 +1664,7 @@ class X3DViewer {
         colorCorrectionDescriptionR = new JLabel("....");
         colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
         measurementPanel = new MeasurementPanel(uiEventListener);
+        settingsPanel = new SettingsPanel(uiEventListener);
         {
             try {
                 var mainIcon = ImageIO.read(ClassLoader.getSystemResource("icons/main64.png"));
@@ -2115,7 +2133,6 @@ class X3DViewer {
             gbl.setConstraints(componentR, gbc);
         }
 
-        JCheckBox showUrlsCheckox;
         JPanel statusPanel = new JPanel();
         JPanel statusPanel2 = new JPanel();
         {
@@ -2136,6 +2153,14 @@ class X3DViewer {
                 resetAllControlsButton.addActionListener(e -> uiEventListener.resetToDefaults());
                 resetAllControlsButton.setToolTipText("Reset All Controls (MR/ML pair: special case)");
                 statusPanel.add(resetAllControlsButton);
+            }
+
+            {
+                JButton settingsButton = new JButton();
+                DigitalZoomControl.loadIcon(settingsButton,"icons/gear12.png","⚙"); //
+                settingsButton.addActionListener(e -> settingsPanel.showDialogIn(frame));
+                settingsButton.setToolTipText("Settings");
+                statusPanel2.add(settingsButton);
             }
 
             statusPanel.add(dcZoom = new  DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoom:",4, new ZoomFactorWrapper(), d -> uiEventListener.zoomChanged(d)));
@@ -2307,22 +2332,6 @@ class X3DViewer {
                 );
                 statusPanel2.add(dndToBothCheckox);
             }
-            {
-                JCheckBox unThumbnailCheckox = new JCheckBox("Un-Thumbnail");
-                unThumbnailCheckox.setSelected(true);
-                unThumbnailCheckox.addActionListener(
-                    e -> uiEventListener.unthumbnailChanged(unThumbnailCheckox.isSelected())
-                );
-                statusPanel2.add(unThumbnailCheckox);
-            }
-            {
-                showUrlsCheckox = new JCheckBox("Show URLs");
-                showUrlsCheckox.setSelected(true);
-                showUrlsCheckox.addActionListener(
-                        e -> uiEventListener.setShowUrls(showUrlsCheckox.isSelected())
-                );
-                statusPanel2.add(showUrlsCheckox);
-            }
         }
 
         {
@@ -2421,7 +2430,7 @@ class X3DViewer {
             lblL.setTransferHandler(transferHandler);
             lblR.setTransferHandler(transferHandler);
         }
-        if (showUrlsCheckox.isSelected()) {
+        if (settingsPanel.showUrlsCheckbox.isSelected()) {
             addUrlViews(true, false);
         }
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -3966,7 +3975,7 @@ class ScreenshotSaver {
     public interface SaveAction {
         void apply(File imgFile) throws Exception;
     }
-    public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters) {
+    public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters, SaveOptions saveOptions) {
         try {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
             showSaveDialog(
@@ -3979,14 +3988,18 @@ class ScreenshotSaver {
                             "Software", "Curious: X3D Viewer",
                             "Description", description);
                         ScreenshotSaver.writeText(toSrcFile(imgFile), description);
-                        ScreenshotSaver.writePng(toLeftFile(imgFile), ScreenshotSaver.getScreenshot(leftC), "Description", description+"this is left\n");
-                        ScreenshotSaver.writePng(toRightFile(imgFile), ScreenshotSaver.getScreenshot(rightC), "Description", description+"this is right\n");
-                        GifSequenceWriter.saveAsGif(
-                                toGifFile(imgFile),
-                                500,
-                                () -> ScreenshotSaver.getScreenshot(leftC),
-                                () -> ScreenshotSaver.getScreenshot(rightC)
-                        );
+                        if (saveOptions.saveLeftRightImages) {
+                            ScreenshotSaver.writePng(toLeftFile(imgFile), ScreenshotSaver.getScreenshot(leftC), "Description", description + "this is left\n");
+                            ScreenshotSaver.writePng(toRightFile(imgFile), ScreenshotSaver.getScreenshot(rightC), "Description", description+"this is right\n");
+                        }
+                        if (saveOptions.saveGif) {
+                            GifSequenceWriter.saveAsGif(
+                                    toGifFile(imgFile),
+                                    500,
+                                    () -> ScreenshotSaver.getScreenshot(leftC),
+                                    () -> ScreenshotSaver.getScreenshot(rightC)
+                            );
+                        }
                     }
             );
         } catch (Exception exc) {
@@ -6887,4 +6900,61 @@ class GifSequenceWriter {
         writer.close();
         output.close();
     }
+}
+
+class SettingsPanel extends JPanel {
+    final UiEventListener uiEventListener;
+    JCheckBox showUrlsCheckbox;
+    JCheckBox saveGifCheckbox;
+    JCheckBox saveRightLeftCheckbox;
+
+    public SettingsPanel(UiEventListener uiEventListener) {
+        this.uiEventListener = uiEventListener;
+        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        {
+            JCheckBox unThumbnailCheckox = new JCheckBox("Un-Thumbnail");
+            unThumbnailCheckox.setSelected(true);
+            unThumbnailCheckox.addActionListener(
+                    e -> uiEventListener.unthumbnailChanged(unThumbnailCheckox.isSelected())
+            );
+            unThumbnailCheckox.setToolTipText("You can drag thumbnails, the full-scale version will be shown");
+            this.add(unThumbnailCheckox);
+        }
+        {
+            showUrlsCheckbox = new JCheckBox("Show URLs");
+            showUrlsCheckbox.setSelected(true);
+            showUrlsCheckbox.addActionListener(
+                    e -> uiEventListener.setShowUrls(showUrlsCheckbox.isSelected())
+            );
+            showUrlsCheckbox.setToolTipText("Show image URLs in the bottom of the window");
+            this.add(showUrlsCheckbox);
+        }
+        {
+            saveGifCheckbox = new JCheckBox("Save Animated GIF");
+            saveGifCheckbox.setSelected(true);
+            saveGifCheckbox.addActionListener(
+                    e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(),  saveRightLeftCheckbox.isSelected())
+            );
+            saveGifCheckbox.setToolTipText("When you click \"Save\", additionally save an animated GIF with the right and left halves of the stereo pair");
+            this.add(saveGifCheckbox);
+        }
+        {
+            saveRightLeftCheckbox = new JCheckBox("Save Left and Right Images Separately");
+            saveRightLeftCheckbox.setSelected(true);
+            saveRightLeftCheckbox.addActionListener(
+                    e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(), saveRightLeftCheckbox.isSelected())
+            );
+            saveRightLeftCheckbox.setToolTipText("When you click \"Save\", additionally save left and right halves of the stereo pair separately");
+            this.add(saveRightLeftCheckbox);
+        }
+
+    }
+    void setControls (SaveOptions so) {
+        saveGifCheckbox.setSelected(so.saveGif);
+        saveRightLeftCheckbox.setSelected(so.saveLeftRightImages);
+    }
+    void showDialogIn(JFrame mainFrame) {
+        JOptionPane.showMessageDialog(mainFrame, this,"Settings", JOptionPane.PLAIN_MESSAGE);
+    }
+
 }
