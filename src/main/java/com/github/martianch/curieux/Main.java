@@ -2159,8 +2159,17 @@ class X3DViewer {
                 JButton settingsButton = new JButton();
                 DigitalZoomControl.loadIcon(settingsButton,"icons/gear12.png","⚙"); //
                 settingsButton.addActionListener(e -> settingsPanel.showDialogIn(frame));
-                settingsButton.setToolTipText("Settings");
+                settingsButton.setToolTipText("Settings...");
                 statusPanel2.add(settingsButton);
+            }
+            {
+                JButton colorButton = new JButton();
+                DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","color");
+                colorButton.setToolTipText("Color correction...");
+                colorButton.addActionListener(e -> {
+                    colorCorrectionPane.showDialogIn(frame);
+                });
+                statusPanel2.add(colorButton);
             }
 
             statusPanel.add(dcZoom = new  DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoom:",4, new ZoomFactorWrapper(), d -> uiEventListener.zoomChanged(d)));
@@ -2313,15 +2322,6 @@ class X3DViewer {
                 ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 2));
                 ffButton.setToolTipText("go two images later in each pane");
                 statusPanel.add(ffButton);
-            }
-            {
-                JButton colorButton = new JButton();
-                DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","color");
-                colorButton.setToolTipText("color correction...");
-                colorButton.addActionListener(e -> {
-                    colorCorrectionPane.showDialogIn(frame);
-                });
-                statusPanel2.add(colorButton);
             }
             {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
