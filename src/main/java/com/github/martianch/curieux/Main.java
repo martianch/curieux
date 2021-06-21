@@ -200,7 +200,7 @@ interface UiEventListener {
     void stereoCameraChanged(StereoPairParameters v);
     void markShapeChanged(MeasurementPointMark v);
     void measurementShownChanged(boolean newIsShown);
-    void adjustOffsets();
+    void adjustOffsets(int pointId);
     void escapePressed();
     Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
@@ -1305,9 +1305,17 @@ class UiController implements UiEventListener {
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
-    public void adjustOffsets() {
-        displayParameters.offsetX = (int) (measurementStatus.right.x1 - measurementStatus.left.x1);
-        displayParameters.offsetY = (int) (measurementStatus.right.y1 - measurementStatus.left.y1);
+    public void adjustOffsets(int pointId) {
+        switch (pointId) {
+            case 1:
+                displayParameters.offsetX = (int) (measurementStatus.right.x1 - measurementStatus.left.x1);
+                displayParameters.offsetY = (int) (measurementStatus.right.y1 - measurementStatus.left.y1);
+                break;
+            case 2:
+                displayParameters.offsetX = (int) (measurementStatus.right.x2 - measurementStatus.left.x2);
+                displayParameters.offsetY = (int) (measurementStatus.right.y2 - measurementStatus.left.y2);
+                break;
+        }
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
         x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
     }
@@ -1777,10 +1785,17 @@ class X3DViewer {
                         ));
             }
             {
-                JMenuItem miAdjustOffsets = new JMenuItem("Adjust Offsets Using Measurement Red Marks");
+                JMenuItem miAdjustOffsets = new JMenuItem("Adjust Offsets Using Red Measurement Marks");
                 menuLR.add(miAdjustOffsets);
                 miAdjustOffsets.addActionListener(e ->
-                        uiEventListener.adjustOffsets()
+                        uiEventListener.adjustOffsets(1)
+                );
+            }
+            {
+                JMenuItem miAdjustOffsets = new JMenuItem("Adjust Offsets Using Green Measurement Marks");
+                menuLR.add(miAdjustOffsets);
+                miAdjustOffsets.addActionListener(e ->
+                        uiEventListener.adjustOffsets(2)
                 );
             }
             {
@@ -1884,7 +1899,7 @@ class X3DViewer {
                             "<b>Alt H</b> set the 3rd (blue) mark<br>" +
                             "<b>Alt T</b> show distance measurement panel<br>" +
                             "<br>" +
-                            "It's not really about measurement, but it is possible to use the red (1st) marks to set both offsets at once (horizontal and vertical).<br>" +
+                            "It's not really about measurement, but it is possible to use the red and green (1st and 2nd) marks to set both offsets at once (horizontal and vertical).<br>" +
                             "Mark the same object in both panes (Alt R, click the mouse on some object in the left pane, Alt R, click mouse on the same object in the right pane),<br>" +
                             "select \"Adjust Offsets Using Measurement Red Marks\" in the menu, then hide the measurement marks in the menu.<br>" +
                             "Then, use the offsetX and offsetY controls to further adjust offsets with one-pixel precision: press Shift and click on the + or - button to adjust by 1 pixel,<br>" +
