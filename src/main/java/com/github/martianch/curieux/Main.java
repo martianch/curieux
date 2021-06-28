@@ -557,7 +557,7 @@ class MeasurementStatus {
     boolean isWaitingForPoint;
     int pointIsWaitingFor;
     boolean isSubpixelPrecision;
-    boolean measurementShown = true;
+    boolean measurementShown;
     public MeasurementStatus(PanelMeasurementStatus left, PanelMeasurementStatus right) {
         this.left = left;
         this.right = right;
