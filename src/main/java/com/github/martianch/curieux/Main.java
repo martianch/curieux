@@ -332,7 +332,6 @@ class DisplayParameters {
     DebayerMode debayerL, debayerR;
     ImageResamplingMode imageResamplingModeL, imageResamplingModeR;
     ColorCorrection lColorCorrection, rColorCorrection;
-    boolean measurementShown = true;
 
     public DisplayParameters() {
         setDefaults();
@@ -344,7 +343,6 @@ class DisplayParameters {
         debayerL = debayerR = DebayerMode.getUiDefault();
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
         lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, CustomStretchRgbParameters.newFullRange());
-        measurementShown = true;
     }
     void setDefaultsMrMl() {
         setDefaults();
@@ -352,7 +350,7 @@ class DisplayParameters {
         offsetX = 700;//240;
         offsetY = 450;//72;
     }
-    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection, boolean measurementShown) {
+    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
         this.zoom = zoom;
         this.zoomL = zoomL;
         this.zoomR = zoomR;
@@ -367,21 +365,20 @@ class DisplayParameters {
         this.imageResamplingModeR = imageResamplingModeR;
         this.lColorCorrection = lColorCorrection;
         this.rColorCorrection = rColorCorrection;
-        this.measurementShown = measurementShown;
     }
     public DisplayParameters swapped() {
-        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection, measurementShown);
+        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection);
     }
     public DisplayParameters withColorCorrection(ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, measurementShown);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection);
     }
     public DisplayParameters withColorCorrection(boolean isRight, ColorCorrection cc) {
         ColorCorrection lColorCorrection = isRight ? this.lColorCorrection : cc;
         ColorCorrection rColorCorrection = isRight ? cc : this.rColorCorrection;
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, measurementShown);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection);
     }
     public DisplayParameters withMeasurementShown(boolean measurementShown) {
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, measurementShown);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection);
     }
     ColorCorrection getColorCorrection(boolean isRight) {
         return isRight ? rColorCorrection : lColorCorrection;
@@ -560,12 +557,14 @@ class MeasurementStatus {
     boolean isWaitingForPoint;
     int pointIsWaitingFor;
     boolean isSubpixelPrecision;
+    boolean measurementShown = true;
     public MeasurementStatus(PanelMeasurementStatus left, PanelMeasurementStatus right) {
         this.left = left;
         this.right = right;
         isWaitingForPoint = false;
         pointIsWaitingFor = 0;
         isSubpixelPrecision = false;
+        measurementShown = true;
         measurementPointMark = MeasurementPointMark.getUiDefault();
         stereoPairParameters = StereoPairParameters.getUiDefault(); // TODO: find out from file name ???
     }
@@ -592,6 +591,7 @@ class MeasurementStatus {
         res.isWaitingForPoint = this.isWaitingForPoint;
         res.pointIsWaitingFor = this.pointIsWaitingFor;
         res.isSubpixelPrecision = this.isSubpixelPrecision;
+        res.measurementShown = this.measurementShown;
         return res;
     }
     public MeasurementStatus copy() {
@@ -601,6 +601,7 @@ class MeasurementStatus {
         res.isWaitingForPoint = this.isWaitingForPoint;
         res.pointIsWaitingFor = this.pointIsWaitingFor;
         res.isSubpixelPrecision = this.isSubpixelPrecision;
+        res.measurementShown = this.measurementShown;
         return res;
     }
 }
@@ -1301,7 +1302,7 @@ class UiController implements UiEventListener {
     }
     @Override
     public void measurementShownChanged(boolean newIsShown) {
-        displayParameters.measurementShown = newIsShown;
+        measurementStatus.measurementShown = newIsShown;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
     @Override
@@ -1559,7 +1560,7 @@ class X3DViewer {
         colorCorrectionPane.setColorCorrectionValue(true, dp.rColorCorrection);
         colorCorrectionPane.setImageResamplingModeValue(false, dp.imageResamplingModeL);
         colorCorrectionPane.setImageResamplingModeValue(true, dp.imageResamplingModeR);
-        showMeasurementCbMenuItem.setState(dp.measurementShown);
+        showMeasurementCbMenuItem.setState(ms.measurementShown);
         measurementPanel.setControls(ms);
         settingsPanel.setControls(so);
     }
@@ -1589,7 +1590,7 @@ class X3DViewer {
 
         ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "x3d:L straight:R");
         ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "x3d:R, straight:L");
-        if (!PRECISE_MARKS && dp.measurementShown) {
+        if (!PRECISE_MARKS && ms.measurementShown) {
             imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
             imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
         }
@@ -1604,7 +1605,7 @@ class X3DViewer {
         ms.left.centeringDY = Math.max(0,dh);
         ms.right.centeringDX = Math.max(0,-dw);
         ms.right.centeringDY = Math.max(0,-dh);
-        if (!PRECISE_MARKS || !dp.measurementShown) {
+        if (!PRECISE_MARKS || !ms.measurementShown) {
             return Arrays.asList(
                     zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL),
                     zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR)
@@ -1804,7 +1805,7 @@ class X3DViewer {
                 menuLR.add(mMeasure);
                 {
                     String title = "Show Marks";
-                    showMeasurementCbMenuItem = new JCheckBoxMenuItem(title, dp.measurementShown);
+                    showMeasurementCbMenuItem = new JCheckBoxMenuItem(title, ms.measurementShown);
                     mMeasure.add(showMeasurementCbMenuItem);
                     showMeasurementCbMenuItem.addActionListener(e ->
                             uiEventListener.measurementShownChanged(showMeasurementCbMenuItem.getState())
