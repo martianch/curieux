@@ -5591,10 +5591,14 @@ class ColorCorrectionPane extends JPanel {
 
 class ColorBalancer {
     static ColorRange getColorRangeFromImage(Rectangle rectangle, BufferedImage src) {
+        // if the viewport rectangle is wider/higher than the image,
+        // we take the whole width/height of the image.
+        // We assume that either the viewport is somewhere within the image,
+        // or the image is somewhere within the viewport.
         int iStart = (int) rectangle.getX();
-        int iFinal = (int) rectangle.getMaxX();
+        int iFinal = Math.min((int) rectangle.getMaxX(), src.getWidth());
         int jStart = (int) rectangle.getY();
-        int jFinal = (int) rectangle.getMaxY();
+        int jFinal = Math.min((int) rectangle.getMaxY(), src.getHeight());
         return getColorRangeFromImage(iStart, iFinal, jStart, jFinal, src);
     }
     static ColorRange getColorRangeFromImage(int iStart, int iFinal, int jStart, int jFinal, BufferedImage src) {
