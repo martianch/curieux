@@ -859,7 +859,8 @@ class PanelMeasurementStatus {
                 "  " + x4 + " " + y4 +
                 "  " + x5 + " " + y5 +
                 "  w=" + w + " h=" + h +
-                " ifov=" + ifov;
+                " ifov=" + ifov +
+                " c(" + centeringDX + "," + centeringDY + ")";
     }
 }
 interface APoint {
@@ -1194,32 +1195,32 @@ class UiController implements UiEventListener {
         if (measurementStatus.isWaitingForPoint()) {
             System.out.println("markPointWithMousePress r="+isRight+" x="+e.getX()+" y="+e.getY()+" btn="+e.getButton());
             System.out.println("e="+e);
-            var lr = isRight ? measurementStatus.right : measurementStatus.left;
+            var panelMStatus = isRight ? measurementStatus.right : measurementStatus.left;
             var zoom = displayParameters.zoom * (isRight ? displayParameters.zoomR : displayParameters.zoomL);
             var offX = Math.max(0, isRight ? -displayParameters.offsetX : displayParameters.offsetX);
             var offY = Math.max(0, isRight ? -displayParameters.offsetY : displayParameters.offsetY);
-            int x = (int) (e.getX() / zoom - offX - lr.centeringDX);
-            int y = (int) (e.getY() / zoom - offY - lr.centeringDY);
+            int x = (int) (e.getX() / zoom - offX - panelMStatus.centeringDX);
+            int y = (int) (e.getY() / zoom - offY - panelMStatus.centeringDY);
             switch (measurementStatus.pointWaitingFor()) {
                 case 1:
-                    lr.x1 = x;
-                    lr.y1 = y;
+                    panelMStatus.x1 = x;
+                    panelMStatus.y1 = y;
                     break;
                 case 2:
-                    lr.x2 = x;
-                    lr.y2 = y;
+                    panelMStatus.x2 = x;
+                    panelMStatus.y2 = y;
                     break;
                 case 3:
-                    lr.x3 = x;
-                    lr.y3 = y;
+                    panelMStatus.x3 = x;
+                    panelMStatus.y3 = y;
                     break;
                 case 4:
-                    lr.x4 = x;
-                    lr.y4 = y;
+                    panelMStatus.x4 = x;
+                    panelMStatus.y4 = y;
                     break;
                 case 5:
-                    lr.x5 = x;
-                    lr.y5 = y;
+                    panelMStatus.x5 = x;
+                    panelMStatus.y5 = y;
                     break;
             }
             measurementStatus.clearWaitingForPoint();
