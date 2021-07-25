@@ -4061,17 +4061,27 @@ class ScreenshotSaver {
         return !file.exists()
             || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + file + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION);
     }
+    static File lr(File file) {
+        return mkdirs(toLr(file));
+    }
+    static File toLr(File file) {
+        return new File(new File(file.getParentFile(), "lr"), file.getName());
+    }
+    static File mkdirs(File imgFile) {
+        imgFile.getParentFile().mkdirs();
+        return imgFile;
+    }
     static File toGifFile(File imgFile) {
-        return new File(toGif(imgFile.getAbsolutePath()));
+        return lr(new File(toGif(imgFile.getAbsolutePath())));
     }
     static File toSrcFile(File imgFile) {
         return new File(imgFile.getAbsolutePath()+".source");
     }
     static File toLeftFile(File imgFile) {
-        return new File(toBase(imgFile.getAbsolutePath())+".left.png");
+        return lr(new File(toBase(imgFile.getAbsolutePath())+".left.png"));
     }
     static File toRightFile(File imgFile) {
-        return new File(toBase(imgFile.getAbsolutePath())+".right.png");
+        return lr(new File(toBase(imgFile.getAbsolutePath())+".right.png"));
     }
     static boolean endsWithIgnoreCase(String text, String suffix) {
         if (text.length() < suffix.length()) {
