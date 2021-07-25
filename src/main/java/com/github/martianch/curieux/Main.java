@@ -149,8 +149,8 @@ public class Main {
         var xv = new X3DViewer();
         var ms = new MeasurementStatus();
         var lrn = new LRNavigator();
-        var so = new BehavioralOptions();
-        var uic = new UiController(xv, lrn, rd0, dp, ms, so);
+        var bo = new BehavioralOptions();
+        var uic = new UiController(xv, lrn, rd0, dp, ms, bo);
         javax.swing.SwingUtilities.invokeLater(
                 () -> uic.createAndShowViews()
         );
@@ -888,13 +888,13 @@ class UiController implements UiEventListener {
     boolean unthumbnail = true;
     volatile long lastLoadTimestampL;
     volatile long lastLoadTimestampR;
-    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms, BehavioralOptions so) {
+    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms, BehavioralOptions bo) {
         x3dViewer = xv;
         displayParameters = dp;
         rawData = rd;
         measurementStatus = ms;
         lrNavigator = lrn;
-        behavioralOptions = so;
+        behavioralOptions = bo;
     }
     @Override
     public void zoomChanged(double newZoom) {
@@ -1552,7 +1552,7 @@ class X3DViewer {
     JButton helpButton;
     ScreenshotSaver screenshotSaver = new ScreenshotSaver(new JFileChooser());
 
-    public void updateControls(DisplayParameters dp, MeasurementStatus ms, BehavioralOptions so) {
+    public void updateControls(DisplayParameters dp, MeasurementStatus ms, BehavioralOptions bo) {
         dcZoom.setValueAndText(dp.zoom);
         dcZoomL.setValueAndText(dp.zoomL);
         dcZoomR.setValueAndText(dp.zoomR);
@@ -1569,7 +1569,7 @@ class X3DViewer {
         colorCorrectionPane.setImageResamplingModeValue(true, dp.imageResamplingModeR);
         showMeasurementCbMenuItem.setState(ms.measurementShown);
         measurementPanel.setControls(ms);
-        settingsPanel.setControls(so);
+        settingsPanel.setControls(bo);
     }
     void setCursor(Cursor cursor) {
         lblL.setCursor(cursor);
@@ -6998,10 +6998,10 @@ class SettingsPanel extends JPanel {
         }
 
     }
-    void setControls (BehavioralOptions so) {
-        saveGifCheckbox.setSelected(so.saveGif);
-        saveRightLeftCheckbox.setSelected(so.saveLeftRightImages);
-        customCrosshairCursorCheckbox.setSelected(so.useCustomCrosshairCursor);
+    void setControls (BehavioralOptions bo) {
+        saveGifCheckbox.setSelected(bo.saveGif);
+        saveRightLeftCheckbox.setSelected(bo.saveLeftRightImages);
+        customCrosshairCursorCheckbox.setSelected(bo.useCustomCrosshairCursor);
     }
     void showDialogIn(JFrame mainFrame) {
         JOptionPane.showMessageDialog(mainFrame, this,"Settings", JOptionPane.PLAIN_MESSAGE);
