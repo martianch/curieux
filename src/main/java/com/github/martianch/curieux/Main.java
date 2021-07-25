@@ -149,7 +149,7 @@ public class Main {
         var xv = new X3DViewer();
         var ms = new MeasurementStatus();
         var lrn = new LRNavigator();
-        var so = new SaveOptions();
+        var so = new BehavioralOptions();
         var uic = new UiController(xv, lrn, rd0, dp, ms, so);
         javax.swing.SwingUtilities.invokeLater(
                 () -> uic.createAndShowViews()
@@ -209,6 +209,7 @@ interface UiEventListener {
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
     void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight); //???
     void setSaveOptions(boolean saveGif, boolean saveLeftRIght);
+    void setUseCustomCrosshairCursor(boolean useCustomCrosshairCursor);
 }
 
 enum GoToImageOptions {
@@ -321,9 +322,10 @@ class CustomStretchRgbParameters {
         return Objects.hash(colorRange, isPerChannel, isSaturated);
     }
 }
-class SaveOptions {
+class BehavioralOptions {
     boolean saveGif = true;
     boolean saveLeftRightImages = true;
+    boolean useCustomCrosshairCursor = true;
 }
 class DisplayParameters {
     double zoom, zoomL, zoomR;
@@ -879,20 +881,20 @@ class UiController implements UiEventListener {
     DisplayParameters displayParameters;
     RawData rawData;
     MeasurementStatus measurementStatus;
-    SaveOptions saveOptions;
+    BehavioralOptions behavioralOptions;
 
     final LRNavigator lrNavigator;
     boolean dndOneToBoth = true;
     boolean unthumbnail = true;
     volatile long lastLoadTimestampL;
     volatile long lastLoadTimestampR;
-    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms, SaveOptions so) {
+    public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms, BehavioralOptions so) {
         x3dViewer = xv;
         displayParameters = dp;
         rawData = rd;
         measurementStatus = ms;
         lrNavigator = lrn;
-        saveOptions = so;
+        behavioralOptions = so;
     }
     @Override
     public void zoomChanged(double newZoom) {
@@ -938,13 +940,13 @@ class UiController implements UiEventListener {
     public void lImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeL) {
         displayParameters.imageResamplingModeL = newImageResamplingModeL;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
     @Override
     public void rImageResamplingModeChanged(ImageResamplingMode newImageResamplingModeR) {
         displayParameters.imageResamplingModeR = newImageResamplingModeR;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
     @Override
     public void xOffsetChanged(int newXOff) {
@@ -970,14 +972,14 @@ class UiController implements UiEventListener {
     public void swapImages() {
         System.out.println("swapImages "+Thread.currentThread());
         x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters = displayParameters.swapped(), measurementStatus = measurementStatus.swapped());
-        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
         lrNavigator.swap();
     }
     @Override
     public void swapImageUrls() {
         System.out.println("swapImageUrls "+Thread.currentThread());
         x3dViewer.updateViews(rawData = rawData.swapped(), displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
         lrNavigator.swap();
     }
 
@@ -1128,14 +1130,14 @@ class UiController implements UiEventListener {
         } else {
             displayParameters.setDefaults();
         }
-        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
         // TODO: reset measurementStatus
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
 
     @Override
     public void saveScreenshot() {
-        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame, x3dViewer.componentL, x3dViewer.componentR, rawData, displayParameters, saveOptions);
+        x3dViewer.screenshotSaver.takeAndSaveScreenshot(x3dViewer.frame, x3dViewer.componentL, x3dViewer.componentR, rawData, displayParameters, behavioralOptions);
     }
 
     @Override
@@ -1231,7 +1233,7 @@ class UiController implements UiEventListener {
     @Override
     public void setWaitingForPoint(int forPointNumber) {
         measurementStatus.setWaitingForPoint(forPointNumber);
-        x3dViewer.setCursor(CustomCursorMaker.getCrosshairCursor());
+        x3dViewer.setCursor(CustomCursorMaker.getCrosshairCursor(behavioralOptions));
     }
     @Override
     public void markedPointChanged(int coordId, double lrXy123) {
@@ -1319,7 +1321,7 @@ class UiController implements UiEventListener {
                 break;
         }
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
-        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
     @Override
     public void escapePressed() {
@@ -1364,8 +1366,7 @@ class UiController implements UiEventListener {
         ColorCorrection lcc = insertSrgb3IfNotThere(displayParameters.lColorCorrection);
         ColorCorrection rcc = insertSrgb3IfNotThere(displayParameters.rColorCorrection);
         var dp = displayParameters
-                .withColorCorrection(lcc, rcc)
-                .withMeasurementShown(false);
+                .withColorCorrection(lcc, rcc);
         var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE);
         var bi = bis.get(isRight ? 1 : 0);
         var cr = ColorBalancer.getColorRangeFromImage(visibleArea, bi);
@@ -1385,9 +1386,14 @@ class UiController implements UiEventListener {
     }
     @Override
     public void setSaveOptions(boolean saveGif, boolean saveLeftRIght) {
-        saveOptions.saveGif = saveGif;
-        saveOptions.saveLeftRightImages = saveLeftRIght;
-        x3dViewer.updateControls(displayParameters, measurementStatus, saveOptions);
+        behavioralOptions.saveGif = saveGif;
+        behavioralOptions.saveLeftRightImages = saveLeftRIght;
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+    }
+    @Override
+    public void setUseCustomCrosshairCursor(boolean useCustomCrosshairCursor) {
+        behavioralOptions.useCustomCrosshairCursor = useCustomCrosshairCursor;
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
     public void createAndShowViews() {
         x3dViewer.createViews(rawData, displayParameters, measurementStatus, this);
@@ -1546,7 +1552,7 @@ class X3DViewer {
     JButton helpButton;
     ScreenshotSaver screenshotSaver = new ScreenshotSaver(new JFileChooser());
 
-    public void updateControls(DisplayParameters dp, MeasurementStatus ms, SaveOptions so) {
+    public void updateControls(DisplayParameters dp, MeasurementStatus ms, BehavioralOptions so) {
         dcZoom.setValueAndText(dp.zoom);
         dcZoomL.setValueAndText(dp.zoomL);
         dcZoomR.setValueAndText(dp.zoomR);
@@ -3992,7 +3998,7 @@ class ScreenshotSaver {
     public interface SaveAction {
         void apply(File imgFile) throws Exception;
     }
-    public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters, SaveOptions saveOptions) {
+    public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters, BehavioralOptions behavioralOptions) {
         try {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
             showSaveDialog(
@@ -4005,11 +4011,11 @@ class ScreenshotSaver {
                             "Software", "Curious: X3D Viewer",
                             "Description", description);
                         ScreenshotSaver.writeText(toSrcFile(imgFile), description);
-                        if (saveOptions.saveLeftRightImages) {
+                        if (behavioralOptions.saveLeftRightImages) {
                             ScreenshotSaver.writePng(toLeftFile(imgFile), ScreenshotSaver.getScreenshot(leftC), "Description", description + "this is left\n");
                             ScreenshotSaver.writePng(toRightFile(imgFile), ScreenshotSaver.getScreenshot(rightC), "Description", description+"this is right\n");
                         }
-                        if (saveOptions.saveGif) {
+                        if (behavioralOptions.saveGif) {
                             GifSequenceWriter.saveAsGif(
                                     toGifFile(imgFile),
                                     500,
@@ -6940,6 +6946,7 @@ class SettingsPanel extends JPanel {
     JCheckBox showUrlsCheckbox;
     JCheckBox saveGifCheckbox;
     JCheckBox saveRightLeftCheckbox;
+    JCheckBox customCrosshairCursorCheckbox;
 
     public SettingsPanel(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
@@ -6966,7 +6973,7 @@ class SettingsPanel extends JPanel {
             saveGifCheckbox = new JCheckBox("Save Animated GIF");
             saveGifCheckbox.setSelected(true);
             saveGifCheckbox.addActionListener(
-                    e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(),  saveRightLeftCheckbox.isSelected())
+                    e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(), saveRightLeftCheckbox.isSelected())
             );
             saveGifCheckbox.setToolTipText("When you click \"Save\", additionally save an animated GIF with the right and left halves of the stereo pair");
             this.add(saveGifCheckbox);
@@ -6980,11 +6987,21 @@ class SettingsPanel extends JPanel {
             saveRightLeftCheckbox.setToolTipText("When you click \"Save\", additionally save left and right halves of the stereo pair separately");
             this.add(saveRightLeftCheckbox);
         }
+        {
+            customCrosshairCursorCheckbox = new JCheckBox("Use custom cursor when setting measurement marks");
+            customCrosshairCursorCheckbox.setSelected(true);
+            customCrosshairCursorCheckbox.addActionListener(
+                    e -> uiEventListener.setUseCustomCrosshairCursor(customCrosshairCursorCheckbox.isSelected())
+            );
+            customCrosshairCursorCheckbox.setToolTipText("You can use either the standard thick cross-hair cursor or a custom one");
+            this.add(customCrosshairCursorCheckbox);
+        }
 
     }
-    void setControls (SaveOptions so) {
+    void setControls (BehavioralOptions so) {
         saveGifCheckbox.setSelected(so.saveGif);
         saveRightLeftCheckbox.setSelected(so.saveLeftRightImages);
+        customCrosshairCursorCheckbox.setSelected(so.useCustomCrosshairCursor);
     }
     void showDialogIn(JFrame mainFrame) {
         JOptionPane.showMessageDialog(mainFrame, this,"Settings", JOptionPane.PLAIN_MESSAGE);
@@ -7024,10 +7041,10 @@ class CustomCursorMaker {
         g.dispose();
         return bi;
     }
-    static Cursor getCrosshairCursor() {
+    static Cursor getCrosshairCursor(BehavioralOptions behavioralOptions) {
         Toolkit toolkit = Toolkit.getDefaultToolkit();
         Dimension dim = toolkit.getBestCursorSize(DESIRED_WIDTH, DESIRED_HEIGHT);
-        if (dim.getWidth() >= MIN_WIDTH && dim.getHeight() >= MIN_HEIGHT) {
+        if (behavioralOptions.useCustomCrosshairCursor && dim.getWidth() >= MIN_WIDTH && dim.getHeight() >= MIN_HEIGHT) {
             int width = (int) dim.getWidth();
             if (width % 2 == 0) {
                 width--;
