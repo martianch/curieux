@@ -1231,7 +1231,7 @@ class UiController implements UiEventListener {
     @Override
     public void setWaitingForPoint(int forPointNumber) {
         measurementStatus.setWaitingForPoint(forPointNumber);
-        x3dViewer.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+        x3dViewer.setCursor(CustomCursorMaker.getCrosshairCursor());
     }
     @Override
     public void markedPointChanged(int coordId, double lrXy123) {
@@ -6990,4 +6990,60 @@ class SettingsPanel extends JPanel {
         JOptionPane.showMessageDialog(mainFrame, this,"Settings", JOptionPane.PLAIN_MESSAGE);
     }
 
+}
+
+class CustomCursorMaker {
+    static final int DESIRED_WIDTH = 31;
+    static final int DESIRED_HEIGHT = 31;
+    static final int MIN_WIDTH = 21;
+    static final int MIN_HEIGHT = 21;
+
+    static BufferedImage makeCrossHairImage(final int width, final int height) {
+        BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = (Graphics2D) bi.getGraphics();
+        final int x0 = width / 2;
+        final int y0 = height / 2;
+        int c = 3;
+        int d = c + 1;
+        g.setColor(Color.WHITE);
+        g.drawLine(x0 + d, y0 + 1, width, y0 + 1);
+        g.drawLine(x0 - d, y0 + 1, 0, y0 + 1);
+        g.drawLine(x0 + d, y0 - 1, width, y0 - 1);
+        g.drawLine(x0 - d, y0 - 1, 0, y0 - 1);
+        g.drawLine(x0 + 1, y0 + d, x0 + 1, height);
+        g.drawLine(x0 + 1, y0 - d, x0 + 1, 0);
+        g.drawLine(x0 - 1, y0 + d, x0 - 1, height);
+        g.drawLine(x0 - 1, y0 - d, x0 - 1, 0);
+        g.drawOval(0, 0, width - 1, height - 1);
+        g.setColor(Color.BLACK);
+        g.drawLine(x0 + c, y0, width, y0);
+        g.drawLine(x0 - c, y0, 0, y0);
+        g.drawLine(x0, y0 + c, x0, height);
+        g.drawLine(x0, y0 - c, x0, 0);
+        g.drawOval(1, 1, width - 3, height - 3);
+        g.dispose();
+        return bi;
+    }
+    static Cursor getCrosshairCursor() {
+        Toolkit toolkit = Toolkit.getDefaultToolkit();
+        Dimension dim = toolkit.getBestCursorSize(DESIRED_WIDTH, DESIRED_HEIGHT);
+        if (dim.getWidth() >= MIN_WIDTH && dim.getHeight() >= MIN_HEIGHT) {
+            int width = (int) dim.getWidth();
+            if (width % 2 == 0) {
+                width--;
+            }
+            int height = (int) dim.getHeight();
+            if (height % 2 == 0) {
+                height--;
+            }
+            try {
+                Cursor cursor = toolkit.createCustomCursor(makeCrossHairImage(width, height), new Point(width/2+1, height/2+1), "custom-cross-hair");
+                return cursor;
+            } catch (Throwable t) {
+                System.err.println("cannot create custom cursor");
+                t.printStackTrace();
+            }
+        }
+        return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
+    }
 }
