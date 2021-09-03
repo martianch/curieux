@@ -7020,8 +7020,8 @@ class CustomCursorMaker {
         Graphics2D g = (Graphics2D) bi.getGraphics();
         final int x0 = width / 2;
         final int y0 = height / 2;
-        int c = 3;
-        int d = c + 1;
+        int c = 5;
+        int d = c; // + 1
         g.setColor(Color.WHITE);
         g.drawLine(x0 + d, y0 + 1, width, y0 + 1);
         g.drawLine(x0 - d, y0 + 1, 0, y0 + 1);
