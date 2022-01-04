@@ -1264,8 +1264,8 @@ class UiController implements UiEventListener {
                     - Math.max(0, offY - otherMStatus.centeringDY + panelMStatus.centeringDY)
             )
         );
-//        System.out.println(""+measurementStatus);
-//        System.out.println("zoom="+zoom+" marginX="+marginX+" marginY="+marginY+" offX="+offX+" offY="+offY);
+        System.out.println(""+measurementStatus);
+        System.out.println("zoom="+zoom+" marginX="+marginX+" marginY="+marginY+" offX="+offX+" offY="+offY);
         System.out.println("res="+res);
         System.out.println("}");
         return res;
@@ -1353,8 +1353,14 @@ class UiController implements UiEventListener {
     public void adjustOffsets(int pointId) {
         switch (pointId) {
             case 1:
-                displayParameters.offsetX = (int) (measurementStatus.right.x1 - measurementStatus.left.x1);
-                displayParameters.offsetY = (int) (measurementStatus.right.y1 - measurementStatus.left.y1);
+                displayParameters.offsetX = (int) (
+                        measurementStatus.right.x1 - measurementStatus.left.x1
+                        + measurementStatus.right.centeringDX - measurementStatus.left.centeringDX
+                );
+                displayParameters.offsetY = (int) (
+                        measurementStatus.right.y1 - measurementStatus.left.y1
+                        + measurementStatus.right.centeringDY - measurementStatus.left.centeringDY
+                );
                 break;
             case 2:
                 displayParameters.offsetX = (int) (measurementStatus.right.x2 - measurementStatus.left.x2);
