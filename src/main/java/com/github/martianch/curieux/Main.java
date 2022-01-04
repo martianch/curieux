@@ -606,6 +606,20 @@ class MeasurementStatus {
         res.measurementShown = this.measurementShown;
         return res;
     }
+
+    @Override
+    public String toString() {
+        return "MeasurementStatus{" +
+                "left=" + left +
+                ", right=" + right +
+                ", measurementPointMark=" + measurementPointMark +
+                ", stereoPairParameters=" + stereoPairParameters +
+                ", isWaitingForPoint=" + isWaitingForPoint +
+                ", pointIsWaitingFor=" + pointIsWaitingFor +
+                ", isSubpixelPrecision=" + isSubpixelPrecision +
+                ", measurementShown=" + measurementShown +
+                '}';
+    }
 }
 // TODO: remove this class, xN and yN are all double now!!!
 class PanelMeasurementStatusD {
@@ -1196,7 +1210,7 @@ class UiController implements UiEventListener {
     public void markPointWithMousePress(boolean isRight, MouseEvent e) {
         if (measurementStatus.isWaitingForPoint()) {
             var panelMStatus = isRight ? measurementStatus.right : measurementStatus.left;
-            Point xy = mouseEventToPoint(isRight, e, panelMStatus);
+            Point xy = mouseEventToPoint(isRight, e);
             int x = xy.x;
             int y = xy.y;
             switch (measurementStatus.pointWaitingFor()) {
@@ -1227,12 +1241,14 @@ class UiController implements UiEventListener {
         }
     }
 
-    Point mouseEventToPoint(boolean isRight, MouseEvent e, PanelMeasurementStatus panelMStatus) {
+    Point mouseEventToPoint(boolean isRight, MouseEvent e) {
+        var panelMStatus = isRight ? measurementStatus.right : measurementStatus.left;
+        var otherMStatus = !isRight ? measurementStatus.right : measurementStatus.left;
         System.out.println("{markPointWithMousePress r="+isRight+" x="+e.getX()+" y="+e.getY()+" btn="+e.getButton());
         System.out.println("e="+e);
         var zoom = displayParameters.zoom * (isRight ? displayParameters.zoomR : displayParameters.zoomL);
-        var offX = Math.max(0, isRight ? -displayParameters.offsetX : displayParameters.offsetX);
-        var offY = Math.max(0, isRight ? -displayParameters.offsetY : displayParameters.offsetY);
+        var offX = isRight ? -displayParameters.offsetX : displayParameters.offsetX;
+        var offY = isRight ? -displayParameters.offsetY : displayParameters.offsetY;
         int marginX, marginY;
         {
             JButton source = (JButton) e.getSource();
@@ -1241,9 +1257,15 @@ class UiController implements UiEventListener {
             marginY = Math.max(0, (source.getHeight() - icon.getIconHeight()) / 2);
         }
         var res = new Point(
-            (int) ((e.getX() - marginX) / zoom - offX - panelMStatus.centeringDX),
-            (int) ((e.getY() - marginY) / zoom - offY - panelMStatus.centeringDY)
+            (int) ((e.getX() - marginX) / zoom
+                    - Math.max(0, offX - otherMStatus.centeringDX + panelMStatus.centeringDX)
+            ),
+            (int) ((e.getY() - marginY) / zoom
+                    - Math.max(0, offY - otherMStatus.centeringDY + panelMStatus.centeringDY)
+            )
         );
+//        System.out.println(""+measurementStatus);
+//        System.out.println("zoom="+zoom+" marginX="+marginX+" marginY="+marginY+" offX="+offX+" offY="+offY);
         System.out.println("res="+res);
         System.out.println("}");
         return res;
