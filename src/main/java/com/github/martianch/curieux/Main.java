@@ -1363,8 +1363,14 @@ class UiController implements UiEventListener {
                 );
                 break;
             case 2:
-                displayParameters.offsetX = (int) (measurementStatus.right.x2 - measurementStatus.left.x2);
-                displayParameters.offsetY = (int) (measurementStatus.right.y2 - measurementStatus.left.y2);
+                displayParameters.offsetX = (int) (
+                        measurementStatus.right.x2 - measurementStatus.left.x2
+                        + measurementStatus.right.centeringDX - measurementStatus.left.centeringDX
+                );
+                displayParameters.offsetY = (int) (
+                        measurementStatus.right.y2 - measurementStatus.left.y2
+                        + measurementStatus.right.centeringDY - measurementStatus.left.centeringDY
+                );
                 break;
         }
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
