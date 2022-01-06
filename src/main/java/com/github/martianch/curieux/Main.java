@@ -1659,27 +1659,44 @@ class X3DViewer {
         AffineTransform transformR = rotationTransform(imgL, dp.angle + dp.angleR);
         BufferedImage rotatedL = rotate(imgL, transformL);
         BufferedImage rotatedR = rotate(imgR, transformR);
-        int dw = (rotatedR.getWidth() - rotatedL.getWidth()) / 2;
-        int dh = (rotatedR.getHeight() - rotatedL.getHeight()) / 2;
-        ms.left.centeringDX = Math.max(0,dw);
-        ms.left.centeringDY = Math.max(0,dh);
-        ms.right.centeringDX = Math.max(0,-dw);
-        ms.right.centeringDY = Math.max(0,-dh);
+//        int dw = (rotatedR.getWidth() - rotatedL.getWidth()) / 2;
+//        int dh = (rotatedR.getHeight() - rotatedL.getHeight()) / 2;
+        System.out.println("----");
+        double dw1 = (rotatedR.getWidth()*dp.zoomR - rotatedL.getWidth()*dp.zoomL) / 2;
+        double dh1 = (rotatedR.getHeight()*dp.zoomR - rotatedL.getHeight()*dp.zoomL) / 2;
+        int dwR = (int) (dw1/dp.zoomR);
+        int dwL = (int) (dw1/dp.zoomL);
+        int dhR = (int) (dh1/dp.zoomR);
+        int dhL = (int) (dh1/dp.zoomL);
+        System.out.println("dw1="+dw1+" dwR="+dwR+" dwL="+dwL);
+        System.out.println("dh1="+dh1+" dhR="+dhR+" dhL="+dhL);
+        System.out.println("dp.offsetX="+dp.offsetX+" dp.offsetX+dwL="+(dp.offsetX + dwL)+" -dp.offsetX-dwR="+(-dp.offsetX - dwR));
+        System.out.println("dp.offsetY="+dp.offsetY+" dp.offsetY+dhL="+(dp.offsetY + dhL)+" -dp.offsetY-dhR="+(-dp.offsetY - dhR));
+        int dwL0 = ms.left.centeringDX = max0(dwL);
+        int dhL0 = ms.left.centeringDY = max0(dhL);
+        int dwR0 = ms.right.centeringDX = max0(-dwR);
+        int dhR0 = ms.right.centeringDY = max0(-dhR);
+        double zL = dp.zoom * dp.zoomL;
+        double zR = dp.zoom * dp.zoomR;
+        System.out.println("dwL0="+dwL0+" dwR0="+dwR0+" zL="+zL+" zR="+zR);
+        System.out.println("dhL0="+dhL0+" dhR0="+dhR0+" zL="+zL+" zR="+zR);
+        int offXL = dp.offsetX + dwL0 - dwR0;
+        int offYL = dp.offsetY + dhL0 - dhR0;
         if (!PRECISE_MARKS || !ms.measurementShown) {
             return Arrays.asList(
-                    zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL),
-                    zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR)
+                    zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
+                    zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR)
             );
         } else {
             return Arrays.asList(
-                    ms.left.drawMarks(
-                            zoom(rotatedL, dp.zoom * dp.zoomL, rotatedR, dp.zoom * dp.zoomR, dp.offsetX + dw, dp.offsetY + dh, dp.imageResamplingModeL),
-                            ms.measurementPointMark, transformL, dp.zoom * dp.zoomL, Math.max(0, dp.offsetX + dw), Math.max(0, dp.offsetY + dh)
-                    ),
-                    ms.right.drawMarks(
-                            zoom(rotatedR, dp.zoom * dp.zoomR, rotatedL, dp.zoom * dp.zoomL, -dp.offsetX - dw, -dp.offsetY - dh, dp.imageResamplingModeR),
-                            ms.measurementPointMark, transformR, dp.zoom * dp.zoomR, Math.max(0, -dp.offsetX - dw), Math.max(0, -dp.offsetY - dh)
-                    )
+                ms.left.drawMarks(
+                    zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
+                    ms.measurementPointMark, transformL, zL, Math.max(0, offXL), Math.max(0, offYL)
+                ),
+                ms.right.drawMarks(
+                    zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR),
+                    ms.measurementPointMark, transformR, zR, Math.max(0, -offXL), Math.max(0, -offYL)
+                )
             );
         }
     }
@@ -2688,6 +2705,26 @@ class X3DViewer {
                 null
         );
         g.dispose();
+        System.out.println(
+                "zoom("+originalImage.getWidth()+"x"+originalImage.getHeight()+
+                ", zoomLevel="+zoomLevel+", otherImage:"+ otherImage.getWidth()+"x"+otherImage.getHeight()+
+                ", otherZoomLevel="+otherZoomLevel+", offX="+offX+", offY="+offY+ ", imageResamplingMode="+ imageResamplingMode+
+                ")\n" +
+                " newImageWidth=" + newImageWidth +
+                " newImageHeight=" + newImageHeight +
+                " otherImageWidth=" + otherImageWidth +
+                " otherImageHeight=" + otherImageHeight + "\n" +
+                " thisCanvasWidth=" + thisCanvasWidth +
+                " thisCanvasHeight=" + thisCanvasHeight +
+                " otherCanvasWidth=" + otherCanvasWidth +
+                " otherCanvasHeight=" + otherCanvasHeight +
+                " canvasWidth=" + canvasWidth +
+                " canvasHeight=" + canvasHeight + "\n" +
+                " xToDrawFrom=" + xToDrawFrom +
+                " yToDrawFrom=" + yToDrawFrom +
+                " newImageWidth=" + newImageWidth +
+                " newImageHeight=" + newImageHeight
+        );
         return resizedImage;
     }
 
@@ -2699,6 +2736,12 @@ class X3DViewer {
     }
     static int mult(double v, double zoom) {
         return (int)(v*zoom);
+    }
+    static int max0(int x) {
+        return Math.max(0, x);
+    }
+    static double max0(double x) {
+        return Math.max(0., x);
     }
 
 }
