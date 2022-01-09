@@ -1349,33 +1349,81 @@ class UiController implements UiEventListener {
         measurementStatus.measurementShown = newIsShown;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
+    static int calculateOffsetBigImgSmallImg(double l, double r, int lCenteringD, int rCenteringD, double zl, double zr) {
+        if (lCenteringD != 0) {
+            System.out.println("Error: calculateOffsetBigImgSmallImg with non-zero lCenteringD="+lCenteringD);
+        }
+//        System.out.println("{calculateOffsetBigImgSmallImg("+l+","+r+", "+lCenteringD+","+rCenteringD+", "+zl+","+zr+")");
+        double diff = r*zr - l*zl;
+        double offset;
+        if (diff >= 0) {
+            offset = diff/zl + rCenteringD;
+        } else {
+            offset = diff/zr + rCenteringD;
+        }
+//        System.out.println("}diff="+diff+" offset="+offset);
+        return (int)offset;
+    }
+    static int calculateOffset(double l, double r, int lCenteringD, int rCenteringD, double zoomL, double zoomR) {
+//        System.out.println("--------------calculateOffset("+l+","+r+", "+lCenteringD+","+rCenteringD+", "+zoomL+","+zoomR+")");
+        if (lCenteringD == 0) {
+            return calculateOffsetBigImgSmallImg(l,r,lCenteringD,rCenteringD,zoomL,zoomR);
+        } else {
+            // (small img, big img): swap and negate offset
+            return -calculateOffsetBigImgSmallImg(r,l,rCenteringD,lCenteringD,zoomR,zoomL);
+        }
+    }
     @Override
     public void adjustOffsets(int pointId) {
-        switch (pointId) {
-            case 1:
-                displayParameters.offsetX = (int) (
-                        measurementStatus.right.x1 - measurementStatus.left.x1
-                        + measurementStatus.right.centeringDX - measurementStatus.left.centeringDX
-                );
-                displayParameters.offsetY = (int) (
-                        measurementStatus.right.y1 - measurementStatus.left.y1
-                        + measurementStatus.right.centeringDY - measurementStatus.left.centeringDY
-                );
-                break;
-            case 2:
-                displayParameters.offsetX = (int) (
-                        measurementStatus.right.x2 - measurementStatus.left.x2
-                        + measurementStatus.right.centeringDX - measurementStatus.left.centeringDX
-                );
-                displayParameters.offsetY = (int) (
-                        measurementStatus.right.y2 - measurementStatus.left.y2
-                        + measurementStatus.right.centeringDY - measurementStatus.left.centeringDY
-                );
-                break;
-        }
+        doAdjustOffsets(pointId, displayParameters, measurementStatus);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
         x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
+    static void doAdjustOffsets(int pointId, DisplayParameters displayParameters, MeasurementStatus measurementStatus) {
+        switch (pointId) {
+            case 1: {
+                displayParameters.offsetX =
+                        calculateOffset(
+                                measurementStatus.left.x1,
+                                measurementStatus.right.x1,
+                                measurementStatus.left.centeringDX,
+                                measurementStatus.right.centeringDX,
+                                displayParameters.zoomL,
+                                displayParameters.zoomR
+                        );
+                displayParameters.offsetY =
+                        calculateOffset(
+                                measurementStatus.left.y1,
+                                measurementStatus.right.y1,
+                                measurementStatus.left.centeringDY,
+                                measurementStatus.right.centeringDY,
+                                displayParameters.zoomL,
+                                displayParameters.zoomR
+                        );
+            } break;
+            case 2: {
+                displayParameters.offsetX =
+                        calculateOffset(
+                                measurementStatus.left.x2,
+                                measurementStatus.right.x2,
+                                measurementStatus.left.centeringDX,
+                                measurementStatus.right.centeringDX,
+                                displayParameters.zoomL,
+                                displayParameters.zoomR
+                        );
+                displayParameters.offsetY =
+                        calculateOffset(
+                                measurementStatus.left.y2,
+                                measurementStatus.right.y2,
+                                measurementStatus.left.centeringDY,
+                                measurementStatus.right.centeringDY,
+                                displayParameters.zoomL,
+                                displayParameters.zoomR
+                        );
+            } break;
+        }
+    }
+
     @Override
     public void escapePressed() {
         if (measurementStatus.isWaitingForPoint()) {
@@ -1648,8 +1696,8 @@ class X3DViewer {
         imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
         imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
 
-        ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "x3d:L straight:R");
-        ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "x3d:R, straight:L");
+        ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R");
+        ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L");
         if (!PRECISE_MARKS && ms.measurementShown) {
             imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
             imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
@@ -1659,29 +1707,21 @@ class X3DViewer {
         AffineTransform transformR = rotationTransform(imgL, dp.angle + dp.angleR);
         BufferedImage rotatedL = rotate(imgL, transformL);
         BufferedImage rotatedR = rotate(imgR, transformR);
-//        int dw = (rotatedR.getWidth() - rotatedL.getWidth()) / 2;
-//        int dh = (rotatedR.getHeight() - rotatedL.getHeight()) / 2;
-        System.out.println("----");
+//        System.out.println("----");
         double dw1 = (rotatedR.getWidth()*dp.zoomR - rotatedL.getWidth()*dp.zoomL) / 2;
         double dh1 = (rotatedR.getHeight()*dp.zoomR - rotatedL.getHeight()*dp.zoomL) / 2;
         int dwR = (int) (dw1/dp.zoomR);
         int dwL = (int) (dw1/dp.zoomL);
         int dhR = (int) (dh1/dp.zoomR);
         int dhL = (int) (dh1/dp.zoomL);
-        System.out.println("dw1="+dw1+" dwR="+dwR+" dwL="+dwL);
-        System.out.println("dh1="+dh1+" dhR="+dhR+" dhL="+dhL);
-        System.out.println("dp.offsetX="+dp.offsetX+" dp.offsetX+dwL="+(dp.offsetX + dwL)+" -dp.offsetX-dwR="+(-dp.offsetX - dwR));
-        System.out.println("dp.offsetY="+dp.offsetY+" dp.offsetY+dhL="+(dp.offsetY + dhL)+" -dp.offsetY-dhR="+(-dp.offsetY - dhR));
-        int dwL0 = ms.left.centeringDX = max0(dwL);
-        int dhL0 = ms.left.centeringDY = max0(dhL);
-        int dwR0 = ms.right.centeringDX = max0(-dwR);
-        int dhR0 = ms.right.centeringDY = max0(-dhR);
+        ms.left.centeringDX = max0(dwL);
+        ms.left.centeringDY = max0(dhL);
+        ms.right.centeringDX = max0(-dwR);
+        ms.right.centeringDY = max0(-dhR);
         double zL = dp.zoom * dp.zoomL;
         double zR = dp.zoom * dp.zoomR;
-        System.out.println("dwL0="+dwL0+" dwR0="+dwR0+" zL="+zL+" zR="+zR);
-        System.out.println("dhL0="+dhL0+" dhR0="+dhR0+" zL="+zL+" zR="+zR);
-        int offXL = dp.offsetX + dwL0 - dwR0;
-        int offYL = dp.offsetY + dhL0 - dhR0;
+        int offXL = dp.offsetX + ms.left.centeringDX - ms.right.centeringDX;
+        int offYL = dp.offsetY + ms.left.centeringDY - ms.right.centeringDY;
         if (!PRECISE_MARKS || !ms.measurementShown) {
             return Arrays.asList(
                     zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
