@@ -834,12 +834,15 @@ class PanelMeasurementStatus {
         double[] x = {x1, x2, x3, x4, x5};
         double[] y = {y1, y2, y3, y4, y5};
         int[] rgb = {0xFF0000, 0x00FF00, 0x0000FF, 0x00FFFF, 0xFF00FF};
+        int xToDrawFrom = Math.max(0, X3DViewer.mult(offX, zoomLevel));
+        int yToDrawFrom = Math.max(0, X3DViewer.mult(offY, zoomLevel));
+
         for (int i=0; i<5; i++) {
             if (x[i] >= 0 && y[i] >= 0 && x[i] < img.getWidth() && y[i] < img.getHeight()) {
                 if (res == img) {
                     res = copyImage(img);
                 }
-                measurementPointMark.drawMark(res, X3DViewer.mult(x[i]+centeringDX+offX, zoomLevel), X3DViewer.mult(y[i]+centeringDY+offY, zoomLevel), rgb[i]);
+                measurementPointMark.drawMark(res, xToDrawFrom+X3DViewer.mult(x[i], zoomLevel), yToDrawFrom+X3DViewer.mult(y[i], zoomLevel), rgb[i]);
             }
         }
         return res;
@@ -1731,11 +1734,11 @@ class X3DViewer {
             return Arrays.asList(
                 ms.left.drawMarks(
                     zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
-                    ms.measurementPointMark, transformL, zL, Math.max(0, offXL), Math.max(0, offYL)
+                    ms.measurementPointMark, transformL, zL, offXL, offYL
                 ),
                 ms.right.drawMarks(
                     zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR),
-                    ms.measurementPointMark, transformR, zR, Math.max(0, -offXL), Math.max(0, -offYL)
+                    ms.measurementPointMark, transformR, zR, -offXL, -offYL
                 )
             );
         }
