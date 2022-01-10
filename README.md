@@ -27,6 +27,12 @@ To view it, conceal the right image from the right eye with the right hand, and 
 
 To make a stereo pair: make a photo, step right, make a photo.
 
+### The Easiest Way: Running Without Installation
+
+1. Install Java. You will need **Java 8+** to run it. Run `java -version` in the command like to check it. 
+2. Download x3dview.zip and unpack it to some directory. You must get the file x3dview.jar .
+3. From the command line, run `java -jar x3dview.jar`. To do so, you must be in the directory where x3dview.jar is located.
+
 ### Installation
 
 Unpack the file x3dview.zip to some directory. You will see a new directory, `x3dview`, with two subdirectories: `bin` and `lib`.
