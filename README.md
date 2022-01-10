@@ -30,7 +30,7 @@ To make a stereo pair: make a photo, step right, make a photo.
 ### The Easiest Way: Running Without Installation
 
 1. Install Java. You will need **Java 8+** to run it. (For example, download OpenJDK from https://openjdk.java.net/projects/jdk/17/ ) Run `java -version` in the command line to check it. 
-2. Download x3dview.zip and unpack it to some directory. You must get the file x3dview.jar .
+2. Download x3dview.zip and unpack it to some directory. You must get the file `x3dview.jar` (well, it will be in a subdirectory, `x3dview/lib/`).
 3. From the command line, run `java -jar x3dview.jar`. To do so, you must be in the directory where x3dview.jar is located.
 
 Why command line? The commercial operating systems do not trust free software. In fact, they just hate it. "Gosh, you downloaded something from the Internet, you (panic in the voice) want to run it? Oh please, please, don't! It's not signed!" And to sign it, the author of free software must pay them. I find it immoral. It is immoral to require the author of free software to pay. (And there are reasons to call paid distribution of such software immoral. You see, something very bad happened on Mars, and it is immoral to make money on that event.) So you have to do a little bit of system administration yourself.
