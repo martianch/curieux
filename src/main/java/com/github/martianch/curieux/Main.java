@@ -2312,8 +2312,8 @@ class X3DViewer {
             statusPanel.add(dcZoomL = new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomL:",4, new ZoomFactorWrapper(), d -> uiEventListener.lZoomChanged(d)));
             statusPanel.add(dcZoomR = new DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoomR:",4, new ZoomFactorWrapper(), d -> uiEventListener.rZoomChanged(d)));
 
-            statusPanel.add(dcOffX = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetX:", 4, new OffsetWrapper(), i -> uiEventListener.xOffsetChanged(i)));
-            statusPanel.add(dcOffY = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetY:", 4, new OffsetWrapper(), i -> uiEventListener.yOffsetChanged(i)));
+            statusPanel.add(dcOffX = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetX:", 4, new OffsetWrapper("[←|→]:  ", "[→|←]:  "), i -> uiEventListener.xOffsetChanged(i)));
+            statusPanel.add(dcOffY = new DigitalZoomControl<Integer, OffsetWrapper>().init("offsetY:", 4, new OffsetWrapper("[↑|↓]:  ", "[↓|↑]:  "), i -> uiEventListener.yOffsetChanged(i)));
 
             statusPanel2.add(dcAngle = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotate:",4, new RotationAngleWrapper(), d -> uiEventListener.angleChanged(d)));
             statusPanel2.add(dcAngleL = new DigitalZoomControl<Double, RotationAngleWrapper>().init("rotateL:",4, new RotationAngleWrapper(), d -> uiEventListener.lAngleChanged(d)));
@@ -3002,6 +3002,16 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
 }
 class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
     int[] increments = {3,30,1,100};
+    final String tooltipPrefixForMinus, tooltipPrefixForPlus;
+
+    public OffsetWrapper() {
+        tooltipPrefixForMinus = tooltipPrefixForPlus = "";
+    }
+    public OffsetWrapper(String forMinus, String forPlus) {
+        tooltipPrefixForMinus = forMinus;
+        tooltipPrefixForPlus = forPlus;
+    }
+
     @Override
     boolean setFromString(String s) {
         try {
@@ -3034,7 +3044,8 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
 
     @Override
     String getButtonToolTip(int sign, int index1, int index2) {
-        return String.format("%+d, Shift: %+d", sign*increments[index1], sign*increments[index2]);
+        String pref = sign < 0 ? tooltipPrefixForMinus : tooltipPrefixForPlus;
+        return String.format("%s%+d, Shift: %+d", pref, sign*increments[index1], sign*increments[index2]);
     }
 }
 class OffsetWrapper2 extends RotationAngleWrapper {
