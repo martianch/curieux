@@ -349,8 +349,8 @@ class DisplayParameters {
     void setDefaultsMrMl() {
         setDefaults();
         zoomR = 3.;
-        offsetX = 700;//240;
-        offsetY = 450;//72;
+        offsetX = -820;
+        offsetY = 20;
     }
     private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
         this.zoom = zoom;
