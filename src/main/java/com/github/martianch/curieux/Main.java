@@ -7170,17 +7170,18 @@ class CustomCursorMaker {
         Graphics2D g = (Graphics2D) bi.getGraphics();
         final int x0 = width / 2;
         final int y0 = height / 2;
-        int c = 5;
+        int c = 6;
         int d = c; // + 1
+        int b = c+4; // + 1
         g.setColor(Color.WHITE);
         g.drawLine(x0 + d, y0 + 1, width, y0 + 1);
-        g.drawLine(x0 - d, y0 + 1, 0, y0 + 1);
-        g.drawLine(x0 + d, y0 - 1, width, y0 - 1);
+        g.drawLine(x0 - b, y0 + 1, 0, y0 + 1);
+        g.drawLine(x0 + b, y0 - 1, width, y0 - 1);
         g.drawLine(x0 - d, y0 - 1, 0, y0 - 1);
-        g.drawLine(x0 + 1, y0 + d, x0 + 1, height);
+        g.drawLine(x0 + 1, y0 + b, x0 + 1, height);
         g.drawLine(x0 + 1, y0 - d, x0 + 1, 0);
         g.drawLine(x0 - 1, y0 + d, x0 - 1, height);
-        g.drawLine(x0 - 1, y0 - d, x0 - 1, 0);
+        g.drawLine(x0 - 1, y0 - b, x0 - 1, 0);
         g.drawOval(0, 0, width - 1, height - 1);
         g.setColor(Color.BLACK);
         g.drawLine(x0 + c, y0, width, y0);
