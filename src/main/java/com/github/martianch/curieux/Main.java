@@ -1239,7 +1239,9 @@ class UiController implements UiEventListener {
                     break;
             }
             measurementStatus.clearWaitingForPoint();
-            x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+            if (measurementStatus.measurementShown) {
+                x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+            }
             x3dViewer.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
         }
     }
