@@ -2826,8 +2826,8 @@ class ImageResamplingModeChooser extends JComboBox<ImageResamplingMode> {
 }
 enum DebayerMode {
     NEVER(false,-1),
-    AUTO0(false,0), AUTO1(false,1), AUTO2(false,2), AUTO3(false,3), AUTO4(false,4),
-    FORCE0(true,0), FORCE1(true,1), FORCE2(true,2), FORCE3(true,3), FORCE4(true,4);
+    AUTO0(false,0), AUTO1(false,1), AUTO2(false,2), AUTO3(false,3), AUTO4(false,4), AUTO5(false,5),
+    FORCE0(true,0), FORCE1(true,1), FORCE2(true,2), FORCE3(true,3), FORCE4(true,4), FORCE5(true,5);
     boolean force;
     int algo;
     DebayerMode(boolean force, int algo) {
@@ -3816,7 +3816,8 @@ class Debayer {
             Debayer::debayer_squares,
             Debayer::debayer_avg,
             Debayer::debayer_closest_match_square,
-            Debayer::debayer_closest_match_WNSE_clockwise
+            Debayer::debayer_closest_match_WNSE_clockwise,
+            DebayerBicubic::debayer_bicubic
     );
 
     static BufferedImage debayer_dotted(BufferedImage orig) {
@@ -7215,5 +7216,200 @@ class CustomCursorMaker {
             }
         }
         return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
+    }
+}
+
+class DebayerBicubic {
+    abstract static class BasePointSet<T> {
+        int x,y;
+        BufferedImage bi;
+        int w, h;
+
+        int x(int dx) {
+            int xx = x+dx;
+            while (xx<0) { xx += 2; }
+            while (xx >= w) { xx -= 2; }
+            return xx;
+        }
+        int y(int dy) {
+            int yy = y+dy;
+            while (yy<0) { yy += 2; }
+            while (yy >= h) { yy -= 2; }
+            return yy;
+        }
+
+        public T with(BufferedImage bi) {
+            this.bi = bi;
+            w = bi.getWidth();
+            h = bi.getHeight();
+            return (T) this;
+        }
+        public T at(int x, int y) {
+            this.x = x;
+            this.y = y;
+            return (T) this;
+        }
+
+        public abstract int q0();
+        public abstract int p1();
+        public abstract int q1();
+        public abstract int p2();
+        public abstract int q2();
+
+        public int interpolate() {
+            return (
+                    ((p1()+p2())<<2) + (q1()<<1) - q0() - q2()
+                   ) >> 3;
+        }
+    }
+    static class HorizPointSet extends BasePointSet<HorizPointSet> {
+        @Override
+        public int q0() {
+            return getC(bi, x(-2), y(0));
+        }
+        @Override
+        public int p1() {
+            return getC(bi, x(-1), y(0));
+        }
+        @Override
+        public int q1() {
+            return getC(bi, x(0), y(0));
+        }
+        @Override
+        public int p2() {
+            return getC(bi, x(1), y(0));
+        }
+        @Override
+        public int q2() {
+            return getC(bi, x(2), y(0));
+        }
+    }
+    static class VertPointSet extends BasePointSet<VertPointSet> {
+        @Override
+        public int q0() {
+            return getC(bi, x(0), y(-2));
+        }
+        @Override
+        public int p1() {
+            return getC(bi, x(0), y(-1));
+        }
+        @Override
+        public int q1() {
+            return getC(bi, x(0), y(0));
+        }
+        @Override
+        public int p2() {
+            return getC(bi, x(0), y(1));
+        }
+        @Override
+        public int q2() {
+            return getC(bi, x(0), y(2));
+        }
+    }
+    static class TwoDPointSet extends BasePointSet<TwoDPointSet> {
+        HorizPointSet above = new HorizPointSet();
+        HorizPointSet below = new HorizPointSet();
+
+        @Override
+        public TwoDPointSet with(BufferedImage bi) {
+            above.with(bi);
+            below.with(bi);
+            return super.with(bi);
+        }
+        @Override
+        public TwoDPointSet at(int x, int y) {
+            above.at(x,y-1);
+            below.at(x,y+1);
+            return super.at(x, y);
+        }
+        @Override
+        public int q0() {
+            return getC(bi, x(0), y(-2));
+        }
+        @Override
+        public int p1() {
+            return above.interpolate();
+        }
+        @Override
+        public int q1() {
+            return getC(bi, x(0), y(0));
+        }
+        @Override
+        public int p2() {
+            return below.interpolate();
+        }
+        @Override
+        public int q2() {
+            return getC(bi, x(0), y(2));
+        }
+    }
+    static BufferedImage debayer_bicubic(BufferedImage orig) {
+        int HEIGHT = orig.getHeight();
+        int WIDTH = orig.getWidth();
+        System.out.println("debayer_bicubic " + WIDTH + "x" + HEIGHT);
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        var hps = new HorizPointSet().with(orig);
+        var vps = new VertPointSet().with(orig);
+        var tps = new TwoDPointSet().with(orig);
+        for (int j=0; j<HEIGHT; j++) {
+            for (int i=0; i<WIDTH; i++) {
+                int type = (j&1)*2 + (i&1); // RGGB
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                // R Gr R Gr R Gr
+                // Gb B Gb B Gb B
+                int r,g,b;
+                switch (type) {
+                    case 0: { // R
+                        r = getC(orig, i, j);
+                        g = hps.at(i,j).interpolate();
+                        b = tps.at(i,j).interpolate();
+                    } break;
+                    case 1: { // Gr
+                        r = hps.at(i,j).interpolate();
+                        g = getC(orig, i, j);
+                        b = vps.at(i,j).interpolate();
+                    } break;
+                    case 2: { // Gb
+                        r = vps.at(i,j).interpolate();
+                        g = getC(orig, i, j);
+                        b = hps.at(i,j).interpolate();
+                    } break;
+                    case 3: { // B
+                        r = tps.at(i,j).interpolate();
+                        g = hps.at(i,j).interpolate();
+                        b = getC(orig, i, j);
+                    } break;
+                    default: // stupid Java, this is impossible! type is 0..3!
+                        r=g=b=0;
+                }
+                res.setRGB(i,j,rgb(r,g,b));
+            }
+        }
+        return res;
+    }
+    static int getC(BufferedImage bi, int x, int y) {
+        int res = 0;
+        if (x >= 0 && y >= 0 && x < bi.getWidth() && y < bi.getHeight()) {
+            res = b(bi.getRGB(x,y));
+        }
+        return res;
+    }
+    static int r(int argb) {
+        return (argb>>16) & 0xff;
+    }
+    static int g(int argb) {
+        return (argb>>8) & 0xff;
+    }
+    static int b(int argb) {
+        return argb & 0xff;
+    }
+    static int c(int c) {
+        return Math.max(0, Math.min(255, c));
+    }
+    static int rgb(int r, int g, int b) {
+        return (c(r) << 16) | (c(g) << 8) | c(b);
     }
 }
