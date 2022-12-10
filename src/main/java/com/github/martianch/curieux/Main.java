@@ -2841,7 +2841,7 @@ enum DebayerMode {
                 ;
     }
     static DebayerMode getUiDefault(){
-        return AUTO3;
+        return AUTO5;
     }
 }
 class DebayerModeChooser extends JComboBox<DebayerMode> {
