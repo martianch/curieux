@@ -446,13 +446,21 @@ class ImageAndPath {
         } else if(FileLocations.isUrl(path)) {
             System.out.println("downloading "+path+ " ...");
             try {
+                long startedAt = System.currentTimeMillis();
                 URLConnection uc = new URL(path).openConnection();
                 NasaReader.setHttpHeaders(uc);
-                try {
-                    res = ImageIO.read(uc.getInputStream());
+                long openedAt = System.currentTimeMillis();
+                try(
+                    InputStream inputStream = uc.getInputStream()
+                ) {
+                    res = ImageIO.read(inputStream);
                     res.getWidth(); // throw an exception if null
+                    long readAt = System.currentTimeMillis();
+                    System.out.println("Read in " + (openedAt - startedAt) + ", " + (readAt - openedAt) + " ms");
                     System.out.println("downloaded " + path);
                 } catch (IOException e) {
+                    long errorAt = System.currentTimeMillis();
+                    System.out.println("Exception in " + (openedAt - startedAt) + ", " + (errorAt - openedAt) + " ms");
                     if (uc instanceof HttpURLConnection) {
                         HttpURLConnection httpUc = (HttpURLConnection) uc;
                         // Oracle recommends to read the error stream, but in practice
@@ -476,6 +484,7 @@ class ImageAndPath {
                             httpUc.disconnect();
                         }
                     }
+                    System.out.println("original exception:");
                     e.printStackTrace();
                     System.out.println("could not download "+path);
                     res = dummyImage(new Color(80,20,20));
