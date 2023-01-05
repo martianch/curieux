@@ -3501,7 +3501,12 @@ abstract class FileLocations {
         String fname = getFileName(urlOrPath);
         return fname.matches(".*\\d+M[RL]\\d+[CK]00_DXXX.*")
             || fname.matches("N[RL]E_\\d{4}_\\d+_\\d+ECM_N\\d+NCAM\\d+_\\d{2}_0LLJ.*")
-            || fname.matches("SI1_\\d{4}_\\d+_\\d+ECM_N\\d+SRLC\\d+_\\d+LUJ.*");
+            || fname.matches("Z[RL]\\d_\\d{4}_\\d+_\\d+ECM_N\\d+ZCAM\\d+_\\d{4}LMJ.*")
+            || fname.matches("L[RL]E_\\d{4}_\\d+_\\d+ECM_N\\d+SCAM\\d+_\\d{4}I6J.*")
+            || fname.matches("F[RL]E_\\d{4}_\\d+_\\d+ECM_N\\d+FHAZ\\d+_\\d{2}_0L[MU]J.*")
+            || fname.matches("E[ADSU]E_\\d{4}_\\d+_\\d+ECM_N\\d+EDLC\\d+_\\d{4}L[MU]J.*")
+            || fname.matches("CCE_\\d{4}_\\d+_\\d+ECM_N\\d+CACH\\d+_\\d{2}_0LLJ.*")
+            || fname.matches("SI\\d_\\d{4}_\\d+_\\d+ECM_N\\d+SRLC\\d+_\\d+L[MU]J.*");
     }
 }
 
