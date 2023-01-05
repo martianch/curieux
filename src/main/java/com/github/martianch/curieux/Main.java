@@ -5031,29 +5031,31 @@ class NasaReader extends NasaReaderBase {
      * we read from several different URLs. Sometimes this works, sometimes not.
      */
     public static void cleanupReading() {
-        System.out.println("cleanup reading:");
-        for (String url : Arrays.asList("https://mars.nasa.gov/favicon-16x16.png",
-                                        "https://mars.nasa.gov/assets/facebook_icon@2x.png",
-                                        "https://mars.nasa.gov/assets/twitter_icon@2x.png")
-        ) {
-            try {
-                System.out.println("reading " + url);
-                HttpURLConnection uc2 = (HttpURLConnection) new URL(url).openConnection();
-                NasaReader.setHttpHeaders(uc2);
-                uc2.setConnectTimeout(3000); // 3 sec
-                try {
-                    ImageIO.read(uc2.getInputStream());
-                    System.out.println("url " + url + " read successfully");
-                    return;
-                } catch (IOException ee) {
-                    System.out.println("url was not read: "+url);
-                    ee.printStackTrace();
-                }
-            } catch (IOException e) {
-                System.out.println("could not read "+url+" :");
-                e.printStackTrace();
-            }
-        }
+//        System.out.println("cleanup reading:");
+//        for (String url : Arrays.asList("https://mars.nasa.gov/favicon-16x16.png",
+//                                        "https://mars.nasa.gov/assets/facebook_icon@2x.png",
+//                                        "https://mars.nasa.gov/assets/twitter_icon@2x.png")
+//        ) {
+//            try {
+//                System.out.println("reading " + url);
+//                HttpURLConnection uc2 = (HttpURLConnection) new URL(url).openConnection();
+//                NasaReader.setHttpHeaders(uc2);
+//                uc2.setConnectTimeout(3000); // 3 sec
+//                try(
+//                    InputStream inputStream = uc2.getInputStream()
+//                ) {
+//                    ImageIO.read(inputStream);
+//                    System.out.println("url " + url + " read successfully");
+//                    return;
+//                } catch (IOException ee) {
+//                    System.out.println("url was not read: "+url);
+//                    ee.printStackTrace();
+//                }
+//            } catch (IOException e) {
+//                System.out.println("could not read "+url+" :");
+//                e.printStackTrace();
+//            }
+//        }
     }
 }
 class NasaReaderV2 extends NasaReaderBase {
