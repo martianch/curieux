@@ -382,6 +382,30 @@ public class FileLocationsTest {
         assertFalse(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00030/ids/edr/browse/shrlc/SIF_0030_0669612176_172EBY_N0030828SRLC07000_0000LUJ01.png"));
     }
     @Test
+    public void isBayeredTest3() {
+        // more Perseverance stuff
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00662/ids/edr/browse/zcam/ZL0_0662_0725723479_239ECM_N0320378ZCAM08651_1100LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00662/ids/edr/browse/zcam/ZR0_0662_0725723479_239ECM_N0320378ZCAM08651_1100LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00666/ids/edr/browse/shrlc/SI1_0666_0726071246_960ECM_N0320482SRLC08040_0000LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00663/ids/edr/browse/zcam/ZL0_0663_0725815025_772ECM_N0320482ZCAM07114_1100LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00663/ids/edr/browse/zcam/ZR0_0663_0725815025_772ECM_N0320482ZCAM07114_1100LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00663/ids/edr/browse/zcam/ZL0_0663_0725814938_769ECM_N0320482ZCAM07114_0340LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00663/ids/edr/browse/zcam/ZR1_0663_0725801785_443ECM_N0320378ZCAM03512_1100LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00663/ids/edr/browse/zcam/ZL6_0663_0725801738_443ECM_N0320378ZCAM03512_1100LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00663/ids/edr/browse/zcam/ZL1_0663_0725801674_444ECM_N0320378ZCAM03512_1100LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00662/ids/edr/browse/scam/LRE_0662_0725708607_592ECM_N0320378SCAM01662_0100I6J02.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00600/ids/edr/browse/fcam/FLE_0600_0720205569_987ECM_N0300000FHAZ05000_12_0LUJ02.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00600/ids/edr/browse/fcam/FRE_0600_0720205569_987ECM_N0300000FHAZ05000_12_0LUJ02.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00600/ids/edr/browse/edl/ESE_0600_0720202497_158ECM_N0300000EDLC00600_0010LUJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00599/ids/edr/browse/cachecam/CCE_0599_0720133019_112ECM_N0300000CACH00203_04_0LLJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00597/ids/edr/browse/edl/EUE_0597_0719959169_375ECM_N0300000EDLC01597_0020LUJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00582/ids/edr/browse/shrlc/SI3_0582_0718641010_812ECM_N0290000SRLC08045_0000LMJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00519/ids/edr/browse/edl/EAE_0519_0713034453_129ECM_N0261222EDLC00519_0010LUJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00518/ids/edr/browse/edl/EDE_0518_0712939079_140ECM_N0261222EDLC00518_0050LUJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00477/ids/edr/browse/fcam/FLE_0477_0709296768_777ECM_N0261004FHAZ02008_01_0LLJ01.png"));
+        assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00477/ids/edr/browse/fcam/FRE_0477_0709296768_777ECM_N0261004FHAZ02008_01_0LLJ01.png"));
+    }
+    @Test
     public void getSolTest() {
         assertEquals(Optional.of(2804),FileLocations.getSol("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
         assertEquals(Optional.of(2700),FileLocations.getSol("file://foo/bar/2700/0560ML0022630070204612C00_DXXX.jpg"));
