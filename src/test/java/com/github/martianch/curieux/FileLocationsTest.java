@@ -406,12 +406,29 @@ public class FileLocationsTest {
         assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00477/ids/edr/browse/fcam/FRE_0477_0709296768_777ECM_N0261004FHAZ02008_01_0LLJ01.png"));
     }
     @Test
+    public void getWhichRoverTest() {
+        assertEquals(WhichRover.PERSEVERANCE, getWhichRover("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00477/ids/edr/browse/fcam/FRE_0477_0709296768_777ECM_N0261004FHAZ02008_01_0LLJ01.png"));
+        assertEquals(WhichRover.PERSEVERANCE, getWhichRover("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00015/ids/edr/browse/ncam/NLE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertEquals(WhichRover.PERSEVERANCE, getWhichRover("SI3_0582_0718641010_812ECM_N0290000SRLC08045_0000LMJ01.png"));
+        assertEquals(WhichRover.PERSEVERANCE, getWhichRover("NRE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
+        assertEquals(WhichRover.PERSEVERANCE, getWhichRover("ZR6_0477_0709276665_818EBY_N0260850ZCAM03391_0790LMJ01.png"));
+        assertEquals(WhichRover.PERSEVERANCE, getWhichRover("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00477/ids/edr/browse/zcam/ZR6_0477_0709276665_818EBY_N0260850ZCAM03391_0790LMJ01.png"));
+//        assertEquals(WhichRover.CURIOSITY, getWhichRover());
+        assertEquals(WhichRover.CURIOSITY, getWhichRover("0560ML0022630070204612C00_DXXX.jpg"));
+        assertEquals(WhichRover.CURIOSITY, getWhichRover("NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
+//        assertEquals(WhichRover.CURIOSITY, getWhichRover());
+    }
+    @Test
     public void getSolTest() {
+        // Curiosity
         assertEquals(Optional.of(2804),FileLocations.getSol("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
         assertEquals(Optional.of(2700),FileLocations.getSol("file://foo/bar/2700/0560ML0022630070204612C00_DXXX.jpg"));
         assertEquals(Optional.of(2701),FileLocations.getSol("/foo/bar/2701/0560ML0022630070204612C00_DXXX.jpg"));
         assertEquals(Optional.of(2702),FileLocations.getSol("C:\\foo\\bar\\2702\\0560ML0022630070204612C00_DXXX.jpg"));
         assertEquals(Optional.empty(),FileLocations.getSol("/foo/bar/0560ML0022630070204612C00_DXXX.jpg"));
+        // Perseverance
+        assertEquals(Optional.of(477),FileLocations.getSol("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00477/ids/edr/browse/zcam/ZR6_0477_0709276665_818EBY_N0260850ZCAM03391_0790LMJ01.png"));
+        assertEquals(Optional.of(670),FileLocations.getSol("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00670/ids/edr/browse/fcam/FRF_0670_0726420507_927ECM_N0320592FHAZ08111_01_295J01.png"));
     }
     @Test
     public void isMrlTest() {

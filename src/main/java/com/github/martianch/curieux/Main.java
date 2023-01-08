@@ -1777,8 +1777,8 @@ class X3DViewer {
             {
                 String leftFileName = FileLocations.getFileName(rd.left.path);
                 String rightFileName = FileLocations.getFileName(rd.right.path);
-                String leftTime = RoverTime.earthDateForFile(4, leftFileName);
-                String rightTime = RoverTime.earthDateForFile(4, rightFileName);
+                String leftTime = RoverTime.earthDateForFile(leftFileName);
+                String rightTime = RoverTime.earthDateForFile(rightFileName);
                 String times = "".equals(leftTime+rightTime)
                              ? ""
                              : leftTime.equals(rightTime)
@@ -3330,7 +3330,7 @@ abstract class FileLocations {
             return fileNameExt.substring(indexOfDot);
         }
     }
-    // TODO: support Perseverance
+    // support Perseverance -- it works
     static Optional<Integer> getSol(String urlOrPath) {
         Pattern pattern = Pattern.compile("[/\\\\]([0-9]+)[/\\\\]");
         Matcher matcher = pattern.matcher(urlOrPath);
@@ -3523,12 +3523,34 @@ abstract class FileLocations {
             || fname.matches("CCE_\\d{4}_\\d+_\\d+ECM_N\\d+CACH\\d+_\\d{2}_0LLJ.*")
             || fname.matches("SI\\d_\\d{4}_\\d+_\\d+ECM_N\\d+SRLC\\d+_\\d+L[MU]J.*");
     }
+    static WhichRover getWhichRover(String urlOrPath) {
+        String fname = getFileName(urlOrPath);
+        if (
+            fname.matches("[A-Z]{2}[A-Z0-9]_\\d{4}_\\d{10}_\\d{3}[A-Z]{3}_N\\d{7}[A-Z_]{4}\\d{5}_\\d{2}[0-9_]\\d[0-9A-Z_]{2}[JA]\\d{2}.*")
+            //                    FRE            _ 0477 _ 0709296768                    FHAZ     02008_     01_      0 LL          J    01.png
+            //                                                  _ 777  ECM     _N 0261004
+        ) {
+            return WhichRover.PERSEVERANCE;
+        }
+        return WhichRover.CURIOSITY;
+    }
 }
 
 abstract class RoverTime {
-    final static int MIN_CHARS_IN_TIMESTAMP = 6;
-    public static long toUtcMillis(long roverTimestamp) {
+    private static final int MIN_CHARS_IN_TIMESTAMP = 6;
+    private static final int TIMESTAMP_OFFSET_PERSEVERANCE = 9;
+    private static final int TIMESTAMP_OFFSET_CURIOSITY = 4;
+
+    public static long toUtcMillisC(long roverTimestamp) {
         return Math.round(roverTimestamp*1.000009468 + 946724361)*1000L;
+    }
+    public static long toUtcMillisP(long roverTimestamp) {
+        return (Math.round((roverTimestamp-666952977L)*1.000007886) + 1613681069L)*1000L;
+    }
+    public static long toUtcMillis(long roverTimestamp, WhichRover rover) {
+        return rover == WhichRover.PERSEVERANCE
+             ? toUtcMillisP(roverTimestamp)
+             : toUtcMillisC(roverTimestamp);
     }
     public static long parseTimestamp(int offset, String s) {
         if (offset >= s.length()) {
@@ -3548,14 +3570,16 @@ abstract class RoverTime {
         }
         return res;
     }
-    public static String earthDateForFile(int offset, String s) {
+    public static String earthDateForFile(String s) {
+        var rover = FileLocations.getWhichRover(s);
+        int offset = rover == WhichRover.PERSEVERANCE ? TIMESTAMP_OFFSET_PERSEVERANCE : TIMESTAMP_OFFSET_CURIOSITY;
         long ts = parseTimestamp(offset, s);
         if (ts == 0) {
             return "";
         }
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-        String res  = dateFormat.format(new Date(toUtcMillis(ts)));
+        String res  = dateFormat.format(new Date(toUtcMillis(ts, rover)));
         return res;
     }
 }
