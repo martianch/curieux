@@ -89,6 +89,7 @@ import java.util.Scanner;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -391,6 +392,7 @@ class ImageAndPath {
     public static final String NO_PATH = "-"; // pseudo-path, means "no path"
     public static final String ERROR_PATH = ""; // pseudo-path, means "error while loading path"
     public static final int DUMMY_SIZE = 12;
+    static final SuccessFailureCounter SUCCESS_FAILURE_COUNTER = new SuccessFailureCounter();
     final BufferedImage image;
     final String path;
     final String pathToLoad;
@@ -458,9 +460,12 @@ class ImageAndPath {
                     long readAt = System.currentTimeMillis();
                     System.out.println("Read in " + (openedAt - startedAt) + ", " + (readAt - openedAt) + " ms");
                     System.out.println("downloaded " + path);
+                    SUCCESS_FAILURE_COUNTER.countSuccess();
                 } catch (IOException e) {
                     long errorAt = System.currentTimeMillis();
+                    SUCCESS_FAILURE_COUNTER.countFailure();
                     System.out.println("Exception in " + (openedAt - startedAt) + ", " + (errorAt - openedAt) + " ms");
+                    System.out.println("Was reading in thread: " + Thread.currentThread());
                     if (uc instanceof HttpURLConnection) {
                         HttpURLConnection httpUc = (HttpURLConnection) uc;
                         // Oracle recommends to read the error stream, but in practice
@@ -478,8 +483,8 @@ class ImageAndPath {
                             System.out.println(error_text);
                         } catch (IOException ex) {
                             // deal with the exception
-                            System.out.println("Error while printing the error stream:");
-                            ex.printStackTrace();
+                            System.out.println("Error while printing the error stream: " + ex);
+//                            ex.printStackTrace();
                             System.out.println("DISCONNECTING URLConnection...");
                             httpUc.disconnect();
                         }
@@ -487,6 +492,7 @@ class ImageAndPath {
                     System.out.println("original exception:");
                     e.printStackTrace();
                     System.out.println("could not download "+path);
+                    System.out.println("Per-thread successes and failures:\n" + SUCCESS_FAILURE_COUNTER);
                     res = dummyImage(new Color(80,20,20));
                     NasaReader.cleanupReading();
                 }
@@ -3809,18 +3815,36 @@ class StringDiffs {
         }
         return lookup.get(key);
     }
+}
 
-    public static class Pair<T> {
-        public Pair(T first, T second) {
-            this.first = first;
-            this.second = second;
-        }
+class Pair<T> {
+    public Pair(T first, T second) {
+        this.first = first;
+        this.second = second;
+    }
 
-        public final T first, second;
+    public final T first, second;
 
-        public String toString() {
-            return "(" + first + "," + second + ")";
-        }
+    @Override
+    public String toString() {
+        return "(" + first + "," + second + ")";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Pair<?> pair = (Pair<?>) o;
+
+        if (!Objects.equals(first, pair.first)) return false;
+        return Objects.equals(second, pair.second);
+    }
+    @Override
+    public int hashCode() {
+        int result = first != null ? first.hashCode() : 0;
+        result = 31 * result + (second != null ? second.hashCode() : 0);
+        return result;
     }
 }
 
@@ -7427,5 +7451,30 @@ class DebayerBicubic {
     }
     static int rgb(int r, int g, int b) {
         return (c(r) << 16) | (c(g) << 8) | c(b);
+    }
+}
+
+class SuccessFailureCounter {
+    ConcurrentHashMap<String, Pair<Integer>> counts = new ConcurrentHashMap<>();
+    static final Pair<Integer> ONE_SUCCESS = new Pair<>(1, 0);
+    static final Pair<Integer> ONE_FAILURE = new Pair<>(0, 1);
+
+    void countSuccess() {
+        String thisThread = Thread.currentThread().toString();
+        counts.merge(thisThread, ONE_SUCCESS, (v,unused) -> new Pair<>(v.first+1, v.second));
+    }
+    void countFailure() {
+        String thisThread = Thread.currentThread().toString();
+        counts.merge(thisThread, ONE_FAILURE, (v,unused) -> new Pair<>(v.first, v.second+1));
+    }
+    @Override
+    public String toString() {
+        var treeMap = new TreeMap<>(counts);
+        String res = "{\n";
+        for (var entry : treeMap.entrySet()) {
+            res += " " + entry.getKey() + " -> " +entry.getValue().toString() + "\n";
+        }
+        res += "}\n";
+        return res;
     }
 }
