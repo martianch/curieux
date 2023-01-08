@@ -5829,6 +5829,9 @@ class ColorBalancer {
         return cr;
     }
     public static BufferedImage stretchColorsRgb(BufferedImage src, boolean perChannel) {
+//        if (ImageAndPath.isDummyImage(src)) {
+//            return src;
+//        }
         try {
             final int M = 16;
             int width = src.getWidth();
@@ -5842,6 +5845,9 @@ class ColorBalancer {
         }
     }
     public static BufferedImage stretchColorsRgb(BufferedImage src, CustomStretchRgbParameters customStretchRgbParameters) {
+//        if (ImageAndPath.isDummyImage(src)) {
+//            return src;
+//        }
         if (customStretchRgbParameters.colorRange.isEmpty()
          || customStretchRgbParameters.colorRange.isFullRange()
         ) {
@@ -7384,6 +7390,9 @@ class DebayerBicubic {
         }
     }
     static BufferedImage debayer_bicubic(BufferedImage orig) {
+        if (ImageAndPath.isDummyImage(orig)) {
+            return orig;
+        }
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
         System.out.println("debayer_bicubic " + WIDTH + "x" + HEIGHT);
