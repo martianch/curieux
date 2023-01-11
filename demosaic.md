@@ -8,7 +8,7 @@ by Marsgazer
 The algorithm used in the Curious X3D Viewer for Demosaicing of Bayer-Patterned Color Images
 is described. The algorithm uses a combination of cubic and bicubic interpolation.
 
-## Intruduction
+## Introduction
 
 The _Curious_ X3D viewer is a Java program for viewing images from Mars in X3D stereo
 (as RL stereo pairs) on a desktop computer screen. It turned out that the demosaicking
