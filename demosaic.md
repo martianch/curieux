@@ -3,6 +3,24 @@
 
 by Marsgazer
 
+## Abstract
+
+The algorithm used in the Curious X3D Viewer for Demosaicing of Bayer-Patterned Color Images
+is described. The algorithm uses a combination of cubic and bicubic interpolation.
+
+## Intruduction
+
+The _Curious_ X3D viewer is a Java program for viewing images from Mars in X3D stereo
+(as RL stereo pairs) on a desktop computer screen. It turned out that the demosaicking
+algorithm used in _Curious_ is better than the algorithm used by NASA: it does not
+produce "zip" artefacts.
+
+This text documents the algorithm used in the Curious X3D viewer.
+
+This text is documentation from the _Curious X3D Viewer_ ( https://github.com/martianch/curieux/ )
+software project and is published among the project's files at github:
+https://github.com/martianch/curieux/blob/master/demosaic.md
+
 ## Bayer Mosaic
 
 The Bayer mosaic pattern is often described as RGGB, but RG and GB belong to different lines.
@@ -148,6 +166,22 @@ Then, we use cubic interpolation in the central column to calculate the red valu
 
 See the class DebayerBicubic (this text is documentation from
 the Curious X3D viewer project, https://github.com/martianch/curieux )
+
+## Performance
+
+The cubic interpolation formula executed in the inner loop:
+
+```
+( ((p1() + p2()) << 2) + (q1() << 1) - q0() - q2() ) >> 3
+```
+
+contains only addition/subtraction and shifts.
+
+Java uses 8-bit color intensity values and 32-bit integers, so overflow is not a problem here.
+(With 32-bit color intensity values, it would be a problem, and one would have to e.g. use 64-bit math.)
+
+With modern hardware and software, the performance mostly depends on how well the CPU cache
+and the JIT compiler (just-in-time Java bytecode to native code compiler) do their job. 
 
 ## Discussion
 
