@@ -183,6 +183,21 @@ Java uses 8-bit color intensity values and 32-bit integers, so overflow is not a
 With modern hardware and software, the performance mostly depends on how well the CPU cache
 and the JIT compiler (just-in-time Java bytecode to native code compiler) do their job. 
 
+(Probably one should elaborate on the above for readers with no Java background. Historically, 
+multiplication and division used to be much slower than addition, subtraction and shifts.
+It is possible that some embedded systems still use hardware with slow multiplication 
+and division, but on modern CPUs division and multiplication are not slower than other operations.
+The expression is simple to calculate, but this is not important on the modern CPUs.
+Well, if you are making custom hardware, this _may_ be of importance.
+What is important on modern CPUs is memory access time. Reading memory is much slower than
+calculating expressions, and this problem is addresses by L1 and L2 caches.
+Even if the expression was more complex, the overall performance would still be determined
+by the performance of L1 and L2 caches. 
+You also could mention that the values in the formula are accessed like ```p1()``` rather than ```p1```,
+these are method calls rather than variable reads. It is the JIT compiler's job to optimize this.
+In theory, the JIT compiler is able to inline methods calls (but in practice you never know
+whether or not a theoretically possible optimization applies to your particular case).)
+
 ## Discussion
 
 We use this algorithm to demosaick images sent from Mars. It is important
