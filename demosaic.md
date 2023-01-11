@@ -196,7 +196,10 @@ by the performance of L1 and L2 caches.
 You also could mention that the values in the formula are accessed like ```p1()``` rather than ```p1```,
 these are method calls rather than variable reads. It is the JIT compiler's job to optimize this.
 In theory, the JIT compiler is able to inline methods calls (but in practice you never know
-whether or not a theoretically possible optimization applies to your particular case).)
+whether or not a theoretically possible optimization applies to your particular case).
+The bottom line is: if you _are_ making custom hardware, it is easy to get a good performance.
+If you use mainstream hardware, this demosaicing is approximately as fast as any other
+image transformation.)
 
 ## Discussion
 
