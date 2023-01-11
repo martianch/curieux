@@ -208,7 +208,8 @@ to be able to zoom the image and see small details: the rovers on Mars usually w
 change the course to make a better shot of whatever we find interesting even if it would be
 technically possible. 
 
-So one of the design goals was to use the minimal possible amount of neighboring pixels.
+So one of the design goals was to minimize the spot within which the neighboring pixels
+affect the estimated color intensity.
 
 This algorithm produces less demosaicking artefacts than the Malvar [1] algorithm currently used [2] by NASA. 
 
