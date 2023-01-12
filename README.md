@@ -47,6 +47,30 @@ You will need **Java 8+** to run it. Run `java -version` to check it.
 
 (For experienced users: If you use Linux and have Java 11+, you may run the file Main.java as a shebang script (if you know what is shebang and don't mind text instead of icons). Or you may use `java -jar` if you prefer this method. Or you may run the script. Any of these methods should work, no difference. Then why several methods of running? There are very exotic system configurations, like "the default java must be v6 in our bank", and it is easier to provide a workaround if there are multiple ways to run the program.)
 
+##### Running from the source
+
+If your environment is so configured that you cannot download Java software, you still can run the software
+from the source code, but the buttons will have text instead of icons. (You might think that this sounds crazy,
+but computer labs sometimes have system administrators that fight with viruses and students by restricting
+the students' access rights. Note that if it is your employer that restricted your access rights, 
+your internet traffic is likely also monitored.)
+
+Anyway, starting from Java 11, you can run any single-file program just from the source,
+providing the path if necessary:
+
+```
+java Main.java
+
+java src/main/java/com/github/martianch/curieux/Main.java
+
+/usr/lib/jvm/java-13-oracle/bin/java src/main/java/com/github/martianch/curieux/Main.java
+```
+
+The file Main.java can be downloaded from the source tree of this project: [direct link](https://raw.githubusercontent.com/martianch/curieux/master/src/main/java/com/github/martianch/curieux/Main.java).
+In the worst case you will have to copy and paste the whole source into the text editor.
+(Yes, this software is a single-file program. Running from source is a feature that I do not want to drop.)
+
+
 ### (Optional) Registering X3DView as a Graphics Application
 #### Ubuntu Linux
 Create the file `~/.local/share/applications/x3dview.desktop` with the following contents:
@@ -89,20 +113,6 @@ A Windows example:
 
 `\soft\x3dview\bin\x3dview https://mars.jpl.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02693/opgs/edr/fcam/FLB_636566396EDR_F0790294FHAZ00302M_.JPG https://mars.jpl.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02693/opgs/edr/fcam/FRB_636566396EDR_F0790294FHAZ00302M_.JPG` - a Windows example where the full path of the executable is specified with two image URLs. Note that it is `x3dview.bat` that executes under Windows!
 
-##### Running from the source
-
-With Java 11+, you can run the program just from the source, providing the path if necessary:
-
-```
-java Main.java
-
-java src/main/java/com/github/martianch/curieux/Main.java
-
-/usr/lib/jvm/java-13-oracle/bin/java src/main/java/com/github/martianch/curieux/Main.java
-```
-
-The fle Main.java can be downloaded from the source tree of this project: [direct link](https://raw.githubusercontent.com/martianch/curieux/master/src/main/java/com/github/martianch/curieux/Main.java).
-
 #### One Argument: Guess the Match
 
 For Curiosity images, in many cases the second character in the image file name is either R or L, and the corresponding file exists in the same directory.
@@ -131,7 +141,7 @@ In the same way, you can Drag-and-Drop an URL by dragging either the address fro
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/martianch/curieux/tags).
 In general, the "semantic versioning" is evil because it makes software developers think that incompatibilities are permissible if you increment the leftmost digit,
-but in our case there is no API, only UI.
+but in our case there is no API, only UI. And the leftmost digit (0) will hopefully never be incremented.
 
 ### Building
 
