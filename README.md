@@ -35,18 +35,6 @@ To make a stereo pair: make a photo, step right, make a photo.
 
 Why command line? The commercial operating systems do not trust free software. In fact, they just hate it. "Gosh, you downloaded something from the Internet, you (panic in the voice) want to run it? Oh please, please, don't! It's not signed!" And to sign it, the author of free software must pay them. I find it immoral. It is immoral to require the author of free software to pay. (And there are reasons to call paid distribution of such software immoral. You see, something very bad happened on Mars, and it is immoral to make money on that event.) So you have to do a little bit of system administration yourself.
 
-### Installation
-
-Unpack the file x3dview.zip to some directory. You will see a new directory, `x3dview`, with two subdirectories: `bin` and `lib`.
-If you use Linux or Darwin, 
-```
-chmod a+x x3dview/bin/x3dview
-```
-
-You will need **Java 8+** to run it. Run `java -version` to check it. 
-
-(For experienced users: If you use Linux and have Java 11+, you may run the file Main.java as a shebang script (if you know what is shebang and don't mind text instead of icons). Or you may use `java -jar` if you prefer this method. Or you may run the script. Any of these methods should work, no difference. Then why several methods of running? There are very exotic system configurations, like "the default java must be v6 in our bank", and it is easier to provide a workaround if there are multiple ways to run the program.)
-
 ##### Running from the source
 
 If your environment is so configured that you cannot download Java software, you still can run the software
@@ -70,6 +58,18 @@ The file Main.java can be downloaded from the source tree of this project: [dire
 In the worst case you will have to copy and paste the whole source into the text editor.
 (Yes, this software is a single-file program. Running from source is a feature that I do not want to drop.)
 
+
+### Installation
+
+Unpack the file x3dview.zip to some directory. You will see a new directory, `x3dview`, with two subdirectories: `bin` and `lib`.
+If you use Linux or Darwin, 
+```
+chmod a+x x3dview/bin/x3dview
+```
+
+You will need **Java 8+** to run it. Run `java -version` to check it. 
+
+(For experienced users: If you use Linux and have Java 11+, you may run the file Main.java as a shebang script (if you know what is shebang and don't mind text instead of icons). Or you may use `java -jar` if you prefer this method. Or you may run the script. Any of these methods should work, no difference. Then why several methods of running? There are very exotic system configurations, like "the default java must be v6 in our bank", and it is easier to provide a workaround if there are multiple ways to run the program.)
 
 ### (Optional) Registering X3DView as a Graphics Application
 #### Ubuntu Linux
