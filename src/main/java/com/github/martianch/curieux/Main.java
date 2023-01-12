@@ -31,6 +31,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultFormatterFactory;
 import javax.swing.text.Element;
 import javax.swing.text.NumberFormatter;
+import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLDocument;
 import java.awt.*;
@@ -2044,9 +2045,12 @@ class X3DViewer {
                             "do not press Shift to adjust offset by 3 pixels.<br>" +
                             "<br>" +
                         "</html>");
-                    mi.addActionListener(e ->
-                        JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
-                    );
+                    mi.addActionListener(e -> {
+                        //no hyperlinks => no tooltips needed
+                        //helpText.enableHrefTooltips();
+                        JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE);
+                        //helpText.disableHrefTooltips();
+                    });
                     {
                         Font f = helpText.getFont();
                         String FONT_NAME = "Verdana";
@@ -2443,8 +2447,10 @@ class X3DViewer {
                     }
                 }
                 helpButton.addActionListener(e -> {
+                    helpText.enableHrefTooltips();
                     JOptionPane.showMessageDialog(frame, helpText,
                             "help", JOptionPane.PLAIN_MESSAGE);
+                    helpText.disableHrefTooltips();
                 });
                 statusPanel.add(helpButton);
             }
@@ -4158,6 +4164,32 @@ class HyperTextPane extends JTextPane {
                         showHyperlinkCopyMenu(e,href);
                     }
         });
+    }
+    void enableHrefTooltips() {
+        ToolTipManager.sharedInstance().registerComponent(HyperTextPane.this);
+    }
+    void disableHrefTooltips() {
+        ToolTipManager.sharedInstance().unregisterComponent(HyperTextPane.this);
+    }
+    @Override
+    public String getToolTipText(MouseEvent evt) {
+        // return href destination to be shown as a tooltip
+        String text = null;
+        int pos = viewToModel(evt.getPoint());
+        if (pos >= 0) {
+            HTMLDocument hdoc = (HTMLDocument) getDocument();
+            javax.swing.text.Element e = hdoc.getCharacterElement(pos);
+            AttributeSet a = e.getAttributes();
+
+            SimpleAttributeSet value = (SimpleAttributeSet) a.getAttribute(HTML.Tag.A);
+            if (value != null) {
+                String href = (String) value.getAttribute(HTML.Attribute.HREF);
+                if (href != null) {
+                    text = href;
+                }
+            }
+        }
+        return text;
     }
     public void setHyperlinkClickListener(HyperlinkClickListener hyperlinkClickListener) {
         this.hyperlinkClickListener = hyperlinkClickListener;
