@@ -336,6 +336,7 @@ class DisplayParameters {
     DebayerMode debayerL, debayerR;
     ImageResamplingMode imageResamplingModeL, imageResamplingModeR;
     ColorCorrection lColorCorrection, rColorCorrection;
+    FisheyeCorrection lFisheyeCorrection, rFisheyeCorrection;
 
     public DisplayParameters() {
         setDefaults();
@@ -347,6 +348,7 @@ class DisplayParameters {
         debayerL = debayerR = DebayerMode.getUiDefault();
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
         lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, CustomStretchRgbParameters.newFullRange());
+        lFisheyeCorrection = rFisheyeCorrection = new FisheyeCorrection();
     }
     void setDefaultsMrMl() {
         setDefaults();
@@ -1716,6 +1718,8 @@ class X3DViewer {
 
         imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
         imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
+
+        // TODO barrel distortion correction
 
         ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R");
         ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L");
@@ -5406,6 +5410,11 @@ class RemoteFileNavigator extends FileNavigatorBase {
     }
 }
 
+class FisheyeCorrection {
+    BufferedImage doFisheyeCorrection(BufferedImage image) {
+        return image;
+    }
+}
 class ColorCorrection {
     final List<ColorCorrectionAlgo> algos;
     final CustomStretchRgbParameters customStretchRgbParameters;
