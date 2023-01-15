@@ -5712,9 +5712,7 @@ class ColorRangeAndFlagsChooser extends JPanel {
     private void whenShown() {
         usedNow = uiEventListener.getCurrentCustomStretchRgbParameters(isRight).copy();
         old = usedNow.copy();
-        proposed = old.copy();
-        customStretchRgbParametersToControls(proposed);
-        whenUpdated();
+        copyAndUseProposedFrom(old);
     }
     private void whenUpdated() {
         var isChanged = !usedNow.equals(proposed);
@@ -5762,10 +5760,13 @@ class ColorRangeAndFlagsChooser extends JPanel {
         dcG1.setValueAndText(cr.maxG);
         dcB1.setValueAndText(cr.maxB);
     }
-    private void actionResetToOriginal() {
-        proposed = old.copy();
+    void copyAndUseProposedFrom(CustomStretchRgbParameters toCopyAndUse) {
+        proposed = toCopyAndUse.copy();
         customStretchRgbParametersToControls(proposed);
         whenUpdated();
+    }
+    private void actionResetToOriginal() {
+        copyAndUseProposedFrom(old);
     }
     private void actionSetCustomStretchRgbParameters() {
         uiEventListener.setCustomStretchRgbParameters(proposed.copy(), isRight);
@@ -5791,6 +5792,24 @@ class ColorCorrectionPane extends JPanel {
         this.uiEventListener = uiEventListener;
         lColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, false);
         rColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, true);
+        {
+            JButton button = new JButton("Copy ->");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.setToolTipText("Copy all parameters to the right");
+            button.addActionListener(e ->
+                rColorRangeChooser.copyAndUseProposedFrom(lColorRangeChooser.proposed)
+            );
+            lColorRangeChooser.add(button);
+        }
+        {
+            JButton button = new JButton("<- Copy");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.setToolTipText("Copy all parameters to the left");
+            button.addActionListener(e ->
+                lColorRangeChooser.copyAndUseProposedFrom(rColorRangeChooser.proposed)
+            );
+            rColorRangeChooser.add(button);
+        }
 
         GridBagLayout gbl = new GridBagLayout();
 
