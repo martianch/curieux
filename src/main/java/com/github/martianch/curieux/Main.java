@@ -2055,12 +2055,9 @@ class X3DViewer {
                             "do not press Shift to adjust offset by 3 pixels.<br>" +
                             "<br>" +
                         "</html>");
-                    mi.addActionListener(e -> {
-                        //no hyperlinks => no tooltips needed
-                        //helpText.enableHrefTooltips();
-                        JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE);
-                        //helpText.disableHrefTooltips();
-                    });
+                    mi.addActionListener(e ->
+                        JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
+                    );
                     {
                         Font f = helpText.getFont();
                         String FONT_NAME = "Verdana";
@@ -2456,12 +2453,9 @@ class X3DViewer {
                         helpText.setFont(f);
                     }
                 }
-                helpButton.addActionListener(e -> {
-                    helpText.enableHrefTooltips();
-                    JOptionPane.showMessageDialog(frame, helpText,
-                            "help", JOptionPane.PLAIN_MESSAGE);
-                    helpText.disableHrefTooltips();
-                });
+                helpButton.addActionListener(e ->
+                    JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
+                );
                 statusPanel.add(helpButton);
             }
             {
@@ -4173,6 +4167,19 @@ class HyperTextPane extends JTextPane {
                     } else if (button == MouseEvent.BUTTON3) {
                         showHyperlinkCopyMenu(e,href);
                     }
+        });
+        addAncestorListener(new AncestorListener() {
+            @Override
+            public void ancestorAdded(AncestorEvent ancestorEvent) {
+                enableHrefTooltips();
+            }
+            @Override
+            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+                disableHrefTooltips();
+            }
+            @Override
+            public void ancestorMoved(AncestorEvent ancestorEvent) {
+            }
         });
     }
     void enableHrefTooltips() {
