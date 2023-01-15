@@ -5777,6 +5777,8 @@ class ColorRangeAndFlagsChooser extends JPanel {
     }
 }
 class ColorCorrectionPane extends JPanel {
+    public static final int N_EFFECTS = 5;
+
     final UiEventListener uiEventListener;
     final List<ColorCorrectionModeChooser> lChoosers = new ArrayList<>();
     final List<ColorCorrectionModeChooser> rChoosers = new ArrayList<>();
@@ -5792,11 +5794,12 @@ class ColorCorrectionPane extends JPanel {
 
         GridBagLayout gbl = new GridBagLayout();
 
+        int rowNumber = 0;
         {
             var text = new JLabel("Apply effects to each image, in this sequence:");
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 0;
+            gbc.gridy = rowNumber++;
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(text, gbc);
@@ -5804,7 +5807,7 @@ class ColorCorrectionPane extends JPanel {
         }
         for (int col = 0; col<2; col++) {
             final boolean isLeft = (col & 1) == 0;
-            for (int row = 0; row < 5; row++) {
+            for (int row = 0; row < N_EFFECTS; row++) {
                 ColorCorrectionModeChooser chooser = new ColorCorrectionModeChooser(x -> {
                     if (isLeft) {
                         javax.swing.SwingUtilities.invokeLater( () -> {
@@ -5824,16 +5827,17 @@ class ColorCorrectionPane extends JPanel {
                 gbc.weightx = 1.0;
                 gbc.weighty = 1.0;
                 gbc.gridx = col*3;
-                gbc.gridy = row+1;
+                gbc.gridy = rowNumber+row;
                 gbl.setConstraints(chooser, gbc);
                 this.add(chooser);
             }
         }
+        rowNumber += N_EFFECTS;
         {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 7;
+            gbc.gridy = rowNumber++;
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
@@ -5849,7 +5853,7 @@ class ColorCorrectionPane extends JPanel {
             gbc.weightx = 1.0;
             gbc.weighty = 1.0;
             gbc.gridx = 0;
-            gbc.gridy = 8;
+            gbc.gridy = rowNumber;
             gbl.setConstraints(lColorRangeChooser, gbc);
             this.add(lColorRangeChooser);
         }
@@ -5859,10 +5863,11 @@ class ColorCorrectionPane extends JPanel {
             gbc.weightx = 1.0;
             gbc.weighty = 1.0;
             gbc.gridx = 3;
-            gbc.gridy = 8;
+            gbc.gridy = rowNumber;
             gbl.setConstraints(rColorRangeChooser, gbc);
             this.add(rColorRangeChooser);
         }
+        rowNumber++;
         this.setLayout(gbl);
     }
 
