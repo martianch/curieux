@@ -248,6 +248,12 @@ class ColorRange {
         var res = new ColorRange(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, 0, 0, 0);
         return res;
     }
+    public void setMinAll(int minX) {
+        minR = minG = minB = minX;
+    }
+    public void setMaxAll(int maxX) {
+        maxR = maxG = maxB = maxX;
+    }
     boolean isEmpty() {
         return minR >= maxR || minG >= maxG || minB >= maxB;
     }
@@ -287,20 +293,22 @@ class CustomStretchRgbParameters {
     ColorRange colorRange;
     boolean isPerChannel;
     boolean isSaturated;
+    boolean isBlackSaturated;
 
-    public CustomStretchRgbParameters(ColorRange colorRange, boolean isPerChannel, boolean isSaturated) {
+    public CustomStretchRgbParameters(ColorRange colorRange, boolean isPerChannel, boolean isSaturated, boolean isBlackSaturated) {
         this.colorRange = colorRange.copy();
         this.isPerChannel = isPerChannel;
         this.isSaturated = isSaturated;
+        this.isBlackSaturated = isBlackSaturated;
     }
     public CustomStretchRgbParameters copy() {
-        return new CustomStretchRgbParameters(colorRange, isPerChannel, isSaturated);
+        return new CustomStretchRgbParameters(colorRange, isPerChannel, isSaturated, isBlackSaturated);
     }
     public static CustomStretchRgbParameters newEmpty() {
-        return new CustomStretchRgbParameters(ColorRange.newEmptyRange(), true, true);
+        return new CustomStretchRgbParameters(ColorRange.newEmptyRange(), true, true, false);
     }
     public static CustomStretchRgbParameters newFullRange() {
-        return new CustomStretchRgbParameters(ColorRange.newFullRange(), true, true);
+        return new CustomStretchRgbParameters(ColorRange.newFullRange(), true, true, false);
     }
     @Override
     public String toString() {
@@ -308,6 +316,7 @@ class CustomStretchRgbParameters {
                 "colorRange=" + colorRange +
                 ", isPerChannel=" + isPerChannel +
                 ", isSaturated=" + isSaturated +
+                ", isBlackSaturated=" + isBlackSaturated +
                 '}';
     }
     @Override
@@ -315,13 +324,14 @@ class CustomStretchRgbParameters {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CustomStretchRgbParameters that = (CustomStretchRgbParameters) o;
-        return isPerChannel == that.isPerChannel &&
+        return  isPerChannel == that.isPerChannel &&
                 isSaturated == that.isSaturated &&
+                isBlackSaturated == that.isBlackSaturated &&
                 Objects.equals(colorRange, that.colorRange);
     }
     @Override
     public int hashCode() {
-        return Objects.hash(colorRange, isPerChannel, isSaturated);
+        return Objects.hash(colorRange, isPerChannel, isSaturated, isBlackSaturated);
     }
 }
 class BehavioralOptions {
@@ -2049,12 +2059,9 @@ class X3DViewer {
                             "do not press Shift to adjust offset by 3 pixels.<br>" +
                             "<br>" +
                         "</html>");
-                    mi.addActionListener(e -> {
-                        //no hyperlinks => no tooltips needed
-                        //helpText.enableHrefTooltips();
-                        JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE);
-                        //helpText.disableHrefTooltips();
-                    });
+                    mi.addActionListener(e ->
+                        JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
+                    );
                     {
                         Font f = helpText.getFont();
                         String FONT_NAME = "Verdana";
@@ -2450,12 +2457,9 @@ class X3DViewer {
                         helpText.setFont(f);
                     }
                 }
-                helpButton.addActionListener(e -> {
-                    helpText.enableHrefTooltips();
-                    JOptionPane.showMessageDialog(frame, helpText,
-                            "help", JOptionPane.PLAIN_MESSAGE);
-                    helpText.disableHrefTooltips();
-                });
+                helpButton.addActionListener(e ->
+                    JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
+                );
                 statusPanel.add(helpButton);
             }
             {
@@ -4168,6 +4172,19 @@ class HyperTextPane extends JTextPane {
                         showHyperlinkCopyMenu(e,href);
                     }
         });
+        addAncestorListener(new AncestorListener() {
+            @Override
+            public void ancestorAdded(AncestorEvent ancestorEvent) {
+                enableHrefTooltips();
+            }
+            @Override
+            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+                disableHrefTooltips();
+            }
+            @Override
+            public void ancestorMoved(AncestorEvent ancestorEvent) {
+            }
+        });
     }
     void enableHrefTooltips() {
         ToolTipManager.sharedInstance().registerComponent(HyperTextPane.this);
@@ -5591,12 +5608,27 @@ class ColorRangeAndFlagsChooser extends JPanel {
     final DigitalZoomControl<Integer, OffsetWrapper> dcB1;
     final JCheckBox cbPerChannel;
     final JCheckBox cbSaturation;
+    final JCheckBox cbSaturateToBlack;
     final JButton buttonSet;
 
     final Color normalButtonColor;
     final Color highlightedButtonColor = new Color(250,127,127);
     private final String pleaseSelectSrgb3Norm;
     private final String pleaseSelectSrgb3Hili;
+
+    private static final String ALL3 = "RGB";
+    private static final String ALL3_TOOLTOP = "Set all 3 channels to this value";
+    private JButton makeAll3Button(Consumer<ColorRange> updater) {
+        JButton all3 = new JButton();
+        DigitalZoomControl.loadIcon(all3,"icons/rgb24.png",ALL3);
+        all3.setToolTipText(ALL3_TOOLTOP);
+        all3.addActionListener(e -> {
+            updater.accept(proposed.colorRange);
+            customStretchRgbParametersToControls(proposed);
+            whenUpdated();
+        });
+        return all3;
+    }
 
     ColorRangeAndFlagsChooser(UiEventListener uiEventListener, boolean isRight) {
         this.uiEventListener = uiEventListener;
@@ -5618,16 +5650,22 @@ class ColorRangeAndFlagsChooser extends JPanel {
         }
         this.add(dcR0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {
             proposed.colorRange.minR=i; whenUpdated();}));
+        dcR0.add(makeAll3Button(cr -> cr.setMinAll(cr.minR)));
         this.add(dcG0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {
             proposed.colorRange.minG=i; whenUpdated();}));
+        dcG0.add(makeAll3Button(cr -> cr.setMinAll(cr.minG)));
         this.add(dcB0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
             proposed.colorRange.minB=i; whenUpdated();}));
+        dcB0.add(makeAll3Button(cr -> cr.setMinAll(cr.minB)));
         this.add(dcR1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {
             proposed.colorRange.maxR=i; whenUpdated();}));
+        dcR1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxR)));
         this.add(dcG1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {
             proposed.colorRange.maxG=i; whenUpdated();}));
+        dcG1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxG)));
         this.add(dcB1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
             proposed.colorRange.maxB=i; whenUpdated();}));
+        dcB1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxB)));
         this.addAncestorListener(new AncestorListener() {
             @Override
             public void ancestorAdded(AncestorEvent ancestorEvent) {
@@ -5657,6 +5695,14 @@ class ColorRangeAndFlagsChooser extends JPanel {
             cbSaturation.setToolTipText("Too bright pixels must remain white or \"wrap around\" to dark?");
         }
         {
+            cbSaturateToBlack = new JCheckBox("Saturate to Black");
+            this.add(cbSaturateToBlack);
+            cbSaturateToBlack.addActionListener(
+                    e -> { proposed.isBlackSaturated = cbSaturateToBlack.isSelected(); whenUpdated(); }
+            );
+            cbSaturateToBlack.setToolTipText("Overexposed (too bright) pixels must become black");
+        }
+        {
             JButton button = new JButton("Get from Viewport");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
             button.addActionListener(e -> actionCalculateViewportColorRange());
@@ -5682,9 +5728,7 @@ class ColorRangeAndFlagsChooser extends JPanel {
     private void whenShown() {
         usedNow = uiEventListener.getCurrentCustomStretchRgbParameters(isRight).copy();
         old = usedNow.copy();
-        proposed = old.copy();
-        customStretchRgbParametersToControls(proposed);
-        whenUpdated();
+        copyAndUseProposedFrom(old);
     }
     private void whenUpdated() {
         var isChanged = !usedNow.equals(proposed);
@@ -5722,6 +5766,7 @@ class ColorRangeAndFlagsChooser extends JPanel {
         colorRangeToControls(cr);
         cbPerChannel.setSelected(param.isPerChannel);
         cbSaturation.setSelected(param.isSaturated);
+        cbSaturateToBlack.setSelected(param.isBlackSaturated);
     }
     private void colorRangeToControls(ColorRange cr) {
         dcR0.setValueAndText(cr.minR);
@@ -5731,10 +5776,13 @@ class ColorRangeAndFlagsChooser extends JPanel {
         dcG1.setValueAndText(cr.maxG);
         dcB1.setValueAndText(cr.maxB);
     }
-    private void actionResetToOriginal() {
-        proposed = old.copy();
+    void copyAndUseProposedFrom(CustomStretchRgbParameters toCopyAndUse) {
+        proposed = toCopyAndUse.copy();
         customStretchRgbParametersToControls(proposed);
         whenUpdated();
+    }
+    private void actionResetToOriginal() {
+        copyAndUseProposedFrom(old);
     }
     private void actionSetCustomStretchRgbParameters() {
         uiEventListener.setCustomStretchRgbParameters(proposed.copy(), isRight);
@@ -5746,6 +5794,8 @@ class ColorRangeAndFlagsChooser extends JPanel {
     }
 }
 class ColorCorrectionPane extends JPanel {
+    public static final int N_EFFECTS = 5;
+
     final UiEventListener uiEventListener;
     final List<ColorCorrectionModeChooser> lChoosers = new ArrayList<>();
     final List<ColorCorrectionModeChooser> rChoosers = new ArrayList<>();
@@ -5758,14 +5808,33 @@ class ColorCorrectionPane extends JPanel {
         this.uiEventListener = uiEventListener;
         lColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, false);
         rColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, true);
+        {
+            JButton button = new JButton("Copy ->");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.setToolTipText("Copy all parameters to the right");
+            button.addActionListener(e ->
+                rColorRangeChooser.copyAndUseProposedFrom(lColorRangeChooser.proposed)
+            );
+            lColorRangeChooser.add(button);
+        }
+        {
+            JButton button = new JButton("<- Copy");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.setToolTipText("Copy all parameters to the left");
+            button.addActionListener(e ->
+                lColorRangeChooser.copyAndUseProposedFrom(rColorRangeChooser.proposed)
+            );
+            rColorRangeChooser.add(button);
+        }
 
         GridBagLayout gbl = new GridBagLayout();
 
+        int rowNumber = 0;
         {
             var text = new JLabel("Apply effects to each image, in this sequence:");
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 0;
+            gbc.gridy = rowNumber++;
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(text, gbc);
@@ -5773,7 +5842,7 @@ class ColorCorrectionPane extends JPanel {
         }
         for (int col = 0; col<2; col++) {
             final boolean isLeft = (col & 1) == 0;
-            for (int row = 0; row < 5; row++) {
+            for (int row = 0; row < N_EFFECTS; row++) {
                 ColorCorrectionModeChooser chooser = new ColorCorrectionModeChooser(x -> {
                     if (isLeft) {
                         javax.swing.SwingUtilities.invokeLater( () -> {
@@ -5793,16 +5862,17 @@ class ColorCorrectionPane extends JPanel {
                 gbc.weightx = 1.0;
                 gbc.weighty = 1.0;
                 gbc.gridx = col*3;
-                gbc.gridy = row+1;
+                gbc.gridy = rowNumber+row;
                 gbl.setConstraints(chooser, gbc);
                 this.add(chooser);
             }
         }
+        rowNumber += N_EFFECTS;
         {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 7;
+            gbc.gridy = rowNumber++;
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
@@ -5818,7 +5888,7 @@ class ColorCorrectionPane extends JPanel {
             gbc.weightx = 1.0;
             gbc.weighty = 1.0;
             gbc.gridx = 0;
-            gbc.gridy = 8;
+            gbc.gridy = rowNumber;
             gbl.setConstraints(lColorRangeChooser, gbc);
             this.add(lColorRangeChooser);
         }
@@ -5828,10 +5898,11 @@ class ColorCorrectionPane extends JPanel {
             gbc.weightx = 1.0;
             gbc.weighty = 1.0;
             gbc.gridx = 3;
-            gbc.gridy = 8;
+            gbc.gridy = rowNumber;
             gbl.setConstraints(rColorRangeChooser, gbc);
             this.add(rColorRangeChooser);
         }
+        rowNumber++;
         this.setLayout(gbl);
     }
 
@@ -5902,7 +5973,7 @@ class ColorBalancer {
             int width = src.getWidth();
             int height = src.getHeight();
             ColorRange cr = getColorRangeFromImage(M, width - M, M, height - M, src);
-            BufferedImage res = stretchColorsUsingRgbRange(cr, src, perChannel, false);
+            BufferedImage res = stretchColorsUsingRgbRange(cr, src, perChannel, false, false);
             return res;
         } catch (ArithmeticException e) {
             e.printStackTrace();
@@ -5922,15 +5993,17 @@ class ColorBalancer {
         boolean perChannel = customStretchRgbParameters.isPerChannel;
         ColorRange cr = customStretchRgbParameters.colorRange;
         boolean saturate = customStretchRgbParameters.isSaturated;
+        boolean saturateToBlack = customStretchRgbParameters.isBlackSaturated;
         try {
-            return stretchColorsUsingRgbRange(cr, src, perChannel, saturate);
+            return stretchColorsUsingRgbRange(cr, src, perChannel, saturate, saturateToBlack);
         } catch (ArithmeticException e) {
             e.printStackTrace();
             return src;
         }
     }
 
-    static BufferedImage stretchColorsUsingRgbRange(ColorRange cr, BufferedImage src, boolean perChannel, boolean saturate) {
+    static BufferedImage stretchColorsUsingRgbRange(ColorRange cr, BufferedImage src,
+                                                    boolean perChannel, boolean saturate, boolean saturateToBlack) {
         int width = src.getWidth();
         int height = src.getHeight();
         int minR = cr.minR, minG = cr.minG, minB = cr.minB, maxR = cr.maxR, maxG = cr.maxG, maxB = cr.maxB;
@@ -5955,7 +6028,7 @@ class ColorBalancer {
         }
 
         var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        if (saturate) {
+        if (saturate && !saturateToBlack) {
             for (int j = 0; j < height; j++) {
                 for (int i = 0; i < width; i++) {
                     int color = src.getRGB(i, j);
@@ -5965,6 +6038,20 @@ class ColorBalancer {
                     int r1 = Math.max(0, Math.min(255, (r - minR) * 255 / dr));
                     int g1 = Math.max(0, Math.min(255, (g - minG) * 255 / dg));
                     int b1 = Math.max(0, Math.min(255, (b - minB) * 255 / db));
+                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                    res.setRGB(i, j, color1);
+                }
+            }
+        } else if (saturateToBlack) {
+            for (int j = 0; j < height; j++) {
+                for (int i = 0; i < width; i++) {
+                    int color = src.getRGB(i, j);
+                    int r = 0xff & (color >> 16);
+                    int g = 0xff & (color >> 8);
+                    int b = 0xff & (color);
+                    int r1 = 0xff & Math.max(0, Math.min(256, (r - minR) * 255 / dr));
+                    int g1 = 0xff & Math.max(0, Math.min(256, (g - minG) * 255 / dg));
+                    int b1 = 0xff & Math.max(0, Math.min(256, (b - minB) * 255 / db));
                     int color1 = (r1 << 16) | (g1 << 8) | (b1);
                     res.setRGB(i, j, color1);
                 }
