@@ -1669,6 +1669,7 @@ class X3DViewer {
     JLabel colorCorrectionDescriptionL;
     JLabel colorCorrectionDescriptionR;
     ColorCorrectionPane colorCorrectionPane;
+    FisheyeCorrectionPane fisheyeCorrectionPane;
     MeasurementPanel measurementPanel;
     SettingsPanel settingsPanel;
     JCheckBoxMenuItem showMeasurementCbMenuItem;
@@ -1730,6 +1731,8 @@ class X3DViewer {
         imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
 
         // TODO barrel distortion correction
+        imgL = dp.lFisheyeCorrection.doFisheyeCorrection(imgL);
+        imgR = dp.rFisheyeCorrection.doFisheyeCorrection(imgR);
 
         ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R");
         ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L");
@@ -1824,6 +1827,7 @@ class X3DViewer {
         colorCorrectionDescriptionL = new JLabel("....");
         colorCorrectionDescriptionR = new JLabel("....");
         colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
+        fisheyeCorrectionPane = new FisheyeCorrectionPane(uiEventListener);
         measurementPanel = new MeasurementPanel(uiEventListener);
         settingsPanel = new SettingsPanel(uiEventListener);
         {
@@ -2110,6 +2114,13 @@ class X3DViewer {
                 menuLR.add(miColors);
                 miColors.addActionListener(e ->
                         colorCorrectionPane.showDialogIn(frame)
+                );
+            }
+            {
+                JMenuItem miFisheye = new JMenuItem("Fisheye Correction...");
+                menuLR.add(miFisheye);
+                miFisheye.addActionListener(e ->
+                        fisheyeCorrectionPane.showDialogIn(frame)
                 );
             }
             {
@@ -5428,8 +5439,12 @@ class RemoteFileNavigator extends FileNavigatorBase {
 }
 
 class FisheyeCorrection {
-    BufferedImage doFisheyeCorrection(BufferedImage image) {
-        return image;
+    BufferedImage doFisheyeCorrection(BufferedImage orig) {
+        int HEIGHT = orig.getHeight();
+        int WIDTH = orig.getWidth();
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+
+        return orig;
     }
 }
 class ColorCorrection {
@@ -7157,6 +7172,259 @@ class StereoCamChooser extends JComboBox<StereoPairParameters> {
     public void setValue(StereoPairParameters stereoPairParameters) {
         setSelectedItem(stereoPairParameters);
     }
+}
+
+class FisheyeCorrectionPane extends JPanel {
+    final UiEventListener uiEventListener;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcLX1;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcLY1;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcLX2;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcLY2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX5;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY5;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcRX1;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcRY1;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcRX2;
+//    final DigitalZoomControl<Double, OffsetWrapper2> dcRY2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY3;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY4;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX5;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY5;
+
+    public FisheyeCorrectionPane(UiEventListener uiEventListener) {
+        this.uiEventListener = uiEventListener;
+
+        GridBagLayout gbl = new GridBagLayout();
+
+//        dcLX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1L:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(0, i);
+//            TODO_Calculate();
+//        });
+//        dcLY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1L:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(1, i);
+//            TODO_Calculate();
+//        });
+//        dcLX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2L:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(2, i);
+//            TODO_Calculate();
+//        });
+//        dcLY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2L:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(3, i);
+//            TODO_Calculate();
+//        });
+        dcLX3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">X3L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(4, i);
+            TODO_Calculate();
+        });
+        dcLY3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">Y3L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(5, i);
+            TODO_Calculate();
+        });
+        dcLX4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(6, i);
+            TODO_Calculate();
+        });
+        dcLY4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(7, i);
+            TODO_Calculate();
+        });
+        dcLX5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(8, i);
+            TODO_Calculate();
+        });
+        dcLY5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(9, i);
+            TODO_Calculate();
+        });
+//        dcRX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(10, i);
+//            TODO_Calculate();
+//        });
+//        dcRY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(11, i);
+//            TODO_Calculate();
+//        });
+//        dcRX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(12, i);
+//            TODO_Calculate();
+//        });
+//        dcRY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 9, new OffsetWrapper2(), i -> {
+//            uiEventListener.markedPointChanged(13, i);
+//            TODO_Calculate();
+//        });
+        dcRX3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">X3R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(14, i);
+            TODO_Calculate();
+        });
+        dcRY3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">Y3R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(15, i);
+            TODO_Calculate();
+        });
+        dcRX4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(16, i);
+            TODO_Calculate();
+        });
+        dcRY4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(17, i);
+            TODO_Calculate();
+        });
+        dcRX5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(18, i);
+            TODO_Calculate();
+        });
+        dcRY5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(19, i);
+            TODO_Calculate();
+        });
+        var dcs = Arrays.asList(
+//                dcLX1, dcLY1, dcLX2, dcLY2,
+                dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5,
+//                dcRX1, dcRY1, dcRX2, dcRY2,
+                dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5
+        );
+        var dcRows = dcs.size()/4;
+
+        {
+            var row = new JPanel();
+            row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 0;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(row, gbc);
+            this.add(row);
+//            var text1 = new JLabel("Please focus your eyes on the object of interest and make both marks of the same color");
+//            var text2 = new JLabel("EXACTLY match ON THAT OBJECT in x3d, otherwise you will get a measurement error!");
+            // TODO: refactor, use an array + a loop
+            var text1 = new JLabel("The best method is to mark THE SAME SPOT ON THE SAME OBJECT on both photos with red marks, and mark another spot on another object with the green marks, again on both photos.");
+            var text3 = new JLabel("Note that moving a mark by 1 pixel MAY significantly change the result of measurement. The blue/cyan/magenta marks are used only for calibration.");
+            var text5 = new JLabel(" ");
+            row.add(text1);
+            row.add(text3);
+            row.add(text5);
+        }
+        {
+            var text = new JLabel("X and Y coordinates of points 1 and 2 on the left and right images:");
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 1;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(text, gbc);
+            this.add(text);
+        }
+
+        for (int lr = 0; lr<2; lr++) {
+            for (int i = 0; i < dcRows*2; i++) {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.fill = GridBagConstraints.BOTH;
+                gbc.weightx = 1.0;
+                gbc.weighty = 1.0;
+                gbc.gridx = lr*3 + i%2;
+                gbc.gridy = i/2+2;
+                var dc = dcs.get(lr*dcRows*2 + i);
+                gbl.setConstraints(dc, gbc);
+                this.add(dc);
+            }
+        }
+        // white space between controls for the left and right images
+        for (int i = 0; i < dcRows; i++) {
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.fill = GridBagConstraints.BOTH;
+            gbc.weightx = 1.0;
+            gbc.weighty = 1.0;
+            gbc.gridx = 2;
+            gbc.gridy = i+2;
+            var t = new JLabel("        ");
+            gbl.setConstraints(t, gbc);
+            this.add(t);
+        }
+        {
+            var row = new JPanel();
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = 12;         // MAGIC NUMBER // TODO: calculate
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(row, gbc);
+            this.add(row);
+            var button = new JButton("Calculate");
+//            button.addActionListener(e -> doCalculate7());
+            row.add(button);
+            var text = new JLabel("<html>To calibrate, set both cyan marks on some spot on the left, both magenta marks<br>on some spot on the right, set both blue marks on some infinitely distant spot, and press:</html>");
+            row.add(text);
+            var button2 = new JButton("Calibrate");
+            button2.addActionListener(e -> TODO_Calculate());
+            row.add(button2);
+        }
+        this.setLayout(gbl);
+    }
+    void TODO_Calculate() {
+
+    }
+    void showDialogIn(JFrame mainFrame) {
+        setControls(uiEventListener.getMeasurementStatus());
+        JOptionPane.showMessageDialog(mainFrame, this,"Fisheye Correction", JOptionPane.PLAIN_MESSAGE);
+    }
+    FisheyeCorrectionPane setControls(MeasurementStatus ms) {
+//        dcLX1.setValueAndText(ms.left.x1);
+//        dcLY1.setValueAndText(ms.left.y1);
+//        dcLX2.setValueAndText(ms.left.x2);
+//        dcLY2.setValueAndText(ms.left.y2);
+        dcLX3.setValueAndText(ms.left.x3);
+        dcLY3.setValueAndText(ms.left.y3);
+        dcLX4.setValueAndText(ms.left.x4);
+        dcLY4.setValueAndText(ms.left.y4);
+        dcLX5.setValueAndText(ms.left.x5);
+        dcLY5.setValueAndText(ms.left.y5);
+//        dcRX1.setValueAndText(ms.right.x1);
+//        dcRY1.setValueAndText(ms.right.y1);
+//        dcRX2.setValueAndText(ms.right.x2);
+//        dcRY2.setValueAndText(ms.right.y2);
+        dcRX3.setValueAndText(ms.right.x3);
+        dcRY3.setValueAndText(ms.right.y3);
+        dcRX4.setValueAndText(ms.right.x4);
+        dcRY4.setValueAndText(ms.right.y4);
+        dcRX5.setValueAndText(ms.right.x5);
+        dcRY5.setValueAndText(ms.right.y5);
+        return this;
+    }
+}
+
+class LagrangePolynomialInterpolator {
+    static double[] findPolynomialWith0At0(double x1, double y1, double x2, double y2, double x3, double y3) {
+        double[] a = new double[4];
+        y1 /= x1;
+        y2 /= x2;
+        y3 /= x3;
+        double YX1 = y1 / ((x1 - x2) * (x1 - x3));
+        double YX2 = y2 / ((x2 - x1) * (x2 - x3));
+        double YX3 = y3 / ((x3 - x1) * (x3 - x2));
+        a[3] = YX1 + YX2 + YX3; // *x^3
+        a[2] = - YX1 * (x2 + x3) - YX2 * (x1 + x3) - YX3 * (x1 + x2); // *x^2
+        a[1] = YX1*x2*x3 + YX2*x1*x3 + YX3*x1*x2; // *x
+        a[0] = 0; // *1
+        return a;
+    }
+    static double applyPolynomial(double[] a, double x) {
+        return ((a[3]*x + a[2])*x + a[1])*x + a[0];
+    }
+//    static double calculate(double[] coefficients, double x) {
+//        double res = 0;
+//        double xx = 1.;
+//        for (var coef : coefficients) {
+//            res += coef * xx;
+//            xx *= x;
+//        }
+//        return res;
+//    }
 }
 
 enum MeasurementPointMark {
