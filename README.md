@@ -151,7 +151,8 @@ but in our case there is no API, only UI. And the leftmost digit (0) will hopefu
 
 To build it as is, you need Java 13. At the moment, Gradle does not work with Java 14.
 Alternatively, you can compile it without Gradle, there is only one file: Main.java (or you may just run it as a script).
-But you need Gradle to run the unit tests.
+But you need Gradle to run the unit tests. And you need gradle to create a .jar and to pass the version tag to the application
+(the version is shown in the bottom of the help screen).
 
 ## License
 
