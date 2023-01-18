@@ -9,7 +9,7 @@ button from the raw images index on the NASA site.
 
 Direct link to Curiosity raw images: https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl
 
-### What is X3D Stereo and How To View It
+## What is X3D Stereo and How To View It
 
 Blog post (explains how to make a viewing frame from an A4 sheet): https://corgegrault.blogspot.com/2020/02/what-is-x3d-and-how-to-view-it-just-on.html
 
@@ -27,6 +27,8 @@ To view it, conceal the right image from the right eye with the right hand, and 
 
 To make a stereo pair: make a photo, step right, make a photo.
 
+## Running This Software
+
 ### The Easiest Way: Running Without Installation
 
 1. Install Java. You will need **Java 8+** to run it. (For example, download OpenJDK from https://openjdk.java.net/projects/jdk/17/ ) Run `java -version` in the command line to check it. 
@@ -35,7 +37,7 @@ To make a stereo pair: make a photo, step right, make a photo.
 
 Why command line? The commercial operating systems do not trust free software. In fact, they just hate it. "Gosh, you downloaded something from the Internet, you (panic in the voice) want to run it? Oh please, please, don't! It's not signed!" And to sign it, the author of free software must pay them. I find it immoral. It is immoral to require the author of free software to pay. (And there are reasons to call paid distribution of such software immoral. You see, something very bad happened on Mars, and it is immoral to make money on that event.) So you have to do a little bit of system administration yourself.
 
-##### Running from the source
+### Running from the source
 
 If your environment is so configured that you cannot download Java software, you still can run the software
 from the source code, but the buttons will have text instead of icons. (You might think that this sounds crazy,
@@ -94,7 +96,9 @@ select "Open With Other Application" from the menu, select "X3D Viewer", and hav
 TBD
 
 
-### Running
+### Running With Command-Line Arguments
+
+You need to read this section only if you want to invoke this software from a script.
 
 #### Two Arguments: Specify Any Two Files
 
@@ -137,19 +141,19 @@ If you **Drag-and-Drop** only **one file**, the result will depend on the **"DnD
 
 In the same way, you can Drag-and-Drop an URL by dragging either the address from the browser address bar or the image itself from the view, or a link (for example, you can Drag-and-Drop the red "DOWNLOAD" button on the NASA site).
 
-### Versioning
+## Versioning
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/martianch/curieux/tags).
 In general, the "semantic versioning" is evil because it makes software developers think that incompatibilities are permissible if you increment the leftmost digit,
 but in our case there is no API, only UI. And the leftmost digit (0) will hopefully never be incremented.
 
-### Building
+## Building
 
 To build it as is, you need Java 13. At the moment, Gradle does not work with Java 14.
 Alternatively, you can compile it without Gradle, there is only one file: Main.java (or you may just run it as a script).
 But you need Gradle to run the unit tests.
 
-### License
+## License
 
 This software is Public Domain.
 
