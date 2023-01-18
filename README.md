@@ -145,7 +145,7 @@ In the same way, you can Drag-and-Drop an URL by dragging either the address fro
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/martianch/curieux/tags).
 In general, the "semantic versioning" is evil because it makes software developers think that incompatibilities are permissible if you increment the leftmost digit,
-but in our case there is no API, only UI. And the leftmost digit (0) will hopefully never be incremented.
+but in our case there is no API, only UI. And the plan is to never increment the leftmost zero.
 
 ## Building
 
