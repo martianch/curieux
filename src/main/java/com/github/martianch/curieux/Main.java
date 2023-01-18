@@ -2515,6 +2515,9 @@ class X3DViewer {
                         "</a>" +
                         " (these are three completely different methods)." +
                         "<br><br>Build Version: " + BuildVersion.getBuildVersion() +
+                            "; Java " + BuildVersion.getJavaVersion() +
+                            " (" + BuildVersion.getVmVersion() + ")" +
+//                            ", OS: " + BuildVersion.getOsVersion() +
                         "");
                 {
                     Font f = helpText.getFont();
@@ -6677,9 +6680,26 @@ class MastcamPairFinder {
 }
 
 class BuildVersion {
-    public static String getBuildVersion(){
+    public static String getBuildVersion() {
         String ver = BuildVersion.class.getPackage().getImplementationVersion();
-        return ver == null ? "n/a" : ver;
+        return orNA(ver);
+    }
+    public static String getVmVersion() {
+        var vmname = System.getProperty("java.vm.name");
+//        var vmvendor = System.getProperty("java.vm.vendor");
+//        var vmver = System.getProperty("java.vm.version");
+        return orNA(vmname);
+    }
+    public static String getJavaVersion() {
+        var javaver = System.getProperty("java.version");
+        return orNA(javaver);
+    }
+//    public static String getOsVersion() {
+//        var os = System.getProperty("os.name");
+//        return orNa(os);
+//    }
+    static String orNA(String value) {
+        return value == null ? "n/a" : value;
     }
 }
 
