@@ -380,6 +380,8 @@ public class FileLocationsTest {
         assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00015/ids/edr/browse/ncam/NRE_0015_0668275677_973ECM_N0030188NCAM00400_08_0LLJ01.png"));
         assertTrue(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00030/ids/edr/browse/shrlc/SI1_0030_0669612176_172ECM_N0030828SRLC07000_0000LUJ01.png"));
         assertFalse(isBayered("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00030/ids/edr/browse/shrlc/SIF_0030_0669612176_172EBY_N0030828SRLC07000_0000LUJ01.png"));
+        assertTrue(isBayered("Mars_Perseverance_ZL0_0676_0726954245_738ECM_N0320774ZCAM03518_1100LMJ.png"));
+        assertTrue(isBayered("/home/user/Downloads/Mars_Perseverance_ZL0_0676_0726954245_738ECM_N0320774ZCAM03518_1100LMJ.png"));
     }
     @Test
     public void isBayeredTest3() {

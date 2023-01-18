@@ -187,6 +187,7 @@ interface UiEventListener {
     void loadMatchOfOther(boolean isRight);
     void loadCopyOfOther(boolean isRight);
     void reload(boolean isRight);
+    void saveProcessedImage(boolean isRight);
     void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol);
     void newWindow();
     void setShowUrls(boolean visible);
@@ -1129,6 +1130,49 @@ class UiController implements UiEventListener {
     }
 
     @Override
+    public void saveProcessedImage(boolean isRight) {
+        try {
+            String urlOrPath = isRight ? rawData.right.path : rawData.left.path;
+            RenderedImage bi = (RenderedImage)
+                    ((ImageIcon) (isRight ? x3dViewer.lblR : x3dViewer.lblL).getIcon()).getImage();
+            x3dViewer.processedImageSaver.showSaveDialog(
+                    x3dViewer.frame,
+                    urlOrPath,
+                    imgFile -> {
+                        String effects = isRight
+                            ? displayParameters.rColorCorrection.getShortDescription(rawData.right.path, displayParameters.debayerR)
+                            : displayParameters.lColorCorrection.getShortDescription(rawData.left.path, displayParameters.debayerL);
+                        if (effects.trim().isEmpty()) {
+                            effects = "none";
+                        }
+                        String effects2 = isRight
+                            ? displayParameters.rColorCorrection.getFullDescription(rawData.right.path, displayParameters.debayerR)
+                            : displayParameters.lColorCorrection.getFullDescription(rawData.left.path, displayParameters.debayerL);
+                        if (effects2.trim().isEmpty()) {
+                            effects2 = "none";
+                        }
+
+                        String description =
+                                ( FileLocations.isNonLocalUrl(urlOrPath)
+                                ? "Original URL: " + urlOrPath + "\n"
+                                : ""
+                                )
+                                + "Exported from the Curious X3D Viewer.\n"
+                                + "Effects: "+effects + "\n"
+                                + "Effects_verbose: "+effects2 + "\n";
+                        ScreenshotSaver.writePng(imgFile, bi,
+                                "Software", "Curious: X3D Viewer",
+                                "Description", description);
+                        System.out.println("Saved " + imgFile + ":\n" + description);
+                    }
+            );
+        } catch (Exception e) {
+            System.out.println("Could not save file");
+            e.printStackTrace();
+        }
+    }
+
+    @Override
     public void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol) {
         switch (goToImageOptions) {
             case CURIOSITY_FIRST_OF_SOL:
@@ -1683,6 +1727,7 @@ class X3DViewer {
     DebayerModeChooser debayerR;
     JButton helpButton;
     ScreenshotSaver screenshotSaver = new ScreenshotSaver(new JFileChooser());
+    ProcessedImageSaver processedImageSaver = new ProcessedImageSaver(new JFileChooser());
 
     public void updateControls(DisplayParameters dp, MeasurementStatus ms, BehavioralOptions bo) {
         dcZoom.setValueAndText(dp.zoom);
@@ -1721,8 +1766,10 @@ class X3DViewer {
     }
     List<BufferedImage> processBothImages(RawData rd, DisplayParameters dp, MeasurementStatus ms, ColorCorrection.Command command) {
         final boolean PRECISE_MARKS = ms.isSubpixelPrecision;
-        BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
-        BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
+//        BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
+//        BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
+        BufferedImage imgL = dp.debayerL.doAlgo2(rd.left.image, rd.left.path);
+        BufferedImage imgR = dp.debayerR.doAlgo2(rd.right.image, rd.right.path);
 
         imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
         imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
@@ -1804,8 +1851,8 @@ class X3DViewer {
                 urlR.setText(coloredPaths.get(1));
             }
             {
-                colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription());
-                colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription());
+                colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription(rd.left.path, dp.debayerL));
+                colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription(rd.right.path, dp.debayerR));
             }
         }
     }
@@ -1845,36 +1892,54 @@ class X3DViewer {
             });
         }
         {
-            GridBagConstraints gridBagConstraints = new GridBagConstraints();
-            gridBagConstraints.gridx = 1;
-            gridBagConstraints.gridy = 0;
-            gridBagConstraints.anchor = GridBagConstraints.EAST;
-            gridBagConstraints.weightx = 0.5;
-            urlPanel.add(urlL, gridBagConstraints);
-        }
-        {
-            GridBagConstraints gridBagConstraints = new GridBagConstraints();
-            gridBagConstraints.gridx = 3;
-            gridBagConstraints.gridy = 0;
-            gridBagConstraints.anchor = GridBagConstraints.EAST;
-            gridBagConstraints.weightx = 0.5;
-            urlPanel.add(colorCorrectionDescriptionL, gridBagConstraints);
-        }
-        {
-            GridBagConstraints gridBagConstraints = new GridBagConstraints();
-            gridBagConstraints.gridx = 1;
-            gridBagConstraints.gridy = 1;
-            gridBagConstraints.anchor = GridBagConstraints.EAST;
-            gridBagConstraints.weightx = 0.5;
-            urlPanel.add(urlR, gridBagConstraints);
-        }
-        {
-            GridBagConstraints gridBagConstraints = new GridBagConstraints();
-            gridBagConstraints.gridx = 3;
-            gridBagConstraints.gridy = 1;
-            gridBagConstraints.anchor = GridBagConstraints.EAST;
-            gridBagConstraints.weightx = 0.5;
-            urlPanel.add(colorCorrectionDescriptionR, gridBagConstraints);
+            // create urlPanel
+            final int LEFT = 1;
+            final int MID = 2;
+            final int RIGHT = 3;
+            final double LIGHTWEIGHT = .1;
+            final double HEAVYWEIGHT = 100.;
+            {
+                GridBagConstraints gridBagConstraints = new GridBagConstraints();
+                gridBagConstraints.gridx = MID;
+                gridBagConstraints.gridy = 0;
+                gridBagConstraints.anchor = GridBagConstraints.EAST;
+                gridBagConstraints.weightx = LIGHTWEIGHT;
+                urlPanel.add(urlL, gridBagConstraints);
+            }
+            {
+                GridBagConstraints gridBagConstraints = new GridBagConstraints();
+                gridBagConstraints.gridx = RIGHT;
+                gridBagConstraints.gridy = 0;
+                gridBagConstraints.anchor = GridBagConstraints.EAST;
+                gridBagConstraints.weightx = HEAVYWEIGHT;
+                urlPanel.add(colorCorrectionDescriptionL, gridBagConstraints);
+            }
+            {
+                // An empty label to have something on the left
+                GridBagConstraints gridBagConstraints = new GridBagConstraints();
+                gridBagConstraints.gridx = LEFT;
+                gridBagConstraints.gridy = 0;
+                gridBagConstraints.anchor = GridBagConstraints.WEST;
+                gridBagConstraints.weightx = HEAVYWEIGHT;
+                urlPanel.add(new JLabel(""), gridBagConstraints);
+            }
+            {
+                GridBagConstraints gridBagConstraints = new GridBagConstraints();
+                gridBagConstraints.gridx = MID;
+                gridBagConstraints.gridy = 1;
+                gridBagConstraints.anchor = GridBagConstraints.EAST;
+                gridBagConstraints.weightx = LIGHTWEIGHT;
+                urlPanel.add(urlR, gridBagConstraints);
+            }
+            {
+                GridBagConstraints gridBagConstraints = new GridBagConstraints();
+                gridBagConstraints.gridx = RIGHT;
+                gridBagConstraints.gridy = 1;
+                gridBagConstraints.anchor = GridBagConstraints.EAST;
+                gridBagConstraints.weightx = HEAVYWEIGHT;
+                urlPanel.add(colorCorrectionDescriptionR, gridBagConstraints);
+            }
+            // done with urlPanel
         }
         {
             findAnyFont(Main.PREFERRED_FONTS).ifPresent(fontName -> {
@@ -2251,6 +2316,14 @@ class X3DViewer {
                             uiEventListener.openInBrowser(SiteOpenCommand.OPEN_LATEST, false, WhichRover.PERSEVERANCE)
                     );
                 }
+            }
+            {
+                JMenuItem miSave = new JMenuItem("Save Processed Image As...");
+                menuLR.add(miSave);
+                miSave.addActionListener(e ->
+                        uiEventListener.saveProcessedImage(
+                                isFromComponentsMenu(e, lblR)
+                        ));
             }
             {
                 JMenuItem miReload = new JMenuItem("Reload");
@@ -2849,8 +2922,11 @@ class ImageResamplingModeChooser extends JComboBox<ImageResamplingMode> {
         setSelectedItem(imageResamplingMode);
     }
 }
-enum DebayerMode {
-    NEVER(false,-1),
+enum DebayerMode implements ImageEffect {
+    NEVER(false,-1) {
+        @Override public boolean notNothing() { return false; }
+        @Override public String effectShortName() { return ""; }
+    },
     AUTO0(false,0), AUTO1(false,1), AUTO2(false,2), AUTO3(false,3), AUTO4(false,4), AUTO5(false,5),
     FORCE0(true,0), FORCE1(true,1), FORCE2(true,2), FORCE3(true,3), FORCE4(true,4), FORCE5(true,5);
     boolean force;
@@ -2859,14 +2935,53 @@ enum DebayerMode {
         this.force = force;
         this.algo = algo;
     }
-    <T> T doAlgo(T data, Supplier<Boolean> autoCheck, List<Function<T,T>> algorithms) {
-        return (algo >= 0 && (force || autoCheck.get()))
-                ? algorithms.get(algo).apply(data)
-                : data
+//    <T> T doAlgo(T data, Supplier<Boolean> autoCheck, List<Function<T,T>> algorithms) {
+//        return (algo >= 0 && (force || autoCheck.get()))
+//                ? algorithms.get(algo).apply(data)
+//                : data
+//                ;
+//    }
+//    BufferedImage doAlgo1(BufferedImage bi, Supplier<Boolean> autoCheck) {
+//        return doAlgo(bi, autoCheck, debayering_methods);
+//    }
+    BufferedImage doAlgo2(BufferedImage orig, String path) {
+        return  notNothingFor(path)
+                ? debayering_methods.get(algo).apply(orig)
+                : orig
                 ;
     }
+    private static String[] names = {
+            "as is", //-1
+            "add color to Bayer mosaic", //0
+            "demosaic (by squares)", //1
+            "demosaic (average between neighbors)", //2
+            "closest match clockwise Bayer pattern demosaicing", //3
+            "closest match clockwise Bayer pattern demosaicing", //4
+            "cubic/bicubic Bayer pattern demosaicing", //5
+    };
+    static List<Function<BufferedImage, BufferedImage>> debayering_methods = Arrays.asList(
+            Debayer::debayer_dotted,
+            Debayer::debayer_squares,
+            Debayer::debayer_avg,
+            Debayer::debayer_closest_match_square,
+            Debayer::debayer_closest_match_WNSE_clockwise,
+            DebayerBicubic::debayer_bicubic
+    );
     static DebayerMode getUiDefault(){
         return AUTO5;
+    }
+
+    @Override
+    public String effectName() {
+        return names[algo+1];
+    }
+    @Override
+    public String effectShortName() {
+        return "dm" + algo;
+    }
+    @Override
+    public boolean notNothingFor(String path) {
+        return (algo >= 0 && (force || FileLocations.isBayered(path)));
     }
 }
 class DebayerModeChooser extends JComboBox<DebayerMode> {
@@ -3522,8 +3637,17 @@ abstract class FileLocations {
         //System.out.println("prefix=["+prefix+"] => "+res+" "+Thread.currentThread());
         return res;
     }
+    static boolean isNonLocalUrl(String path) {
+        String prefix = path.substring(0,Math.min(9, path.length())).toLowerCase();
+        var res = prefix.startsWith("http:/") || prefix.startsWith("https:/");
+        return res;
+    }
     static boolean isBayered(String urlOrPath) {
         String fname = getFileName(urlOrPath);
+        final String MARS_PERSEVERANCE_ = "mars_perseverance_";
+        if (fname.toLowerCase().startsWith(MARS_PERSEVERANCE_)) {
+            fname = fname.substring(MARS_PERSEVERANCE_.length());
+        }
         return fname.matches(".*\\d+M[RL]\\d+[CK]00_DXXX.*")
             || fname.matches("N[RL]E_\\d{4}_\\d+_\\d+ECM_N\\d+NCAM\\d+_\\d{2}_0LLJ.*")
             || fname.matches("Z[RL]\\d_\\d{4}_\\d+_\\d+ECM_N\\d+ZCAM\\d+_\\d{4}LMJ.*")
@@ -3883,15 +4007,6 @@ class Pair<T> {
 }
 
 class Debayer {
-    static List<Function<BufferedImage, BufferedImage>> debayering_methods = Arrays.asList(
-            Debayer::debayer_dotted,
-            Debayer::debayer_squares,
-            Debayer::debayer_avg,
-            Debayer::debayer_closest_match_square,
-            Debayer::debayer_closest_match_WNSE_clockwise,
-            DebayerBicubic::debayer_bicubic
-    );
-
     static BufferedImage debayer_dotted(BufferedImage orig) {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
@@ -4252,16 +4367,54 @@ class HyperTextPane extends JTextPane {
     }
 }
 
-class ScreenshotSaver {
+abstract class SaverBase {
+    static boolean endsWithIgnoreCase(String text, String suffix) {
+        if (text.length() < suffix.length()) {
+            return false;
+        }
+        String textSuffix = text.substring(text.length() - suffix.length());
+        return textSuffix.equalsIgnoreCase(suffix);
+    }
+
+    static boolean checkAskOverwrite(JFrame frame, File file) {
+        return !file.exists()
+            || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + file + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION);
+    }
+
+    public interface SaveAction {
+        void apply(File imgFile) throws Exception;
+    }
+}
+class ProcessedImageSaver extends SaverBase {
+    JFileChooser fileChooser;
+
+    public ProcessedImageSaver(JFileChooser fileChooser) {
+        this.fileChooser = fileChooser;
+    }
+
+    void showSaveDialog(JFrame frame, String urlOrPath, SaveAction howToSave) throws Exception {
+        fileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
+        fileChooser.setSelectedFile(new File(FileLocations.getFileNameNoExt(urlOrPath)+".cc.png"));
+        while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
+            File imgFile = fileChooser.getSelectedFile();
+            if (!endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
+                JOptionPane.showMessageDialog(frame, "File name must end with \"png\"");
+            } else if (checkAskOverwrite(frame, imgFile)
+            ) {
+                System.out.println("Saving to " + imgFile);
+                howToSave.apply(imgFile);
+                break;
+            }
+        }
+    }
+}
+class ScreenshotSaver extends SaverBase {
     JFileChooser fileChooser;
 
     public ScreenshotSaver(JFileChooser fileChooser) {
         this.fileChooser = fileChooser;
     }
 
-    public interface SaveAction {
-        void apply(File imgFile) throws Exception;
-    }
     public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters, BehavioralOptions behavioralOptions) {
         try {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
@@ -4327,10 +4480,7 @@ class ScreenshotSaver {
             }
         }
     }
-    private boolean checkAskOverwrite(JFrame frame, File file) {
-        return !file.exists()
-            || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + file + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION);
-    }
+
     static File lr(File file) {
         return mkdirs(toLr(file));
     }
@@ -4353,14 +4503,8 @@ class ScreenshotSaver {
     static File toRightFile(File imgFile) {
         return lr(new File(toBase(imgFile.getAbsolutePath())+".right.png"));
     }
-    static boolean endsWithIgnoreCase(String text, String suffix) {
-        if (text.length() < suffix.length()) {
-            return false;
-        }
-        String textSuffix = text.substring(text.length() - suffix.length());
-        return textSuffix.equalsIgnoreCase(suffix);
-    }
-    public static void writePng(Object output, BufferedImage buffImg, String... keysAndValues) throws Exception {
+
+    public static void writePng(Object output, RenderedImage buffImg, String... keysAndValues) throws Exception {
         ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
 
         ImageWriteParam writeParam = writer.getDefaultWriteParam();
@@ -4369,11 +4513,12 @@ class ScreenshotSaver {
         //adding metadata
         IIOMetadata metadata = writer.getDefaultImageMetadata(typeSpecifier, writeParam);
 
+        // Note: tEXt does NOT use Unicode, it uses Latin-1!!!
         IIOMetadataNode text = new IIOMetadataNode("tEXt");
         for (int i=0; i<keysAndValues.length/2; i++) {
             IIOMetadataNode textEntry = new IIOMetadataNode("tEXtEntry");
-            textEntry.setAttribute("keyword", keysAndValues[i*2]);
-            textEntry.setAttribute("value", keysAndValues[i*2+1]);
+            textEntry.setAttribute("keyword", toAsciiOnly(keysAndValues[i*2]));
+            textEntry.setAttribute("value", toAsciiOnly(keysAndValues[i*2+1]));
 
             text.appendChild(textEntry);
         }
@@ -4389,6 +4534,11 @@ class ScreenshotSaver {
         writer.setOutput(stream);
         writer.write(metadata, new IIOImage(buffImg, null, metadata), writeParam);
         stream.close();
+    }
+    static String toAsciiOnly(String text) {
+        return text
+                .replaceAll("γ","gamma")
+                .replaceAll("[^\\u0000-\\u007F]","?");
     }
     public static void writeText(File file, String text) throws FileNotFoundException {
         try (PrintStream out = new PrintStream(new FileOutputStream(file))) {
@@ -5442,11 +5592,27 @@ class ColorCorrection {
     public List<ColorCorrectionAlgo> getAlgos() {
         return algos;
     }
-    public String getShortDescription() {
-        String res = algos.stream()
-                .filter(x -> x != ColorCorrectionAlgo.DO_NOTHING)
-                .map(ColorCorrectionAlgo::shortName)
+    // TODO find a better class
+    public String getShortDescription(String path, ImageEffect... prefixes) {
+        String res =
+                Stream.concat(
+                        Stream.of(prefixes),
+                        algos.stream()
+                )
+                .filter(x -> x.notNothingFor(path))
+                .map(ImageEffect::effectShortName)
                 .collect(Collectors.joining(","));
+        return res;
+    }
+    public String getFullDescription(String path, ImageEffect... prefixes) {
+        String res =
+                Stream.concat(
+                        Stream.of(prefixes),
+                        algos.stream()
+                )
+                        .filter(x -> x.notNothingFor(path))
+                        .map(ImageEffect::effectName)
+                        .collect(Collectors.joining("; "));
         return res;
     }
     BufferedImage doColorCorrection(BufferedImage image, Command command) {
@@ -5529,8 +5695,14 @@ class ColorCorrection {
     }
 }
 
-enum ColorCorrectionAlgo {
-    DO_NOTHING("as is", ""),
+interface ImageEffect {
+    String effectName();
+    String effectShortName();
+    default boolean notNothing() { return true; }
+    default boolean notNothingFor(String path) { return notNothing(); }
+}
+enum ColorCorrectionAlgo implements ImageEffect {
+    DO_NOTHING("as is", "") { @Override public boolean notNothing() { return false; } },
     STRETCH_CONTRAST_RGB_RGB("stretch R,G,B separately in RGB space", "sRGB"),
     STRETCH_CONTRAST_RGB_V("stretch R,G,B together in RGB space", "sRGB2"),
     STRETCH_CONTRAST_RGB_RGB3("stretch R,G,B in RGB space, custom parameters", "sRGB3"),
@@ -5564,7 +5736,10 @@ enum ColorCorrectionAlgo {
 
     @Override
     public String toString() { return name; }
-    public String shortName() { return shortName; }
+    @Override
+    public String effectName() { return name; }
+    @Override
+    public String effectShortName() { return shortName; }
 }
 
 class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {

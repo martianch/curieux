@@ -1,6 +1,5 @@
 package com.github.martianch.curieux;
 
-import junit.framework.TestCase;
 import org.junit.Test;
 
 import java.io.File;
@@ -11,12 +10,12 @@ public class ScreenshotSaverTest {
 
     @Test
     public void testEndsWithIgnoreCase() {
-        assertEquals(true, ScreenshotSaver.endsWithIgnoreCase("foo.png",".png"));
-        assertEquals(true, ScreenshotSaver.endsWithIgnoreCase("foo.png",".PNG"));
-        assertEquals(true, ScreenshotSaver.endsWithIgnoreCase("FOO.PNG",".png"));
-        assertEquals(true, ScreenshotSaver.endsWithIgnoreCase("foo.Png",".pnG"));
-        assertEquals(false, ScreenshotSaver.endsWithIgnoreCase("foo.xpng",".png"));
-        assertEquals(false, ScreenshotSaver.endsWithIgnoreCase("foo.jpg",".png"));
+        assertEquals(true, SaverBase.endsWithIgnoreCase("foo.png",".png"));
+        assertEquals(true, SaverBase.endsWithIgnoreCase("foo.png",".PNG"));
+        assertEquals(true, SaverBase.endsWithIgnoreCase("FOO.PNG",".png"));
+        assertEquals(true, SaverBase.endsWithIgnoreCase("foo.Png",".pnG"));
+        assertEquals(false, SaverBase.endsWithIgnoreCase("foo.xpng",".png"));
+        assertEquals(false, SaverBase.endsWithIgnoreCase("foo.jpg",".png"));
     }
 
     @Test
