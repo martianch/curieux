@@ -210,9 +210,11 @@ interface UiEventListener {
     DisplayParameters getDisplayParameters();
     ColorRange getViewportColorRange(boolean isRight);
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
+    Dimension getRawImageDimensions(boolean isRight);
     void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight); //???
     void setSaveOptions(boolean saveGif, boolean saveLeftRIght);
     void setUseCustomCrosshairCursor(boolean useCustomCrosshairCursor);
+    void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc);
 }
 
 enum GoToImageOptions {
@@ -367,7 +369,7 @@ class DisplayParameters {
         offsetX = -820;
         offsetY = 20;
     }
-    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
+    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection, FisheyeCorrection lFisheyeCorrection, FisheyeCorrection rFisheyeCorrection) {
         this.zoom = zoom;
         this.zoomL = zoomL;
         this.zoomR = zoomR;
@@ -382,20 +384,27 @@ class DisplayParameters {
         this.imageResamplingModeR = imageResamplingModeR;
         this.lColorCorrection = lColorCorrection;
         this.rColorCorrection = rColorCorrection;
+        this.lFisheyeCorrection = lFisheyeCorrection;
+        this.rFisheyeCorrection = rFisheyeCorrection;
     }
     public DisplayParameters swapped() {
-        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection);
+        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection, rFisheyeCorrection, lFisheyeCorrection);
     }
     public DisplayParameters withColorCorrection(ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
     }
     public DisplayParameters withColorCorrection(boolean isRight, ColorCorrection cc) {
         ColorCorrection lColorCorrection = isRight ? this.lColorCorrection : cc;
         ColorCorrection rColorCorrection = isRight ? cc : this.rColorCorrection;
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
+    }
+    public DisplayParameters withFisheyeCorrection(boolean isRight, FisheyeCorrection fc) {
+        FisheyeCorrection lFisheyeCorrection = isRight ? this.lFisheyeCorrection : fc;
+        FisheyeCorrection rFisheyeCorrection = isRight ? fc : this.rFisheyeCorrection;
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
     }
     public DisplayParameters withMeasurementShown(boolean measurementShown) {
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
     }
     ColorCorrection getColorCorrection(boolean isRight) {
         return isRight ? rColorCorrection : lColorCorrection;
@@ -1555,6 +1564,17 @@ class UiController implements UiEventListener {
         return displayParameters.getColorCorrection(isRight).customStretchRgbParameters;
     }
     @Override
+    public Dimension getRawImageDimensions(boolean isRight) {
+        BufferedImage bi = isRight ? rawData.right.image : rawData.left.image;
+        return new Dimension(bi.getWidth(), bi.getHeight());
+    }
+    @Override
+    public void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc) {
+        System.out.println("setFisheyeCorrection isRight=" + isRight + " fc=" + fc);
+        var newDp = displayParameters.withFisheyeCorrection(isRight, fc);
+        x3dViewer.updateViews(rawData, displayParameters=newDp, measurementStatus);
+    }
+    @Override
     public void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight) {
         ColorCorrection cc = displayParameters
                 .getColorCorrection(isRight)
@@ -1774,12 +1794,14 @@ class X3DViewer {
         BufferedImage imgL = dp.debayerL.doAlgo2(rd.left.image, rd.left.path);
         BufferedImage imgR = dp.debayerR.doAlgo2(rd.right.image, rd.right.path);
 
-        imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
-        imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
-
-        // TODO barrel distortion correction
+        System.out.println("processBothImages L:" + dp.lFisheyeCorrection);
+        System.out.println("processBothImages R:" + dp.rFisheyeCorrection);
+        // barrel distortion correction
         imgL = dp.lFisheyeCorrection.doFisheyeCorrection(imgL);
         imgR = dp.rFisheyeCorrection.doFisheyeCorrection(imgR);
+
+        imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
+        imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
 
         ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R");
         ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L");
@@ -2120,6 +2142,11 @@ class X3DViewer {
                             "<b>Alt G</b> set the 2nd (green) mark<br>" +
                             "<b>Alt H</b> set the 3rd (blue) mark<br>" +
                             "<b>Alt T</b> show distance measurement panel<br>" +
+                            "<b>Alt 1</b> set the 1st (red) mark<br>" +
+                            "<b>Alt 2</b> set the 2nd (green) mark<br>" +
+                            "<b>Alt 3</b> set the 3rd (blue) mark<br>" +
+                            "<b>Alt 4</b> set the 4th (cyan) mark<br>" +
+                            "<b>Alt 5</b> set the 5th (magenta) mark<br>" +
                             "<br>" +
                             "It's not really about measurement, but it is possible to use the red and green (1st and 2nd) marks to set both offsets at once (horizontal and vertical).<br>" +
                             "Mark the same object in both panes (Alt R, click the mouse on some object in the left pane, Alt R, click mouse on the same object in the right pane),<br>" +
@@ -2480,6 +2507,7 @@ class X3DViewer {
                         "<b>Alt B</b>: Toggle the \"drag-and-drop to both panes\" mode<br>" +
                         "<b>Ctrl U</b>: Swap the left and right images<br>" +
                         "<b>Alt R/Alt G/Alt T</b>: Set the red/green marks, show <b>distance measurement</b> panel; more options in the context menu<br>" +
+                        "<b>Alt 1/Alt 2/Alt 3/Alt 4/Alt 5</b>: Set the marks 1-5, red/green/blue/cyan/magenta correspondingly<br>" +
 //                        "<br>"+
                         "<b>Ctrl N</b>: New (empty) window<br>" +
                         "<b>Ctrl S</b>: Save the stereo pair (saves a screenshot of this application plus <br>" +
@@ -2493,8 +2521,7 @@ class X3DViewer {
                         "<b>Command line:</b> arguments may be either file paths or URLs<br>" +
                         "<b>Drag-and-Drop (DnD):</b> opens one or two images; if only one image was dropped, if the \"DnD BOTH\" <br>" +
                         "checkbox is checked, tries to also load the corresponding right or left image.<br>" +
-                        "If the \"DnD BOTH\" box is not checked, the dropped image/url<br>" +
-                        "just replaces the image on which it was dropped.<br>" +
+                        "If the \"DnD BOTH\" box is not checked, the dropped image/url just replaces the image on which it was dropped.<br>" +
                         "<br>"+
                         "<b>Navigation.</b> On the NASA site, there is a list of all images in chronological order.<br>" +
                         "Each pane has its own pointer to the current image. In most cases, you will want the right and left<br>" +
@@ -2662,9 +2689,16 @@ class X3DViewer {
             frameInputMap.put(KeyStroke.getKeyStroke("alt G"), "markgreen");
             frameInputMap.put(KeyStroke.getKeyStroke("alt H"), "markblue");
             frameInputMap.put(KeyStroke.getKeyStroke("alt T"), "measurementpanel");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt 1"), "markred");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt 2"), "markgreen");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt 3"), "markblue");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt 4"), "markcyan");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt 5"), "markmagenta");
             frameActionMap.put("markred", toAction(e->uiEventListener.setWaitingForPoint(1)));
             frameActionMap.put("markgreen", toAction(e->uiEventListener.setWaitingForPoint(2)));
             frameActionMap.put("markblue", toAction(e->uiEventListener.setWaitingForPoint(3)));
+            frameActionMap.put("markcyan", toAction(e->uiEventListener.setWaitingForPoint(4)));
+            frameActionMap.put("markmagenta", toAction(e->uiEventListener.setWaitingForPoint(5)));
             frameActionMap.put("measurementpanel", toAction(e->measurementPanel.showDialogIn(frame)));
             frameInputMap.put(KeyStroke.getKeyStroke("ESCAPE"), "escape");
             frameActionMap.put("escape", toAction(e->uiEventListener.escapePressed()));
@@ -5592,14 +5626,215 @@ class RemoteFileNavigator extends FileNavigatorBase {
 }
 
 class FisheyeCorrection {
+    FisheyeCorrectionAlgo algo = FisheyeCorrectionAlgo.NONE;
+    HumanVisibleMathFunction func = HumanVisibleMathFunction.NO_FUNCTION;
+    DistortionCenterLocation distortionCenterLocation = DistortionCenterLocation.IN_CENTER_1X1;
+    FisheyeCorrection copy() {
+        var res = new FisheyeCorrection();
+        res.algo = this.algo;
+        res.func = this.func;
+        res.distortionCenterLocation = this.distortionCenterLocation;
+        return res;
+    }
     BufferedImage doFisheyeCorrection(BufferedImage orig) {
-        int HEIGHT = orig.getHeight();
-        int WIDTH = orig.getWidth();
-        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        return algo.doFisheyeCorrection(orig, this);
+    }
+    String parametersToString() {
+        return "" + algo + " " + func.parameterString();
+    }
+    static FisheyeCorrection fromParameterString(String s) {
+        return null; // TODO
+    }
 
-        return orig;
+    @Override
+    public String toString() {
+        return "FisheyeCorrection{" +
+                "algo=" + algo +
+                ", distortionCenterLocation=" + distortionCenterLocation +
+                ", func=" + func +
+                "}@"+Integer.toHexString(hashCode());
     }
 }
+enum FisheyeCorrectionAlgo {
+    NONE {
+        @Override
+        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+            return orig;
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+            return new QuadraticPolynomial(0, 0, 1);
+        }
+        @Override
+        double sizeChange() { return 1.; }
+    },
+    UNFISH1 {
+        @Override
+        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+            var k = fc.algo.sizeChange();
+
+            int width = orig.getWidth();
+            int height = orig.getHeight();
+            int WIDTH = fc.distortionCenterLocation.getWidthAfter(width, height, k);
+            int HEIGHT = fc.distortionCenterLocation.getHeightAfter(width, height, k);
+
+            int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
+            int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
+            int XC = fc.distortionCenterLocation.getPoleXAfter(width, height, k);
+            int YC = fc.distortionCenterLocation.getPoleYAfter(width, height, k);
+
+            BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+            DoubleFunction f = fc.func.asFunction();
+            for (int j = 0; j < HEIGHT; j++) {
+                for (int i = 0; i < WIDTH; i++) {
+                    double R = Math.hypot(i - XC, j - YC);
+                    double theta = Math.atan2(j - YC, i - XC);
+                    double r = R * f.apply(R);
+                    double xx = r * Math.cos(theta);
+                    double yy = r * Math.sin(theta);
+                    if (Double.isFinite(xx) && Double.isFinite(yy)) { // false if NaN
+                        int x = (int) Math.round(xc + xx);
+                        int y = (int) Math.round(yc + yy);
+                        if (x >= 0 && x < width && y >= 0 && y < height) {
+                            res.setRGB(i, j, orig.getRGB(x, y));
+                        }
+                    }
+                }
+            }
+            return res;
+        }
+
+        @Override
+        HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+            double x0 = dcl.getPoleXBefore(width, height);
+            double y0 = dcl.getPoleYBefore(width, height);
+            double x1 = pms.x3;
+            double y1 = pms.y3;
+            double x2 = pms.x4;
+            double y2 = pms.y4;
+            double x3 = pms.x5;
+            double y3 = pms.y5;
+            double r1 = Math.hypot(x1-x0,y1-y0);
+            double r2 = Math.hypot(x2-x0,y2-y0);
+            double r3 = Math.hypot(x3-x0,y3-y0);
+            double R3 = r3;
+            double R2 = r2*(y3-y0)/(y2-y0);
+            double R1 = r1*(y3-y0)/(y1-y0);
+            QuadraticPolynomial g = QuadraticPolynomial.from3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
+
+            System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
+            System.out.println("r1="+r1+" r2="+r2+" r3="+r3);
+            System.out.println("g="+g);
+
+            return g;
+        }
+    },
+    ;
+    abstract BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc);
+    abstract HumanVisibleMathFunction calculateFunction(int width,
+                                                        int height,
+                                                        DistortionCenterLocation dcl,
+                                                        PanelMeasurementStatus pms);
+//    abstract FisheyeCorrection fisheyeCorrectionOf
+    double sizeChange() {
+        return 2.;
+    }
+}
+class FisheyeCorrectionAlgoChooser extends JComboBox<FisheyeCorrectionAlgo> {
+    static FisheyeCorrectionAlgo[] modes = FisheyeCorrectionAlgo.values();
+    public FisheyeCorrectionAlgoChooser(Consumer<FisheyeCorrectionAlgo> valueListener) {
+        super(modes);
+        setValue(FisheyeCorrectionAlgo.NONE);
+        addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                valueListener.accept((FisheyeCorrectionAlgo) itemEvent.getItem());
+            }
+        });
+    }
+    public void setValue(FisheyeCorrectionAlgo algo) {
+        setSelectedItem(algo);
+    }
+}
+class DistortionCenterLocationChooser extends JComboBox<DistortionCenterLocation> {
+    static DistortionCenterLocation[] modes = DistortionCenterLocation.values();
+    public DistortionCenterLocationChooser(Consumer<DistortionCenterLocation> valueListener) {
+        super(modes);
+        setValue(DistortionCenterLocation.IN_CENTER_1X1);
+        addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                valueListener.accept((DistortionCenterLocation) itemEvent.getItem());
+            }
+        });
+    }
+    public void setValue(DistortionCenterLocation location) {
+        setSelectedItem(location);
+    }
+}
+
+enum DistortionCenterLocation {
+    IN_CENTER_1X1 {
+        @Override
+        int getPoleXBefore(int width, int height) { return width/2; }
+        @Override
+        int getPoleYBefore(int width, int height) { return height/2; }
+        @Override
+        int getNearestToPoleXBefore(int width, int height) {
+            return width/2;
+        }
+        @Override
+        int getNearestToPoleYBefore(int width, int height) {
+            return height/2;
+        }
+        @Override
+        int getPoleXAfter(int width, int height, double k) {
+            return (int) Math.round(k*getPoleXBefore(width, height));
+        }
+        @Override
+        int getPoleYAfter(int width, int height, double k) {
+            return (int) Math.round(k*getPoleYBefore(width, height));
+        }
+        @Override
+        int getWidthAfter(int width, int height, double k) {
+            return 2*getPoleXAfter(width, height, k);
+        }
+        @Override
+        int getHeightAfter(int width, int height, double k) {
+            return 2*getPoleYAfter(width, height, k);
+        }
+        @Override
+        double getMaxRBefore(int width, int height) {
+            return Math.hypot(width, height)/4;
+        }
+        @Override
+        double getMaxRAfter(int width, int height, double k) {
+            return k*getMaxRBefore(width, height);
+        }
+        @Override
+        double getMaxRThetaBefore(int width, int height) {
+            return Math.atan2(height, width);
+        }
+    },
+    //RIGHT_CENTER_2X1, LEFT_CENTER_2X1,
+//    RIGHT_BELOW_2X2,
+//    LEFT_BELOW_2X2
+    ;
+    /** x of the distortion center, before correction, probably outside of the image */
+    abstract int getPoleXBefore(int width, int height);
+    /** y of the distortion center, before correction, probably outside of the image */
+    abstract int getPoleYBefore(int width, int height);
+    /** x of the point in the image nearest to the distortion center, before correction */
+    abstract int getNearestToPoleXBefore(int width, int height);
+    /** y of the point in the image nearest to the distortion center, before correction */
+    abstract int getNearestToPoleYBefore(int width, int height);
+    abstract int getPoleXAfter(int width, int height, double k);
+    abstract int getPoleYAfter(int width, int height, double k);
+    abstract int getWidthAfter(int width, int height, double k);
+    abstract int getHeightAfter(int width, int height, double k);
+    abstract double getMaxRBefore(int width, int height);
+    abstract double getMaxRAfter(int width, int height, double k);
+    abstract double getMaxRThetaBefore(int width, int height);
+}
+
 class ColorCorrection {
     final List<ColorCorrectionAlgo> algos;
     final CustomStretchRgbParameters customStretchRgbParameters;
@@ -7370,127 +7605,162 @@ class StereoCamChooser extends JComboBox<StereoPairParameters> {
 }
 
 class FisheyeCorrectionPane extends JPanel {
+    static final int GRAPH_WIDTH = 500;
+    static final int GRAPH_HEIGHT = 150;
     final UiEventListener uiEventListener;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcLX1;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcLY1;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcLX2;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcLY2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLX2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcLY2;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLX3;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLY3;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLX4;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLY4;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLX5;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLY5;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcRX1;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcRY1;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcRX2;
-//    final DigitalZoomControl<Double, OffsetWrapper2> dcRY2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRX2;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcRY2;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRX3;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRY3;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRX4;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRY4;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRX5;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRY5;
+    final FisheyeCorrectionAlgoChooser chooserAlgoL;
+    final FisheyeCorrectionAlgoChooser chooserAlgoR;
+    final DistortionCenterLocationChooser chooserCenterL;
+    final DistortionCenterLocationChooser chooserCenterR;
+    final JLabel lblGraphL;
+    final JLabel lblGraphR;
+    final JLabel lblFunctionInfoL;
+    final JLabel lblFunctionInfoR;
+    final JTextField etxFunctionL;
+    final JTextField etxFunctionR;
+    final HalfPane leftHalf;
+    final HalfPane rightHalf;
+    FisheyeCorrection fisheyeCorrectionL;
+    FisheyeCorrection fisheyeCorrectionR;
+    static class HalfPane {
+        final FisheyeCorrectionAlgoChooser chooserAlgo;
+        final DistortionCenterLocationChooser chooserCenter;
+        final JLabel lblGraph;
+        final JLabel lblFunctionInfo;
+        final JTextField etxFunction;
+//        final JLabel lblWidthXHeightR; // TODO
+        public HalfPane(FisheyeCorrectionAlgoChooser chooserAlgo, DistortionCenterLocationChooser chooserCenter, JLabel lblGraph, JLabel lblFunctionInfo, JTextField etxFunction) {
+            this.chooserAlgo = chooserAlgo;
+            this.chooserCenter = chooserCenter;
+            this.lblGraph = lblGraph;
+            this.lblFunctionInfo = lblFunctionInfo;
+            this.etxFunction = etxFunction;
+        }
+        void setFrom(int width, int height, FisheyeCorrection fisheyeCorrection) {
+            chooserAlgo.setValue(fisheyeCorrection.algo);
+            chooserCenter.setValue(fisheyeCorrection.distortionCenterLocation);
+            updateDefisheyeFunctionUi(width, height, fisheyeCorrection, this);
+        }
+    }
 
     public FisheyeCorrectionPane(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
 
         GridBagLayout gbl = new GridBagLayout();
 
-//        dcLX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1L:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(0, i);
-//            TODO_Calculate();
-//        });
-//        dcLY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1L:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(1, i);
-//            TODO_Calculate();
-//        });
-//        dcLX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2L:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(2, i);
-//            TODO_Calculate();
-//        });
-//        dcLY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2L:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(3, i);
-//            TODO_Calculate();
-//        });
+        dcLX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(0, i);
+            doCalculate(false);
+        });
+        dcLY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(1, i);
+            doCalculate(false);
+        });
+        dcLX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(2, i);
+            doCalculate(false);
+        });
+        dcLY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2L:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(3, i);
+            doCalculate(false);
+        });
         dcLX3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">X3L:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(4, i);
-            TODO_Calculate();
+            doCalculate(false);
         });
         dcLY3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">Y3L:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(5, i);
-            TODO_Calculate();
+            doCalculate(false);
         });
         dcLX4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4L:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(6, i);
-            TODO_Calculate();
+            doCalculate(false);
         });
         dcLY4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4L:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(7, i);
-            TODO_Calculate();
+            doCalculate(false);
         });
         dcLX5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5L:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(8, i);
-            TODO_Calculate();
+            doCalculate(false);
         });
         dcLY5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5L:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(9, i);
-            TODO_Calculate();
+            doCalculate(false);
         });
-//        dcRX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(10, i);
-//            TODO_Calculate();
-//        });
-//        dcRY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(11, i);
-//            TODO_Calculate();
-//        });
-//        dcRX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(12, i);
-//            TODO_Calculate();
-//        });
-//        dcRY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 9, new OffsetWrapper2(), i -> {
-//            uiEventListener.markedPointChanged(13, i);
-//            TODO_Calculate();
-//        });
+        dcRX1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">X1R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(10, i);
+            doCalculate(true);
+        });
+        dcRY1 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"red\">Y1R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(11, i);
+            doCalculate(true);
+        });
+        dcRX2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">X2R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(12, i);
+            doCalculate(true);
+        });
+        dcRY2 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"green\">Y2R:</font></html>", 9, new OffsetWrapper2(), i -> {
+            uiEventListener.markedPointChanged(13, i);
+            doCalculate(true);
+        });
         dcRX3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">X3R:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(14, i);
-            TODO_Calculate();
+            doCalculate(true);
         });
         dcRY3 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"blue\">Y3R:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(15, i);
-            TODO_Calculate();
+            doCalculate(true);
         });
         dcRX4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">X4R:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(16, i);
-            TODO_Calculate();
+            doCalculate(true);
         });
         dcRY4 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#00ffff\">Y4R:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(17, i);
-            TODO_Calculate();
+            doCalculate(true);
         });
         dcRX5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">X5R:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(18, i);
-            TODO_Calculate();
+            doCalculate(true);
         });
         dcRY5 = new DigitalZoomControl<Double, OffsetWrapper2>().init("<html><font color=\"#ff00ff\">Y5R:</font></html>", 9, new OffsetWrapper2(), i -> {
             uiEventListener.markedPointChanged(19, i);
-            TODO_Calculate();
+            doCalculate(true);
         });
         var dcs = Arrays.asList(
-//                dcLX1, dcLY1, dcLX2, dcLY2,
-                dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5,
-//                dcRX1, dcRY1, dcRX2, dcRY2,
-                dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5
+                dcLX1, dcLY1, dcLX2, dcLY2, dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5,
+                dcRX1, dcRY1, dcRX2, dcRY2, dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5
         );
         var dcRows = dcs.size()/4;
 
+        var rowNumber = 0;
         {
             var row = new JPanel();
             row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 0;
+            gbc.gridy = rowNumber++;
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
@@ -7498,18 +7768,91 @@ class FisheyeCorrectionPane extends JPanel {
 //            var text1 = new JLabel("Please focus your eyes on the object of interest and make both marks of the same color");
 //            var text2 = new JLabel("EXACTLY match ON THAT OBJECT in x3d, otherwise you will get a measurement error!");
             // TODO: refactor, use an array + a loop
-            var text1 = new JLabel("The best method is to mark THE SAME SPOT ON THE SAME OBJECT on both photos with red marks, and mark another spot on another object with the green marks, again on both photos.");
-            var text3 = new JLabel("Note that moving a mark by 1 pixel MAY significantly change the result of measurement. The blue/cyan/magenta marks are used only for calibration.");
+            var text1 = new JLabel("<html>" +
+                    "The <i>\"fisheye effect\"</i> is officially called <i>barrel distortion.</i> We can correct it " +
+                    "knowing the distortion center and any 3 points that" +
+                    "<br>would be on one horizontal line if there were no distortion." +
+                    "<br>" +
+                    "<br>Find a line that should be horizontal in the image, and place marks" +
+                    " <font color='blue'>3</font>, <font color='#00ffff'>4</font>, <font color='#ff00ff'>5</font>" +
+                    " on this line, preferably one mark right above or below the distortion center," +
+                    "<br>and two others to the right or left of it, on the same side. " +
+                    "To set the marks, use key combinations Alt 1 through Alt 5, but not in this dialog." +
+                    "<br>For example, to set the 3rd (<font color='#0000ff'>blue</font>) mark, exit this dialog," +
+                    "press Alt 3 (the mouse cursor will become a crosshair), and click the point that you want to mark." +
+                    "</html>");
+            var text3 = new JLabel("Note that moving a mark by 1 pixel MAY significantly change the result.");
             var text5 = new JLabel(" ");
             row.add(text1);
             row.add(text3);
             row.add(text5);
         }
         {
-            var text = new JLabel("X and Y coordinates of points 1 and 2 on the left and right images:");
+            boolean isRight = false;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = rowNumber;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            row.add(new JLabel("Correction method:"));
+            row.add(chooserAlgoL=new FisheyeCorrectionAlgoChooser(algo -> {
+                getFisheyeCorrection(isRight).algo = algo;
+                System.out.println(getFisheyeCorrection(isRight));
+//                doCalculate(isRight);
+            }));
+            row.add(new JLabel("Distortion center:"));
+            row.add(chooserCenterL=new DistortionCenterLocationChooser(dcl -> {
+                getFisheyeCorrection(isRight).distortionCenterLocation = dcl;
+                System.out.println(getFisheyeCorrection(isRight));
+//                doCalculate(isRight);
+            }));
+        }
+        {
+            boolean isRight = true;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 3;
+                gbc.gridy = rowNumber++;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            row.add(new JLabel("Correction method:"));
+            row.add(chooserAlgoR=new FisheyeCorrectionAlgoChooser(algo -> {
+                getFisheyeCorrection(isRight).algo = algo;
+                System.out.println(getFisheyeCorrection(isRight));
+//                doCalculate(isRight);
+            }));
+            row.add(new JLabel("Distortion center:"));
+            row.add(chooserCenterR=new DistortionCenterLocationChooser(dcl -> {
+                getFisheyeCorrection(isRight).distortionCenterLocation = dcl;
+                System.out.println(getFisheyeCorrection(isRight));
+//                doCalculate(isRight);
+            }));
+        }
+        {
+            var text = new JLabel("Object marks: X and Y coordinates of marks 1 and 2 on the left and right images (NOT used for function calculation)");
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 1;
+            gbc.gridy = rowNumber++;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(text, gbc);
+            this.add(text);
+        }
+
+        {
+            var text = new JLabel("Calibration marks: X and Y coordinates of marks 3, 4 and 5 on the left and right images (Alt 3/Alt 4/Alt 5 after closing this dialog)");
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = rowNumber+3;
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(text, gbc);
@@ -7523,66 +7866,430 @@ class FisheyeCorrectionPane extends JPanel {
                 gbc.weightx = 1.0;
                 gbc.weighty = 1.0;
                 gbc.gridx = lr*3 + i%2;
-                gbc.gridy = i/2+2;
+                gbc.gridy = (i&-2)+rowNumber;
                 var dc = dcs.get(lr*dcRows*2 + i);
                 gbl.setConstraints(dc, gbc);
                 this.add(dc);
             }
         }
         // white space between controls for the left and right images
-        for (int i = 0; i < dcRows; i++) {
+        for (int i = 0; i < dcRows*2; i++) {
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.fill = GridBagConstraints.BOTH;
             gbc.weightx = 1.0;
             gbc.weighty = 1.0;
             gbc.gridx = 2;
-            gbc.gridy = i+2;
+            gbc.gridy = (i&-2)+rowNumber;
             var t = new JLabel("        ");
             gbl.setConstraints(t, gbc);
             this.add(t);
+        }
+        rowNumber += dcRows*2;
+        {
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = rowNumber++;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 6;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            {
+                var button = new JButton("Calculate Left");
+                button.addActionListener(e -> doCalculate(false));
+                row.add(button);
+            }
+            {
+                var text = new JLabel("<html>Calculate correction function by 3 points (marks 3 to 5, "
+                        + "<font color='blue'>blue</font>/<font color='#00ffff'>cyan</font>/<font color='#ff00ff'>magenta</font>)."
+                        + "<br> Note that marks 1 and 2 are never used here!</html>");
+                row.add(text);
+            }
+            {
+                var button = new JButton("Calculate Right");
+                button.addActionListener(e -> doCalculate(true));
+                row.add(button);
+            }
         }
         {
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
-            gbc.gridy = 12;         // MAGIC NUMBER // TODO: calculate
+            gbc.gridy = rowNumber++;
             gbc.gridheight = 1;
             gbc.gridwidth = 6;
             gbl.setConstraints(row, gbc);
             this.add(row);
-            var button = new JButton("Calculate");
-//            button.addActionListener(e -> doCalculate7());
-            row.add(button);
-            var text = new JLabel("<html>To calibrate, set both cyan marks on some spot on the left, both magenta marks<br>on some spot on the right, set both blue marks on some infinitely distant spot, and press:</html>");
+            var text = new JLabel("<html>Normalize: make <i>g(r)=1</i> at one of points:</html>");
             row.add(text);
-            var button2 = new JButton("Calibrate");
-            button2.addActionListener(e -> TODO_Calculate());
-            row.add(button2);
+        }
+        for (int threeCols=0; threeCols<2; threeCols++)
+        {
+            var row1 = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = threeCols * 3;
+                gbc.gridy = rowNumber;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row1, gbc);
+                this.add(row1);
+            }
+            var row2 = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = threeCols * 3;
+                gbc.gridy = rowNumber+1;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row2, gbc);
+                this.add(row2);
+            }
+            boolean isRight = threeCols != 0;
+            {
+                var button = new JButton("<html><font color='black'>Distortion Center</font></html>");
+                button.addActionListener(e -> {
+                    var fc = getFisheyeCorrection(isRight);
+                    Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
+                    doNormalizeFunction(
+                        isRight,
+                        fc.distortionCenterLocation.getPoleXBefore(imageDim.width, imageDim.height),
+                        fc.distortionCenterLocation.getPoleYBefore(imageDim.width, imageDim.height)
+                    );
+                });
+                row1.add(button);
+            }
+            {
+                var button = new JButton("<html><font color='black'>Point In Image Nearest To Distortion Center</font></html>");
+                button.addActionListener(e -> {
+                    var fc = getFisheyeCorrection(isRight);
+                    Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
+                    doNormalizeFunction(
+                            isRight,
+                            fc.distortionCenterLocation.getNearestToPoleXBefore(imageDim.width, imageDim.height),
+                            fc.distortionCenterLocation.getNearestToPoleYBefore(imageDim.width, imageDim.height)
+                    );
+                });
+                row1.add(button);
+            }
+            {
+                var button = new JButton("<html><font color='red'>Mark 1</font></html>");
+                button.addActionListener(e -> {
+                    var pms = getPanelMeasurementStatus(isRight);
+                    doNormalizeFunction(isRight, pms.x1, pms.y1);
+                });
+                row2.add(button);
+            }
+            {
+                var button = new JButton("<html><font color='green'>Mark 2</font></html>");
+                button.addActionListener(e -> {
+                    var pms = getPanelMeasurementStatus(isRight);
+                    doNormalizeFunction(isRight, pms.x2, pms.y2);
+                });
+                row2.add(button);
+            }
+            {
+                var button = new JButton("<html><font color='blue'>Mark 3</font></html>");
+                button.addActionListener(e -> {
+                    var pms = getPanelMeasurementStatus(isRight);
+                    doNormalizeFunction(isRight, pms.x3, pms.y3);
+                });
+                row2.add(button);
+            }
+            {
+                var button = new JButton("<html><font color='#00afaf'>Mark 4</font></html>");
+                button.addActionListener(e -> {
+                    var pms = getPanelMeasurementStatus(isRight);
+                    doNormalizeFunction(isRight, pms.x4, pms.y4);
+                });
+                row2.add(button);
+            }
+            {
+                var button = new JButton("<html><font color='#ff00ff'>Mark 5</font></html>");
+                button.addActionListener(e -> {
+                    var pms = getPanelMeasurementStatus(isRight);
+                    doNormalizeFunction(isRight, pms.x5, pms.y5);
+                });
+                row2.add(button);
+            }
+        }
+        rowNumber += 2;
+        {
+            var text = new JLabel("Correction parameters as a string (you can copy or paste):");
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = rowNumber++;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(text, gbc);
+            this.add(text);
+        }
+        {
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = rowNumber++;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 6;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            {
+                row.add(new JLabel("L:"));
+                row.add(etxFunctionL = new JTextField(80));
+                var button = new JButton("Set From Text");
+                row.add(button);
+            }
+        }
+        {
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = rowNumber++;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 6;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            {
+                row.add(new JLabel("R:"));
+                row.add(etxFunctionR = new JTextField(80));
+                var button = new JButton("Set From Text");
+                row.add(button);
+            }
+        }
+        {
+            var text = new JLabel("<html>" +
+                "Function <i>g(x):</i> " +
+                "a pixel with polar coordinates <i>(r,φ)</i> comes from the pixel <i>(r·g(r),φ)</i> of the \"fisheye\" image" +
+                "</html>"
+            );
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = rowNumber++;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(text, gbc);
+            this.add(text);
+        }
+        {
+            lblGraphL = new JLabel(new ImageIcon(
+                new BufferedImage(GRAPH_WIDTH,GRAPH_HEIGHT, BufferedImage.TYPE_INT_ARGB)
+            ));
+            lblGraphR = new JLabel(new ImageIcon(
+                    new BufferedImage(GRAPH_WIDTH,GRAPH_HEIGHT, BufferedImage.TYPE_INT_ARGB)
+            ));
+//                    GraphPlotter.plotGraph(imageSize, imageSize, 0, 100, 100, Color.RED, d -> d)
+//            lblGraphR = new JLabel();
+//                    new ImageIcon(
+////                    new BufferedImage(256,256, BufferedImage.TYPE_INT_ARGB)
+//                    GraphPlotter.plotGraph(imageSize, imageSize, 0, 100, 50, Color.RED, d -> 50-d/2)
+//            ));
+
+            var row = new JPanel();
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = rowNumber++;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(row, gbc);
+            this.add(row);
+//            row.add(lblFunctionInfoL);
+            row.add(lblGraphL);
+            {
+                var col = new JPanel();
+                col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+                {
+                    var button = new JButton("L->R");
+                    col.add(button);
+                    button.addActionListener(actionEvent -> {
+                        setFisheyeCorrection(
+                                true,
+                                getFisheyeCorrection(false).copy()
+                        );
+                        setHalfPaneFromData(true);
+                    });
+                }
+                {
+                    var button = new JButton("L<-R");
+                    col.add(button);
+                    button.addActionListener(actionEvent -> {
+                        setFisheyeCorrection(
+                                false,
+                                getFisheyeCorrection(true).copy()
+                        );
+                        setHalfPaneFromData(false);
+                    });
+                }
+                row.add(col);
+            }
+            row.add(lblGraphR);
+//            row.add(lblFunctionInfoR);
+        }
+        {
+            var row = new JPanel();
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = rowNumber++;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(row, gbc);
+            this.add(row);
+
+            lblFunctionInfoL = new JLabel("<html>-------------------------<br>-<br>-<br>-</html>");
+            lblFunctionInfoR = new JLabel("<html>-------------------------<br>-<br>-<br>-</html>");
+
+            row.add(lblFunctionInfoL);
+            row.add(new JLabel(""));
+            row.add(lblFunctionInfoR);
+
+        }
+        {
+            var row = new JPanel();
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.gridy = rowNumber++;
+            gbc.gridheight = 1;
+            gbc.gridwidth = 6;
+            gbl.setConstraints(row, gbc);
+            this.add(row);
+
+            JButton applyL = new JButton("Apply (Left)");
+            applyL.addActionListener(a -> { doApply(false); });
+            row.add(applyL);
+            row.add(new JLabel(""));
+            JButton applyR = new JButton("Apply (Right)");
+            applyR.addActionListener(a -> { doApply(true); });
+            row.add(applyR);
         }
         this.setLayout(gbl);
+        leftHalf = new HalfPane(chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, etxFunctionL);
+        rightHalf = new HalfPane(chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, etxFunctionR);
+        addAncestorListener(new AncestorListener() {
+            @Override
+            public void ancestorAdded(AncestorEvent ancestorEvent) {
+                fisheyeCorrectionL = uiEventListener.getDisplayParameters().lFisheyeCorrection.copy();
+                fisheyeCorrectionR = uiEventListener.getDisplayParameters().rFisheyeCorrection.copy();
+//                chooserAlgoL.setValue(fisheyeCorrectionL.algo);
+//                chooserAlgoR.setValue(fisheyeCorrectionR.algo);
+//                chooserCenterL.setValue(fisheyeCorrectionL.distortionCenterLocation);
+//                chooserCenterR.setValue(fisheyeCorrectionR.distortionCenterLocation);
+//                doCalculate(false);
+//                doCalculate(true);
+                setHalfPaneFromData(false);
+                setHalfPaneFromData(true);
+            }
+            @Override
+            public void ancestorRemoved(AncestorEvent ancestorEvent) { }
+            @Override
+            public void ancestorMoved(AncestorEvent ancestorEvent) { }
+        });
     }
-    void TODO_Calculate() {
+    PanelMeasurementStatus getPanelMeasurementStatus(boolean isRight) {
+        return isRight ? uiEventListener.getMeasurementStatus().right
+                       : uiEventListener.getMeasurementStatus().left;
+    }
+    FisheyeCorrection getFisheyeCorrection(boolean isRight) {
+        return isRight ? fisheyeCorrectionR : fisheyeCorrectionL;
+    }
+    void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc) {
+        if (isRight) {
+            fisheyeCorrectionR = fc;
+        } else {
+            fisheyeCorrectionL = fc;
+        }
+    }
+    void doApply(boolean isRight) {
+        uiEventListener.setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).copy());
+    }
+    void doNormalizeFunction(boolean isRight, double x, double y) {
+        System.out.println("normalizeFunction("+isRight+", "+x+", "+y+")");
+    }
+    HalfPane getHalfPane(boolean isRight) {
+        return isRight ? rightHalf : leftHalf;
+    }
+    void doCalculate(boolean isRight) {
+        System.out.println("doCalculate isRight="+isRight);
+        new Exception("doCalculate invoked").printStackTrace();
+//        var dp = uiEventListener.getDisplayParameters();
+        var ms = uiEventListener.getMeasurementStatus();
+        HalfPane halfPane = getHalfPane(isRight);
 
+        Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
+        int width = imageDim.width;
+        int height = imageDim.height;
+        var pms = isRight ? ms.right : ms.left;
+        FisheyeCorrection fc = getFisheyeCorrection(isRight);
+        FisheyeCorrection fc2 = calculateDefisheyeFunction(width, height, pms, fc);
+        setFisheyeCorrection(isRight, fc2);
+        updateDefisheyeFunctionUi(width, height, fc2, halfPane);
+        System.out.println("doCalculate fc2="+fc2);
     }
+
+    FisheyeCorrection calculateDefisheyeFunction(
+            int width,
+            int height,
+            PanelMeasurementStatus pms,
+            FisheyeCorrection fc
+    ) {
+        DistortionCenterLocation dcl = fc.distortionCenterLocation;
+        var g = fc.algo.calculateFunction(width, height, dcl, pms);
+        var fc2 = fc.copy();
+        fc2.func = g;
+        return fc2;
+    }
+    static void updateDefisheyeFunctionUi(int width,
+                                   int height,
+                                   FisheyeCorrection fc,
+                                   HalfPane halfPane) {
+        var k = fc.algo.sizeChange();
+        DistortionCenterLocation dcl = fc.distortionCenterLocation;
+        var g = fc.func;
+        var rMin = 0.;
+        var rMax = dcl.getMaxRAfter(width, height, k);
+        halfPane.lblGraph.setIcon(new ImageIcon(
+            GraphPlotter.plotGraph(
+                    GRAPH_WIDTH, GRAPH_HEIGHT,
+                    rMin, rMax,
+                    g.maxInRange(rMin, rMax),
+                    Color.RED,
+                    g.asFunction()
+            )
+        ));
+        String info =
+                "<html>" +
+                "g(r) = "+g.asString()+"<br>" +
+                "r from " + rMin + " to " + rMax +"<br>" +
+                "max g(r) = " +g.maxInRange(rMin, rMax)+"<br>" +
+                "min g(r) = " +g.minInRange(rMin, rMax)+"<br>" +
+                "</html>";
+        halfPane.lblFunctionInfo.setText(info);
+        halfPane.etxFunction.setText(fc.parametersToString());
+    }
+
     void showDialogIn(JFrame mainFrame) {
         setControls(uiEventListener.getMeasurementStatus());
         JOptionPane.showMessageDialog(mainFrame, this,"Fisheye Correction", JOptionPane.PLAIN_MESSAGE);
     }
     FisheyeCorrectionPane setControls(MeasurementStatus ms) {
-//        dcLX1.setValueAndText(ms.left.x1);
-//        dcLY1.setValueAndText(ms.left.y1);
-//        dcLX2.setValueAndText(ms.left.x2);
-//        dcLY2.setValueAndText(ms.left.y2);
+        dcLX1.setValueAndText(ms.left.x1);
+        dcLY1.setValueAndText(ms.left.y1);
+        dcLX2.setValueAndText(ms.left.x2);
+        dcLY2.setValueAndText(ms.left.y2);
         dcLX3.setValueAndText(ms.left.x3);
         dcLY3.setValueAndText(ms.left.y3);
         dcLX4.setValueAndText(ms.left.x4);
         dcLY4.setValueAndText(ms.left.y4);
         dcLX5.setValueAndText(ms.left.x5);
         dcLY5.setValueAndText(ms.left.y5);
-//        dcRX1.setValueAndText(ms.right.x1);
-//        dcRY1.setValueAndText(ms.right.y1);
-//        dcRX2.setValueAndText(ms.right.x2);
-//        dcRY2.setValueAndText(ms.right.y2);
+        dcRX1.setValueAndText(ms.right.x1);
+        dcRY1.setValueAndText(ms.right.y1);
+        dcRX2.setValueAndText(ms.right.x2);
+        dcRY2.setValueAndText(ms.right.y2);
         dcRX3.setValueAndText(ms.right.x3);
         dcRY3.setValueAndText(ms.right.y3);
         dcRX4.setValueAndText(ms.right.x4);
@@ -7591,35 +8298,149 @@ class FisheyeCorrectionPane extends JPanel {
         dcRY5.setValueAndText(ms.right.y5);
         return this;
     }
+    void setHalfPaneFromData(boolean isRight) {
+        FisheyeCorrection fc = getFisheyeCorrection(isRight);
+        HalfPane pane = getHalfPane(isRight);
+        Dimension dim = uiEventListener.getRawImageDimensions(isRight);
+        pane.setFrom(dim.width, dim.height, fc);
+    }
 }
 
-class LagrangePolynomialInterpolator {
-    static double[] findPolynomialWith0At0(double x1, double y1, double x2, double y2, double x3, double y3) {
-        double[] a = new double[4];
-        y1 /= x1;
-        y2 /= x2;
-        y3 /= x3;
+interface HumanVisibleMathFunction {
+    DoubleFunction asFunction();
+    String asString();
+    String parameterString();
+    double maxInRange(double x1, double x2);
+    double minInRange(double x1, double x2);
+    HumanVisibleMathFunction mul(double k);
+    String DOUBLE_FMT = "%.4g";
+
+    HumanVisibleMathFunction NO_FUNCTION = new QuadraticPolynomial(Double.NaN, Double.NaN, Double.NaN);
+}
+class QuadraticPolynomial implements HumanVisibleMathFunction {
+    final double a,b,c;
+
+    QuadraticPolynomial(double a, double b, double c) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+    }
+    public static QuadraticPolynomial from3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
         double YX1 = y1 / ((x1 - x2) * (x1 - x3));
         double YX2 = y2 / ((x2 - x1) * (x2 - x3));
         double YX3 = y3 / ((x3 - x1) * (x3 - x2));
-        a[3] = YX1 + YX2 + YX3; // *x^3
-        a[2] = - YX1 * (x2 + x3) - YX2 * (x1 + x3) - YX3 * (x1 + x2); // *x^2
-        a[1] = YX1*x2*x3 + YX2*x1*x3 + YX3*x1*x2; // *x
-        a[0] = 0; // *1
-        return a;
+        return new QuadraticPolynomial(
+            YX1 + YX2 + YX3, // *x^2
+            - YX1 * (x2 + x3) - YX2 * (x1 + x3) - YX3 * (x1 + x2), // *x^1
+            YX1*x2*x3 + YX2*x1*x3 + YX3*x1*x2 // *1
+        );
     }
-    static double applyPolynomial(double[] a, double x) {
-        return ((a[3]*x + a[2])*x + a[1])*x + a[0];
+    double apply(double x) {
+        return (a*x + b)*x + c;
     }
-//    static double calculate(double[] coefficients, double x) {
-//        double res = 0;
-//        double xx = 1.;
-//        for (var coef : coefficients) {
-//            res += coef * xx;
-//            xx *= x;
-//        }
-//        return res;
-//    }
+    @Override
+    public DoubleFunction asFunction() {
+        return this::apply;
+    }
+    @Override
+    public String asString() {
+        return String.format(DOUBLE_FMT + "*x^2 + "+ DOUBLE_FMT + "*x + "+ DOUBLE_FMT,
+                             a,                      b,                    c);
+    }
+    @Override
+    public String parameterString() {
+        return "" + a + " " + b + " " + c;
+    }
+    @Override
+    public QuadraticPolynomial mul(double k) {
+        return new QuadraticPolynomial(k*a, k*b, k*c);
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        double y = Math.max(apply(x1), apply(x2));
+        double xe = xOfExtremum();
+        if (isBetween(x1, xe, x2)) {
+            y = Math.max(y, apply(xe));
+        }
+        return y;
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        double y = Math.min(apply(x1), apply(x2));
+        double xe = xOfExtremum();
+        if (isBetween(x1, xe, x2)) {
+            y = Math.min(y, apply(xe));
+        }
+        return y;
+    }
+    double xOfExtremum() {
+        return -b / (2 * a);
+    }
+    static boolean isBetween(double xLim1, double x, double xLim2) {
+        return Double.isFinite(x)
+            && Math.copySign(1., x-xLim1) != Math.copySign(1., x-xLim2);
+    }
+
+    @Override
+    public String toString() {
+        return "QuadraticPolynomial{" +
+                "a=" + a +
+                ", b=" + b +
+                ", c=" + c +
+                ", " + asString() +
+                '}';
+    }
+}
+interface DoubleFunction {
+    double apply(double x);
+}
+class GraphPlotter {
+    static BufferedImage plotGraph(
+            final int width, final int height,
+            final double xMin, final double xMax,
+            final double fMax,
+            Color color,
+            DoubleFunction f) {
+        BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = (Graphics2D) bi.getGraphics();
+        var yMax = graphMaxY(fMax);
+        var yScale = height / yMax;
+        {
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, width, height);
+        }
+        {
+            g.setColor(Color.BLACK);
+            var d = deltaYBetweenLines(fMax);
+            for (double y=0; y<yMax; y += d) {
+                int j = (int) Math.round(y * yScale);
+                g.drawLine(0, height - j, width, height - j);
+            }
+        }
+        {
+            g.setColor(color);
+            double w1 = width - 1;
+            int jOld = (int) Math.round(f.apply(xMin) * yScale);
+            for (int i = 1; i < width; i++) {
+                double x = xMin + xMax * i / w1;
+                int j = (int) Math.round(f.apply(x) * yScale);
+                g.drawLine(i - 1, height - jOld, i, height - j);
+                jOld = j;
+            }
+        }
+
+        g.dispose();
+        return bi;
+    }
+    static double deltaYBetweenLines(double y) {
+        double dy = Math.pow(10, Math.floor(Math.log10(y)-0.004));
+        return dy;
+    }
+    static double graphMaxY(double y) {
+        var dy = deltaYBetweenLines(y);
+        var n = Math.ceil(y/dy);
+        return n*dy;
+    }
 }
 
 enum MeasurementPointMark {
