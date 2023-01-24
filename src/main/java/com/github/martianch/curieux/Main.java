@@ -5677,7 +5677,7 @@ enum FisheyeCorrectionAlgo {
         }
         @Override
         HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
-            return new QuadraticPolynomial(0, 0, 1);
+            return QuadraticPolynomial.of(0, 0, 1);
         }
         @Override
         double sizeChange() { return 1.; }
@@ -8328,21 +8328,24 @@ interface HumanVisibleMathFunction {
     HumanVisibleMathFunction mul(double k);
     String DOUBLE_FMT = "%.4g";
 
-    HumanVisibleMathFunction NO_FUNCTION = new QuadraticPolynomial(Double.NaN, Double.NaN, Double.NaN);
+    HumanVisibleMathFunction NO_FUNCTION = QuadraticPolynomial.of(Double.NaN, Double.NaN, Double.NaN);
 }
 class QuadraticPolynomial implements HumanVisibleMathFunction {
     final double a,b,c;
 
-    QuadraticPolynomial(double a, double b, double c) {
+    private QuadraticPolynomial(double a, double b, double c) {
         this.a = a;
         this.b = b;
         this.c = c;
+    }
+    public static QuadraticPolynomial of(double a, double b, double c) {
+        return new QuadraticPolynomial(a, b, c);
     }
     public static QuadraticPolynomial from3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
         double YX1 = y1 / ((x1 - x2) * (x1 - x3));
         double YX2 = y2 / ((x2 - x1) * (x2 - x3));
         double YX3 = y3 / ((x3 - x1) * (x3 - x2));
-        return new QuadraticPolynomial(
+        return of(
             YX1 + YX2 + YX3, // *x^2
             - YX1 * (x2 + x3) - YX2 * (x1 + x3) - YX3 * (x1 + x2), // *x^1
             YX1*x2*x3 + YX2*x1*x3 + YX3*x1*x2 // *1
@@ -8366,7 +8369,7 @@ class QuadraticPolynomial implements HumanVisibleMathFunction {
     }
     @Override
     public QuadraticPolynomial mul(double k) {
-        return new QuadraticPolynomial(k*a, k*b, k*c);
+        return of(k*a, k*b, k*c);
     }
     @Override
     public double maxInRange(double x1, double x2) {

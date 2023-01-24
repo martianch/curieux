@@ -10,21 +10,21 @@ public class QuadraticPolynomialTest {
     @Test
     public void applyTest() {
         // int math should be ok with delta=0
-        assertEquals(1, new QuadraticPolynomial(0, 0, 1).apply(3), 0);
-        assertEquals(3, new QuadraticPolynomial(0, 1, 0).apply(3), 0);
-        assertEquals(9, new QuadraticPolynomial(1, 0, 0).apply(3), 0);
-        assertEquals(7, new QuadraticPolynomial(1, -1, 1).apply(3), 0);
+        assertEquals(1, QuadraticPolynomial.of(0, 0, 1).apply(3), 0);
+        assertEquals(3, QuadraticPolynomial.of(0, 1, 0).apply(3), 0);
+        assertEquals(9, QuadraticPolynomial.of(1, 0, 0).apply(3), 0);
+        assertEquals(7, QuadraticPolynomial.of(1, -1, 1).apply(3), 0);
     }
 
     @Test
     public void asFunctionTest() {
         // int math should be ok with delta=0
-        assertEquals(1, new QuadraticPolynomial(0, 0, 1).asFunction().apply(3), 0);
-        assertEquals(3, new QuadraticPolynomial(0, 1, 0).asFunction().apply(3), 0);
-        assertEquals(9, new QuadraticPolynomial(1, 0, 0).asFunction().apply(3), 0);
-        assertEquals(7, new QuadraticPolynomial(1, -1, 1).asFunction().apply(3), 0);
+        assertEquals(1, QuadraticPolynomial.of(0, 0, 1).asFunction().apply(3), 0);
+        assertEquals(3, QuadraticPolynomial.of(0, 1, 0).asFunction().apply(3), 0);
+        assertEquals(9, QuadraticPolynomial.of(1, 0, 0).asFunction().apply(3), 0);
+        assertEquals(7, QuadraticPolynomial.of(1, -1, 1).asFunction().apply(3), 0);
         {
-            var f = new QuadraticPolynomial(1, 2, 3).asFunction();
+            var f = QuadraticPolynomial.of(1, 2, 3).asFunction();
             assertEquals(3, f.apply(0), 0);
             assertEquals(6, f.apply(1), 0);
             assertEquals(11, f.apply(2), 0);
@@ -33,13 +33,13 @@ public class QuadraticPolynomialTest {
 
     @Test
     public void xOfExtremumTest() {
-        assertEquals(2, new QuadraticPolynomial(1, -4, 5).xOfExtremum(), 0);
-        assertEquals(3, new QuadraticPolynomial(-1, 6, 7).xOfExtremum(), 0);
+        assertEquals(2, QuadraticPolynomial.of(1, -4, 5).xOfExtremum(), 0);
+        assertEquals(3, QuadraticPolynomial.of(-1, 6, 7).xOfExtremum(), 0);
     }
 
     @Test
     public void maxInRangeTest() {
-        var p = new QuadraticPolynomial(-1, 6, -7);
+        var p = QuadraticPolynomial.of(-1, 6, -7);
         var f = p.asFunction();
         {
             assertEquals(-2, f.apply(1), 0);
@@ -57,7 +57,7 @@ public class QuadraticPolynomialTest {
     }
     @Test
     public void minInRangeTest() {
-        var p = new QuadraticPolynomial(1, -6, 7);
+        var p = QuadraticPolynomial.of(1, -6, 7);
         var f = p.asFunction();
         {
             assertEquals(2, f.apply(1), 0);
@@ -102,7 +102,7 @@ public class QuadraticPolynomialTest {
 
     @Test
     public void from3PointsTest() {
-        var p = new QuadraticPolynomial(4, 3, 2);
+        var p = QuadraticPolynomial.of(4, 3, 2);
         double[] x = new double[] {10, 140, 280};
         double[] y = Arrays.stream(x).map(p::apply).toArray();
         {
@@ -132,15 +132,15 @@ public class QuadraticPolynomialTest {
     }
     @Test
     public void asStringTest() {
-        assertEquals("0.2000*x^2 + -0.3000*x + 0.4000", new QuadraticPolynomial(.2,-.3,.4).asString());
-        assertEquals("2.000*x^2 + -3.000*x + 4.000", new QuadraticPolynomial(2,-3,4).asString());
-        assertEquals("2.000e+05*x^2 + 3.000e-05*x + -4.000e-05", new QuadraticPolynomial(2e5,3e-5,-4e-5).asString());
-        assertEquals("NaN*x^2 + NaN*x + NaN", new QuadraticPolynomial(Double.NaN,Double.NaN,Double.NaN).asString());
-        assertEquals("0.3333*x^2 + 0.1429*x + 0.2500", new QuadraticPolynomial(1./3,1./7,1./4).asString());
+        assertEquals("0.2000*x^2 + -0.3000*x + 0.4000", QuadraticPolynomial.of(.2,-.3,.4).asString());
+        assertEquals("2.000*x^2 + -3.000*x + 4.000", QuadraticPolynomial.of(2,-3,4).asString());
+        assertEquals("2.000e+05*x^2 + 3.000e-05*x + -4.000e-05", QuadraticPolynomial.of(2e5,3e-5,-4e-5).asString());
+        assertEquals("NaN*x^2 + NaN*x + NaN", QuadraticPolynomial.of(Double.NaN,Double.NaN,Double.NaN).asString());
+        assertEquals("0.3333*x^2 + 0.1429*x + 0.2500", QuadraticPolynomial.of(1./3,1./7,1./4).asString());
     }
     @Test
     public void mulTest() {
-        var p = new QuadraticPolynomial(1, 2, 3).mul(-3);
+        var p = QuadraticPolynomial.of(1, 2, 3).mul(-3);
         assertEquals(-3, p.a, 0);
         assertEquals(-6, p.b, 0);
         assertEquals(-9, p.c, 0);
