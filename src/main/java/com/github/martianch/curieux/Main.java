@@ -361,7 +361,7 @@ class DisplayParameters {
         debayerL = debayerR = DebayerMode.getUiDefault();
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
         lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, CustomStretchRgbParameters.newFullRange());
-        lFisheyeCorrection = rFisheyeCorrection = new FisheyeCorrection();
+        lFisheyeCorrection = rFisheyeCorrection = FisheyeCorrection.defaultValue();
     }
     void setDefaultsMrMl() {
         setDefaults();
@@ -5626,15 +5626,29 @@ class RemoteFileNavigator extends FileNavigatorBase {
 }
 
 class FisheyeCorrection {
-    FisheyeCorrectionAlgo algo = FisheyeCorrectionAlgo.NONE;
-    HumanVisibleMathFunction func = HumanVisibleMathFunction.NO_FUNCTION;
-    DistortionCenterLocation distortionCenterLocation = DistortionCenterLocation.IN_CENTER_1X1;
-    FisheyeCorrection copy() {
-        var res = new FisheyeCorrection();
-        res.algo = this.algo;
-        res.func = this.func;
-        res.distortionCenterLocation = this.distortionCenterLocation;
-        return res;
+    final FisheyeCorrectionAlgo algo;
+    final HumanVisibleMathFunction func;
+    final DistortionCenterLocation distortionCenterLocation;
+
+    private FisheyeCorrection(FisheyeCorrectionAlgo algo, HumanVisibleMathFunction func, DistortionCenterLocation distortionCenterLocation) {
+        this.algo = algo;
+        this.func = func;
+        this.distortionCenterLocation = distortionCenterLocation;
+    }
+    static FisheyeCorrection of(FisheyeCorrectionAlgo algo, HumanVisibleMathFunction func, DistortionCenterLocation distortionCenterLocation) {
+        return new FisheyeCorrection(algo, func, distortionCenterLocation);
+    }
+    static FisheyeCorrection defaultValue() {
+        return of(FisheyeCorrectionAlgo.NONE, HumanVisibleMathFunction.NO_FUNCTION, DistortionCenterLocation.IN_CENTER_1X1);
+    }
+    FisheyeCorrection withAlgo(FisheyeCorrectionAlgo algo) {
+        return new FisheyeCorrection(algo, func, distortionCenterLocation);
+    }
+    FisheyeCorrection withFunc(HumanVisibleMathFunction func) {
+        return new FisheyeCorrection(algo, func, distortionCenterLocation);
+    }
+    FisheyeCorrection withCenter(DistortionCenterLocation distortionCenterLocation) {
+        return new FisheyeCorrection(algo, func, distortionCenterLocation);
     }
     BufferedImage doFisheyeCorrection(BufferedImage orig) {
         return algo.doFisheyeCorrection(orig, this);
@@ -7801,13 +7815,13 @@ class FisheyeCorrectionPane extends JPanel {
             }
             row.add(new JLabel("Correction method:"));
             row.add(chooserAlgoL=new FisheyeCorrectionAlgoChooser(algo -> {
-                getFisheyeCorrection(isRight).algo = algo;
+                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
 //                doCalculate(isRight);
             }));
             row.add(new JLabel("Distortion center:"));
             row.add(chooserCenterL=new DistortionCenterLocationChooser(dcl -> {
-                getFisheyeCorrection(isRight).distortionCenterLocation = dcl;
+                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
                 System.out.println(getFisheyeCorrection(isRight));
 //                doCalculate(isRight);
             }));
@@ -7826,13 +7840,13 @@ class FisheyeCorrectionPane extends JPanel {
             }
             row.add(new JLabel("Correction method:"));
             row.add(chooserAlgoR=new FisheyeCorrectionAlgoChooser(algo -> {
-                getFisheyeCorrection(isRight).algo = algo;
+                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
 //                doCalculate(isRight);
             }));
             row.add(new JLabel("Distortion center:"));
             row.add(chooserCenterR=new DistortionCenterLocationChooser(dcl -> {
-                getFisheyeCorrection(isRight).distortionCenterLocation = dcl;
+                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
                 System.out.println(getFisheyeCorrection(isRight));
 //                doCalculate(isRight);
             }));
@@ -8109,7 +8123,7 @@ class FisheyeCorrectionPane extends JPanel {
                     button.addActionListener(actionEvent -> {
                         setFisheyeCorrection(
                                 true,
-                                getFisheyeCorrection(false).copy()
+                                getFisheyeCorrection(false)
                         );
                         setHalfPaneFromData(true);
                     });
@@ -8120,7 +8134,7 @@ class FisheyeCorrectionPane extends JPanel {
                     button.addActionListener(actionEvent -> {
                         setFisheyeCorrection(
                                 false,
-                                getFisheyeCorrection(true).copy()
+                                getFisheyeCorrection(true)
                         );
                         setHalfPaneFromData(false);
                     });
@@ -8172,8 +8186,8 @@ class FisheyeCorrectionPane extends JPanel {
         addAncestorListener(new AncestorListener() {
             @Override
             public void ancestorAdded(AncestorEvent ancestorEvent) {
-                fisheyeCorrectionL = uiEventListener.getDisplayParameters().lFisheyeCorrection.copy();
-                fisheyeCorrectionR = uiEventListener.getDisplayParameters().rFisheyeCorrection.copy();
+                fisheyeCorrectionL = uiEventListener.getDisplayParameters().lFisheyeCorrection;
+                fisheyeCorrectionR = uiEventListener.getDisplayParameters().rFisheyeCorrection;
 //                chooserAlgoL.setValue(fisheyeCorrectionL.algo);
 //                chooserAlgoR.setValue(fisheyeCorrectionR.algo);
 //                chooserCenterL.setValue(fisheyeCorrectionL.distortionCenterLocation);
@@ -8204,7 +8218,7 @@ class FisheyeCorrectionPane extends JPanel {
         }
     }
     void doApply(boolean isRight) {
-        uiEventListener.setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).copy());
+        uiEventListener.setFisheyeCorrection(isRight, getFisheyeCorrection(isRight));
     }
     void doNormalizeFunction(boolean isRight, double x, double y) {
         System.out.println("normalizeFunction("+isRight+", "+x+", "+y+")");
@@ -8238,8 +8252,7 @@ class FisheyeCorrectionPane extends JPanel {
     ) {
         DistortionCenterLocation dcl = fc.distortionCenterLocation;
         var g = fc.algo.calculateFunction(width, height, dcl, pms);
-        var fc2 = fc.copy();
-        fc2.func = g;
+        var fc2 = fc.withFunc(g);
         return fc2;
     }
     static void updateDefisheyeFunctionUi(int width,
