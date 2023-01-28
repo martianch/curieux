@@ -14,6 +14,7 @@ plugins {
     id 'application'
 
     id 'com.palantir.git-version' version '0.12.3'
+    id 'jacoco'
 }
 
 repositories {
@@ -54,6 +55,11 @@ jar {
         )
     }
 }
+
+// output:
+// ./build/reports/jacoco/test/html/index.html
+// ./build/reports/jacoco/test/html/com.github.martianch.curieux/index.html
+test.finalizedBy jacocoTestReport
 
 
 
