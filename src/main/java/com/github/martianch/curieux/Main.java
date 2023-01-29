@@ -86,6 +86,7 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Scanner;
 import java.util.TimeZone;
 import java.util.TreeMap;
@@ -101,6 +102,7 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
 import static java.awt.Image.SCALE_SMOOTH;
@@ -8320,17 +8322,258 @@ class FisheyeCorrectionPane extends JPanel {
 }
 
 interface HumanVisibleMathFunction {
+    double apply(double x);
     DoubleFunction asFunction();
     String asString();
     String parameterString();
     double maxInRange(double x1, double x2);
     double minInRange(double x1, double x2);
     HumanVisibleMathFunction mul(double k);
+    HumanVisibleMathFunction sub(double m);
+    default HumanVisibleMathFunction add(double m) { return sub(-m); }
+    HumanVisibleMathFunction derivative();
+    default double[] findRoots() { return findRootsIn(-MAX_MEANINGFUL_X, MAX_MEANINGFUL_X); }
+    double[] findRootsIn(double x1, double x2);
+    default double[] findEqualIn(double y, double x1, double x2) { return sub(y).findRootsIn(x1, x2); }
     String DOUBLE_FMT = "%.4g";
+    double MAX_MEANINGFUL_X = 1e10;
 
     HumanVisibleMathFunction NO_FUNCTION = QuadraticPolynomial.of(Double.NaN, Double.NaN, Double.NaN);
 }
-class QuadraticPolynomial implements HumanVisibleMathFunction {
+abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
+    static final double ROOT_PREC = 0.001;
+    static boolean isBetween(double xLim1, double x, double xLim2) {
+        return Double.isFinite(x)
+            && ((xLim1 <= x && x <= xLim2) || (xLim2 <= x && x <= xLim1));
+    }
+    static double[] pointsAndLimits(double[] points, double x1, double x2) {
+        var res = DoubleStream.concat(
+            DoubleStream.of(points),
+            DoubleStream.of(x1, x2)
+        )
+                .filter(d -> x1 <= d && d <= x2)
+                .sorted().toArray();
+        return removeDuplicatesInSorted(res);
+    }
+    static double[] removeDuplicatesInSorted(double[] p) {
+        return removeDuplicatesInSorted(p, p.length);
+    }
+
+    /**
+     * Assuming that p is sorted, remove duplicates and non-finite numbers.
+     * @param p sorted array, probably with infinities and NaN-s
+     * @param pSize how many numbers are stored in p, pSize <= p.length
+     * @return
+     */
+    static double[] removeDuplicatesInSorted(double[] p, int pSize) {
+        double prev = Double.NaN;
+        int o = 0;
+        int i = 0;
+        for (; i<pSize; i++) {
+            double v = p[i];
+            if (Double.isFinite(v) && v != prev) {
+                o++;
+                prev = v;
+            } else {
+                i++;
+                break;
+            }
+        }
+        for (; i<pSize; i++) {
+            double v = p[i];
+            if (Double.isFinite(v) && v != prev) {
+                p[o++] = v;
+                prev = v;
+            }
+        }
+        if (o < p.length) {
+            return Arrays.copyOf(p, o);
+        } else {
+            return p;
+        }
+    }
+
+    /** Knowing that only one root exists in [x1, x2], find the root */
+    double findRootWhenSafe(double x1, double x2) {
+        var s1 = apply(x1) > 0;
+        var PREC = ROOT_PREC/2;
+        while(Math.abs(x1/2-x2/2) > PREC) {
+            var x = x1/2 + x2/2;
+            var s = apply(x) > 0;
+            if (s==s1) {
+                x1 = x;
+            } else {
+                x2 = x;
+            }
+        }
+        return x1;
+    }
+    boolean haveRoots(double x1, double x2) {
+        return Math.signum(apply(x1)) != Math.signum(apply(x2));
+    }
+
+    /** The default implementation of findRootsIn(): find critical points and,
+     * if the fuction changes sign, find roots between them. */
+    @Override
+    public double[] findRootsIn(double x1, double x2) {
+        double[] points = pointsAndLimits(derivative().findRootsIn(x1, x2), x1, x2);
+        var roots = new double[points.length-1];
+        int o = 0;
+        for (int i=1; i<points.length; i++) {
+            if (haveRoots(points[i-1], points[i])) {
+                roots[o++] = findRootWhenSafe(points[i - 1], points[i]);
+            }
+        }
+        Arrays.sort(roots,0,o);
+        return removeDuplicatesInSorted(roots, o); // TODO: delta
+    }
+
+    /** Implementation of findRootsIn() that works if findRoots() can find all roots using
+     * an analytic formula */
+    public double[] findRootsIn_via_findRoots(double x1, double x2) {
+        var r = findRoots();
+        return DoubleStream.of(r).filter(d -> isBetween(x1, d, x2)).toArray();
+    }
+}
+class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
+    final double a,b,c,d,e;
+
+    private QuarticPolynomial(double a, double b, double c, double d, double e) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+        this.d = d;
+        this.e = e;
+    }
+    public static QuarticPolynomial of(double a, double b, double c, double d, double e) {
+        return new QuarticPolynomial(a, b, c, d, e);
+    }
+    @Override
+    public double apply(double x) {
+        return (((a*x + b)*x + c)*x + d)*x +e;
+    }
+    @Override
+    public DoubleFunction asFunction() {
+        return this::apply;
+    }
+    @Override
+    public String asString() {
+        return String.format(DOUBLE_FMT + "*x^4 + "+ DOUBLE_FMT + "*x^3 + "+ DOUBLE_FMT + "*x^2 + "+ DOUBLE_FMT + "*x + "+ DOUBLE_FMT,
+                             a,                      b,                      c,                      d,                    e);
+    }
+    @Override
+    public String parameterString() {
+        return "P4 " + a + " " + b + " " + c + " " + d + " " + e;
+    }
+    @Override
+    public QuarticPolynomial mul(double k) {
+        return of(k*a, k*b, k*c, k*d, k*e);
+    }
+    @Override
+    public QuarticPolynomial sub(double m) {
+        return of(a, b, c, d, e-m);
+    }
+    public QuarticPolynomial add(double m) {
+        return (QuarticPolynomial) super.add(m);
+    }
+    @Override
+    public CubicPolynomial derivative() {
+        return CubicPolynomial.of(4*a, 3*b, 2*c, d);
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        double[] xs = pointsAndLimits(derivative().findRootsIn(x1, x2), x1, x2);
+        OptionalDouble res = DoubleStream.of(xs).map(this::apply).max();
+        return res.getAsDouble();
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        double[] xs = pointsAndLimits(derivative().findRootsIn(x1, x2), x1, x2);
+        OptionalDouble res = DoubleStream.of(xs).map(this::apply).min();
+        return res.getAsDouble();
+    }
+    @Override
+    public String toString() {
+        return "QuarticPolynomial{" +
+                "a=" + a +
+                ", b=" + b +
+                ", c=" + c +
+                ", d=" + d +
+                ", e=" + e +
+                ", " + asString() +
+                '}';
+    }
+}
+class CubicPolynomial extends HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
+    final double a,b,c,d;
+
+    private CubicPolynomial(double a, double b, double c, double d) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+        this.d = d;
+    }
+    public static CubicPolynomial of(double a, double b, double c, double d) {
+        return new CubicPolynomial(a, b, c, d);
+    }
+    @Override
+    public double apply(double x) {
+        return ((a*x + b)*x + c)*x + d;
+    }
+    @Override
+    public DoubleFunction asFunction() {
+        return this::apply;
+    }
+    @Override
+    public String asString() {
+        return String.format(DOUBLE_FMT + "*x^3 + "+ DOUBLE_FMT + "*x^2 + "+ DOUBLE_FMT + "*x + "+ DOUBLE_FMT,
+                             a,                      b,                      c,                    d);
+    }
+    @Override
+    public String parameterString() {
+        return "P3 " + a + " " + b + " " + c + " " + d;
+    }
+    @Override
+    public CubicPolynomial mul(double k) {
+        return of(k*a, k*b, k*c, k*d);
+    }
+    @Override
+    public CubicPolynomial sub(double m) {
+        return of(a, b, c, d-m);
+    }
+    @Override
+    public CubicPolynomial add(double m) {
+        return (CubicPolynomial) super.add(m);
+    }
+    @Override
+    public QuadraticPolynomial derivative() {
+        return QuadraticPolynomial.of(3*a, 2*b, c);
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        double[] xs = pointsAndLimits(derivative().findRootsIn(x1, x2), x1, x2);
+        OptionalDouble res = DoubleStream.of(xs).map(this::apply).max();
+        return res.getAsDouble();
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        double[] xs = pointsAndLimits(derivative().findRootsIn(x1, x2), x1, x2);
+        OptionalDouble res = DoubleStream.of(xs).map(this::apply).min();
+        return res.getAsDouble();
+
+    }
+    @Override
+    public String toString() {
+        return "CubicPolynomial{" +
+                "a=" + a +
+                ", b=" + b +
+                ", c=" + c +
+                ", d=" + d +
+                ", " + asString() +
+                '}';
+    }
+}
+class QuadraticPolynomial extends HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
     final double a,b,c;
 
     private QuadraticPolynomial(double a, double b, double c) {
@@ -8351,7 +8594,8 @@ class QuadraticPolynomial implements HumanVisibleMathFunction {
             YX1*x2*x3 + YX2*x1*x3 + YX3*x1*x2 // *1
         );
     }
-    double apply(double x) {
+    @Override
+    public double apply(double x) {
         return (a*x + b)*x + c;
     }
     @Override
@@ -8365,11 +8609,23 @@ class QuadraticPolynomial implements HumanVisibleMathFunction {
     }
     @Override
     public String parameterString() {
-        return "" + a + " " + b + " " + c;
+        return "P2 " + a + " " + b + " " + c;
     }
     @Override
     public QuadraticPolynomial mul(double k) {
         return of(k*a, k*b, k*c);
+    }
+    @Override
+    public QuadraticPolynomial sub(double m) {
+        return of(a, b, c-m);
+    }
+    @Override
+    public QuadraticPolynomial add(double m) {
+        return (QuadraticPolynomial) super.add(m);
+    }
+    @Override
+    public LinearPolynomial derivative() {
+        return LinearPolynomial.of(2*a, b);
     }
     @Override
     public double maxInRange(double x1, double x2) {
@@ -8392,17 +8648,172 @@ class QuadraticPolynomial implements HumanVisibleMathFunction {
     double xOfExtremum() {
         return -b / (2 * a);
     }
-    static boolean isBetween(double xLim1, double x, double xLim2) {
-        return Double.isFinite(x)
-            && Math.copySign(1., x-xLim1) != Math.copySign(1., x-xLim2);
+    @Override
+    public double[] findRoots() {
+        double sqrtD = Math.sqrt(b*b - 4*a*c);
+        double x1 = (-b - sqrtD) / (2*a);
+        double x2 = (-b + sqrtD) / (2*a);
+        if (!Double.isFinite(x1)) {
+            x1 = x2;
+        } else if (!Double.isFinite(x2)) {
+            x2 = x1;
+        }
+        if (Double.doubleToLongBits(x1) == Double.doubleToLongBits(x2)) // need NaN==NaN
+        {
+            if (Double.isFinite(x1)) {
+                return new double[] { x1 };
+            } else {
+                return new double[] {};
+            }
+        } else {
+            return new double[] { x1, x2 };
+        }
     }
-
+    @Override
+    public double[] findRootsIn(double x1, double x2) {
+        return findRootsIn_via_findRoots(x1, x2);
+    }
     @Override
     public String toString() {
         return "QuadraticPolynomial{" +
                 "a=" + a +
                 ", b=" + b +
                 ", c=" + c +
+                ", " + asString() +
+                '}';
+    }
+}
+class LinearPolynomial extends HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
+    final double a,b;
+
+    public LinearPolynomial(double a, double b) {
+        this.a = a;
+        this.b = b;
+    }
+    public static LinearPolynomial of(double a, double b) {
+        return new LinearPolynomial(a, b);
+    }
+    public static LinearPolynomial from2Points(double x1, double y1, double x2, double y2) {
+        double a = (y2 - y1) / (x2 - x1);
+        double b = y1 - a*x1;
+        return of(a, b);
+    }
+    @Override
+    public double apply(double x) {
+        return a*x + b;
+    }
+    @Override
+    public DoubleFunction asFunction() {
+        return this::apply;
+    }
+    @Override
+    public String asString() {
+        return String.format(DOUBLE_FMT + "*x + "+ DOUBLE_FMT,
+                             a,                      b);
+    }
+    @Override
+    public String parameterString() {
+        return "P1 " + a + " " + b;
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        return Math.max(apply(x1), apply(x2));
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        return Math.min(apply(x1), apply(x2));
+    }
+    @Override
+    public LinearPolynomial mul(double k) {
+        return of(k*a, k*b);
+    }
+    @Override
+    public LinearPolynomial sub(double m) {
+        return of(a, b-m);
+    }
+    @Override
+    public ConstantPolynomial derivative() {
+        return ConstantPolynomial.of(a);
+    }
+    @Override
+    public double[] findRoots() {
+        return new double[]{ -b/a };
+    }
+    @Override
+    public double[] findRootsIn(double x1, double x2) {
+        return findRootsIn_via_findRoots(x1, x2);
+    }
+
+    @Override
+    public String toString() {
+        return "LinearPolynomial{" +
+                "a=" + a +
+                ", b=" + b +
+                ", " + asString() +
+                '}';
+    }
+}
+class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
+    final double a;
+
+    public ConstantPolynomial(double a) {
+        this.a = a;
+    }
+    public static ConstantPolynomial of(double a) {
+        return new ConstantPolynomial(a);
+    }
+    public static ConstantPolynomial from1Points(double x1, double y1) {
+        return of(y1);
+    }
+    @Override
+    public double apply(double x) {
+        return a;
+    }
+    @Override
+    public DoubleFunction asFunction() {
+        return this::apply;
+    }
+    @Override
+    public String asString() {
+        return String.format(DOUBLE_FMT, a);
+    }
+    @Override
+    public String parameterString() {
+        return "P0 " + a;
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        return a;
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        return a;
+    }
+    @Override
+    public ConstantPolynomial mul(double k) {
+        return of(k*a);
+    }
+    @Override
+    public HumanVisibleMathFunction sub(double m) {
+        return of(a-m);
+    }
+    @Override
+    public HumanVisibleMathFunction derivative() {
+        return ConstantPolynomial.of(0.);
+    }
+    @Override
+    public double[] findRoots() {
+        return new double[]{};
+    }
+    @Override
+    public double[] findRootsIn(double x1, double x2) {
+        return new double[]{};
+    }
+
+    @Override
+    public String toString() {
+        return "ConstantPolynomial{" +
+                "a=" + a +
                 ", " + asString() +
                 '}';
     }

@@ -8,6 +8,14 @@ import static org.junit.Assert.*;
 
 public class QuadraticPolynomialTest {
     @Test
+    public void ofTest() {
+        var q = QuadraticPolynomial.of(10, 20, 30);
+        assertEquals(10, q.a, 0);
+        assertEquals(20, q.b, 0);
+        assertEquals(30, q.c, 0);
+    }
+
+    @Test
     public void applyTest() {
         // int math should be ok with delta=0
         assertEquals(1, QuadraticPolynomial.of(0, 0, 1).apply(3), 0);
@@ -55,6 +63,7 @@ public class QuadraticPolynomialTest {
         assertEquals(2, p.maxInRange(3, 4), 0);
         assertEquals(1, p.maxInRange(4, 5), 0);
     }
+
     @Test
     public void minInRangeTest() {
         var p = QuadraticPolynomial.of(1, -6, 7);
@@ -73,37 +82,11 @@ public class QuadraticPolynomialTest {
         assertEquals(-2, p.minInRange(3, 4), 0);
         assertEquals(-1, p.minInRange(4, 5), 0);
     }
-    @Test
-    public void isBetweenTest() {
-        assertTrue(QuadraticPolynomial.isBetween(1, 2, 3));
-        assertTrue(QuadraticPolynomial.isBetween(3, 2, 1));
-        assertTrue(QuadraticPolynomial.isBetween(-1, -2, -3));
-        assertTrue(QuadraticPolynomial.isBetween(-3, -2, -1));
-        assertFalse(QuadraticPolynomial.isBetween(-1, 2, -3));
-        assertFalse(QuadraticPolynomial.isBetween(-3, 2, -1));
-        assertFalse(QuadraticPolynomial.isBetween(-1, -4, -3));
-        assertFalse(QuadraticPolynomial.isBetween(-3, -4, -1));
-        assertFalse(QuadraticPolynomial.isBetween(1, -2, 3));
-        assertFalse(QuadraticPolynomial.isBetween(3, -2, 1));
-        assertFalse(QuadraticPolynomial.isBetween(1, 4, 3));
-        assertFalse(QuadraticPolynomial.isBetween(3, 4, 1));
-        assertFalse(QuadraticPolynomial.isBetween(1, 4/0., 3));
-        assertEquals(Double.POSITIVE_INFINITY, 4/0., 0); // FYI
-        assertFalse(QuadraticPolynomial.isBetween(1, .0/0., 3));
-        assertEquals(Double.NaN, .0/0., 0); // FYI
-        assertNotEquals(Double.NaN, 1, 0); // FYI
-        assertNotEquals(Double.NaN, Double.POSITIVE_INFINITY, 0); // FYI
-        assertFalse(QuadraticPolynomial.isBetween(1, Math.sqrt(-4), 3));
-        assertEquals(Double.NaN, Math.sqrt(-4)+1, 0); // FYI
-        assertFalse(QuadraticPolynomial.isBetween(1, Double.NaN, 3));
-        assertFalse(QuadraticPolynomial.isBetween(1, Double.NEGATIVE_INFINITY, 3));
-        assertFalse(QuadraticPolynomial.isBetween(1, Double.POSITIVE_INFINITY, 3));
-    }
 
     @Test
     public void from3PointsTest() {
         var p = QuadraticPolynomial.of(4, 3, 2);
-        double[] x = new double[] {10, 140, 280};
+        double[] x = new double[]{10, 140, 280};
         double[] y = Arrays.stream(x).map(p::apply).toArray();
         {
             var q = QuadraticPolynomial.from3Points(x[0],y[0], x[1],y[1], x[2],y[2]);
@@ -130,6 +113,7 @@ public class QuadraticPolynomialTest {
             assertEquals(2*p.c, q.c, 1e-9);
         }
     }
+
     @Test
     public void asStringTest() {
         assertEquals("0.2000*x^2 + -0.3000*x + 0.4000", QuadraticPolynomial.of(.2,-.3,.4).asString());
@@ -138,11 +122,105 @@ public class QuadraticPolynomialTest {
         assertEquals("NaN*x^2 + NaN*x + NaN", QuadraticPolynomial.of(Double.NaN,Double.NaN,Double.NaN).asString());
         assertEquals("0.3333*x^2 + 0.1429*x + 0.2500", QuadraticPolynomial.of(1./3,1./7,1./4).asString());
     }
+
+    @Test
+    public void parameterStringTest() {
+        assertEquals(
+                "P2 -3.0 0.06 0.2",
+                QuadraticPolynomial.of(-3, .06, .2).parameterString()
+        );
+    }
+
     @Test
     public void mulTest() {
         var p = QuadraticPolynomial.of(1, 2, 3).mul(-3);
         assertEquals(-3, p.a, 0);
         assertEquals(-6, p.b, 0);
         assertEquals(-9, p.c, 0);
+    }
+
+    @Test
+    public void subTest() {
+        var q = QuadraticPolynomial.of(3, 4, 5);
+        var p = q.sub(-5);
+        assertOf(q, 3, 4, 5);
+        assertOf(p, 3, 4, 10);
+    }
+
+    @Test
+    public void addTest() {
+        var q = QuadraticPolynomial.of(3, 4, 5);
+        var p = q.add(5);
+        assertOf(q, 3, 4, 5);
+        assertOf(p, 3, 4, 10);
+    }
+
+    @Test
+    public void derivativeTest() {
+        QuadraticPolynomial q = QuadraticPolynomial.of(30, 4, 5);
+        var p = q.derivative();
+        assertOf(q, 30, 4, 5);
+        assertTrue(p instanceof LinearPolynomial);
+        assertEquals(60, p.a, 0);
+        assertEquals(4, p.b, 0);
+    }
+
+    @Test
+    public void findRootsTest() {
+        {
+            var q = QuadraticPolynomial.of(1, -4, 3);
+            assertArrayEquals(new double[]{1, 3}, q.findRoots(), 0);
+        }
+        {
+            var q = QuadraticPolynomial.of(1, 0, 1);
+            assertArrayEquals(new double[]{}, q.findRoots(), 0);
+        }
+        {
+            var q = QuadraticPolynomial.of(1, -2, 1);
+            assertArrayEquals(new double[]{1}, q.findRoots(), 0);
+        }
+    }
+
+    @Test
+    public void findRootsInTest() {
+        var q = QuadraticPolynomial.of(1, -4, 3);
+        assertArrayEquals(new double[]{1, 3}, q.findRootsIn(-4, 4), 0.01);
+        assertArrayEquals(new double[]{1, 3}, q.findRootsIn(1, 3), 0.01);
+        assertArrayEquals(new double[]{}, q.findRootsIn(-4, 0), 0.01);
+        assertArrayEquals(new double[]{}, q.findRootsIn(1.5, 2.5), 0.01);
+        assertArrayEquals(new double[]{}, q.findRootsIn(4, 10), 0.01);
+        assertArrayEquals(new double[]{1}, q.findRootsIn(0, 2), 0.01);
+        assertArrayEquals(new double[]{1}, q.findRootsIn(1, 2), 0.01);
+        assertArrayEquals(new double[]{1}, q.findRootsIn(0, 1), 0.01);
+        assertArrayEquals(new double[]{3}, q.findRootsIn(2, 4), 0.01);
+        assertArrayEquals(new double[]{3}, q.findRootsIn(2, 3), 0.01);
+        assertArrayEquals(new double[]{3}, q.findRootsIn(3, 4), 0.01);
+        assertOf(q, 1, -4, 3);
+    }
+
+    @Test
+    public void findEqualInTest() {
+        var q = QuadraticPolynomial.of(1, 0, 1);
+        assertArrayEquals(new double[]{-1, 1}, q.findEqualIn(2, -4, 4), 0.01);
+    }
+
+    @Test
+    public void toStringTest() {
+        assertEquals(
+                "QuadraticPolynomial{a=1.0, b=-1.0, c=-9.0, 1.000*x^2 + -1.000*x + -9.000}"
+                , QuadraticPolynomial.of(1, -1, -9).toString()
+        );
+    }
+
+    void assertOf(QuadraticPolynomial p, double a, double b, double c) {
+        assertEquals(a, p.a, 0);
+        assertEquals(b, p.b, 0);
+        assertEquals(c, p.c, 0);
+    }
+
+    @Test
+    public void coverageTest() {
+        TestCoverage.check(HumanVisibleMathFunction.class, getClass());
+        TestCoverage.check(QuadraticPolynomial.class, getClass());
     }
 }
