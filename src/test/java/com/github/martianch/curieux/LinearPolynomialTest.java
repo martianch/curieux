@@ -14,6 +14,24 @@ public class LinearPolynomialTest {
     }
 
     @Test
+    public void fromParamStringTest() {
+        var q = LinearPolynomial.of(10, 20);
+        String params = q.parameterString();
+        var p = LinearPolynomial.fromParamString(params);
+        assertOf(q, 10, 20);
+        assertOf((LinearPolynomial)p.get(), 10, 20);
+    }
+
+    @Test
+    public void fromParameterStringTest() {
+        var q = LinearPolynomial.of(10, 20);
+        String params = q.parameterString();
+        var p = HumanVisibleMathFunction.fromParameterString(params);
+        assertOf(q, 10, 20);
+        assertOf((LinearPolynomial)p.get(), 10, 20);
+    }
+
+    @Test
     public void from2PointsTest() {
         var q = LinearPolynomial.from2Points(10, 0, 0, 20);
         assertEquals(-2, q.a, 0);

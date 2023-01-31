@@ -9,11 +9,25 @@ public class QuarticPolynomialTest {
     @Test
     public void ofTest() {
         var q = QuarticPolynomial.of(10, 20, 30, 40, 50);
-        assertEquals(10, q.a, 0);
-        assertEquals(20, q.b, 0);
-        assertEquals(30, q.c, 0);
-        assertEquals(40, q.d, 0);
-        assertEquals(50, q.e, 0);
+        assertOf(q, 10, 20, 30, 40, 50);
+    }
+
+    @Test
+    public void fromParamStringTest() {
+        var q = QuarticPolynomial.of(10, 20, 30, 40, 50);
+        String params = q.parameterString();
+        var p = QuarticPolynomial.fromParamString(params);
+        assertOf(q, 10, 20, 30, 40, 50);
+        assertOf((QuarticPolynomial) p.get(), 10, 20, 30, 40, 50);
+    }
+
+    @Test
+    public void fromParameterStringTest() {
+        var q = QuarticPolynomial.of(10, 20, 30, 40, 50);
+        String params = q.parameterString();
+        var p = HumanVisibleMathFunction.fromParameterString(params);
+        assertOf(q, 10, 20, 30, 40, 50);
+        assertOf((QuarticPolynomial) p.get(), 10, 20, 30, 40, 50);
     }
 
     @Test

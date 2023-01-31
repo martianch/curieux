@@ -1,6 +1,7 @@
 package com.github.martianch.curieux;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -9,6 +10,14 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+/**
+ * An excellent utility that checks if all methods defined in an interface
+ * have been correctly implemented (well, covered by unit tests,
+ * it is unit tests that check correctness). The problem is that the
+ * inherited method implementations happen to be incorrect for some classes.
+ * Such methods must be redefined in the classes, but today's tools do
+ * not warn you if you forget to redefine them.
+ */
 public class TestCoverage {
     public static void check(Class appClass, Class testingClass) {
         check(appClass, testingClass, exclude());
@@ -18,6 +27,7 @@ public class TestCoverage {
         assertTrue("testingClass must end with \"Test\"", testingClass.getSimpleName().endsWith("Test"));
         var appMethodNamesToTest =
                 Arrays.stream(appClass.getDeclaredMethods())
+                        //.filter(m -> !Modifier.isStatic(m.getModifiers()))
                         .map(Method::getName)
                         .filter(s -> !s.contains("$"))
                         .filter(excludeList::notExcluded)

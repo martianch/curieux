@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
@@ -142,6 +143,75 @@ public class HumanVisibleMathFunctionBaseTest {
         public double[] findRoots() {
             return new double[]{10, 20, 30, 50, 100};
         }
+    }
+
+    @Test
+    public void parseExpectTest() {
+        HumanVisibleMathFunctionBase.parseExpect("PZ", "PZ");
+        try {
+            HumanVisibleMathFunctionBase.parseExpect("PX", "PZ");
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {}
+        try {
+            HumanVisibleMathFunctionBase.parseExpect("aPZ", "PZ");
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {}
+    }
+
+    @Test
+    public void parseSuffixTest() {
+        var ss = Arrays.asList("foo","bar","baz");
+        {
+            var it = ss.iterator();
+            it.next();
+            try {
+                HumanVisibleMathFunctionBase.parseSuffix(it);
+                fail("IllegalArgumentException expected");
+            } catch (IllegalArgumentException e) {}
+        }
+        {
+            var it = ss.iterator();
+            it.next();
+            it.next();
+            it.next();
+            HumanVisibleMathFunctionBase.parseSuffix(it); // no exception
+        }
+    }
+
+    @Test
+    public void doFromParamStringTest() {
+        assertEquals(
+                Optional.empty(),
+                HumanVisibleMathFunctionBase.doFromParamString(
+                        "AB",
+                        "CD",
+                        i -> HumanVisibleMathFunction.NO_FUNCTION
+                )
+        );
+        assertEquals(
+                Optional.of(HumanVisibleMathFunction.NO_FUNCTION),
+                HumanVisibleMathFunctionBase.doFromParamString(
+                        "AB",
+                        "AB",
+                        i -> HumanVisibleMathFunction.NO_FUNCTION
+                )
+        );
+        assertEquals(
+                Optional.empty(),//of(HumanVisibleMathFunction.NO_FUNCTION),
+                HumanVisibleMathFunctionBase.doFromParamString(
+                        "AB 1",
+                        "AB",
+                        i -> HumanVisibleMathFunction.NO_FUNCTION
+                )
+        );
+        assertEquals(
+                Optional.of(HumanVisibleMathFunction.NO_FUNCTION),
+                HumanVisibleMathFunctionBase.doFromParamString(
+                        "AB 1",
+                        "AB",
+                        i -> { i.next(); return HumanVisibleMathFunction.NO_FUNCTION; }
+                )
+        );
     }
 
     @Test

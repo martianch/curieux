@@ -9,10 +9,25 @@ public class CubicPolynomialTest {
     @Test
     public void ofTest() {
         var q = CubicPolynomial.of(10, 20, 30, 40);
-        assertEquals(10, q.a, 0);
-        assertEquals(20, q.b, 0);
-        assertEquals(30, q.c, 0);
-        assertEquals(40, q.d, 0);
+        assertOf(q, 10, 20, 30, 40);
+    }
+
+    @Test
+    public void fromParamStringTest() {
+        var q = CubicPolynomial.of(10, 20, 30, 40);
+        String params = q.parameterString();
+        var p = CubicPolynomial.fromParamString(params);
+        assertOf(q, 10, 20, 30, 40);
+        assertOf((CubicPolynomial)p.get(), 10, 20, 30, 40);
+    }
+
+    @Test
+    public void fromParameterStringTest() {
+        var q = CubicPolynomial.of(10, 20, 30, 40);
+        String params = q.parameterString();
+        var p = HumanVisibleMathFunction.fromParameterString(params);
+        assertOf(q, 10, 20, 30, 40);
+        assertOf((CubicPolynomial)p.get(), 10, 20, 30, 40);
     }
 
     @Test

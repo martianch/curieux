@@ -13,7 +13,27 @@ public class ConstantPolynomialTest {
     }
 
     @Test
+    public void fromParamStringTest() {
+        var q = LinearPolynomial.of(10, 20);
+        String params = q.parameterString();
+        var p = LinearPolynomial.fromParamString(params);
+        assertEquals(q.a, 10, 0);
+        assertEquals(((LinearPolynomial) p.get()).a, 10, 0);
+    }
+
+    @Test
+    public void fromParameterStringTest() {
+        var q = LinearPolynomial.of(10, 20);
+        String params = q.parameterString();
+        var p = HumanVisibleMathFunction.fromParameterString(params);
+        assertEquals(q.a, 10, 0);
+        assertEquals(((LinearPolynomial) p.get()).a, 10, 0);
+    }
+
+    @Test
     public void from1PointsTest() {
+        ConstantPolynomial p = ConstantPolynomial.from1Points(10, 15);
+        assertEquals(p.a, 15, 0);
     }
 
     @Test

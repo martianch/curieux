@@ -80,6 +80,7 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -5656,9 +5657,18 @@ class FisheyeCorrection {
         return algo.doFisheyeCorrection(orig, this);
     }
     String parametersToString() {
-        return "" + algo + " " + func.parameterString();
+        return "" + algo + " " + distortionCenterLocation + " " + func.parameterString();
     }
     static FisheyeCorrection fromParameterString(String s) {
+        try {
+            var p = s.trim().split("\\s+", 3);
+            var algo1 = FisheyeCorrectionAlgo.valueOf(p[0]);
+            var center1 = DistortionCenterLocation.valueOf(p[1]);
+            var f1 = HumanVisibleMathFunction.fromParameterString(p[2]).get();
+            return FisheyeCorrection.of(algo1, f1, center1);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return null; // TODO
     }
 
@@ -8059,6 +8069,13 @@ class FisheyeCorrectionPane extends JPanel {
                 row.add(new JLabel("L:"));
                 row.add(etxFunctionL = new JTextField(80));
                 var button = new JButton("Set From Text");
+                button.addActionListener(e -> {
+                    if (doSetFcFromText(false, etxFunctionL.getText())) {
+                        etxFunctionL.setForeground(Color.BLACK);
+                    } else {
+                        etxFunctionL.setForeground(Color.RED);
+                    }
+                });
                 row.add(button);
             }
         }
@@ -8077,6 +8094,13 @@ class FisheyeCorrectionPane extends JPanel {
                 row.add(new JLabel("R:"));
                 row.add(etxFunctionR = new JTextField(80));
                 var button = new JButton("Set From Text");
+                button.addActionListener(e -> {
+                    if (doSetFcFromText(true, etxFunctionR.getText())) {
+                        etxFunctionR.setForeground(Color.BLACK);
+                    } else {
+                        etxFunctionR.setForeground(Color.RED);
+                    }
+                });
                 row.add(button);
             }
         }
@@ -8226,6 +8250,29 @@ class FisheyeCorrectionPane extends JPanel {
     }
     void doNormalizeFunction(boolean isRight, double x, double y) {
         System.out.println("normalizeFunction("+isRight+", "+x+", "+y+")");
+        var g = getFisheyeCorrection(isRight).func;
+        var gxy = g.apply(Math.hypot(x,y));
+        var fcNew = getFisheyeCorrection(isRight).withFunc(g.mul(1/gxy));
+        setFisheyeCorrectionAndUpdateUi(isRight, fcNew);
+    }
+    void setFisheyeCorrectionAndUpdateUi(boolean isRight, FisheyeCorrection fcNew) {
+        setFisheyeCorrection(isRight, fcNew);
+        Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
+        int width = imageDim.width;
+        int height = imageDim.height;
+        HalfPane halfPane = getHalfPane(isRight);
+        updateDefisheyeFunctionUi(width, height, fcNew, halfPane);
+        halfPane.chooserAlgo.setValue(fcNew.algo);
+        halfPane.chooserCenter.setValue(fcNew.distortionCenterLocation);
+    }
+    boolean doSetFcFromText(boolean isRight, String s) {
+        var newFisheyeCorrection = FisheyeCorrection.fromParameterString(s);
+        if (newFisheyeCorrection != null) {
+            setFisheyeCorrectionAndUpdateUi(isRight, newFisheyeCorrection);
+            return true;
+        } else {
+            return false;
+        }
     }
     HalfPane getHalfPane(boolean isRight) {
         return isRight ? rightHalf : leftHalf;
@@ -8341,6 +8388,24 @@ interface HumanVisibleMathFunction {
     double MAX_MEANINGFUL_X = 1e10;
 
     HumanVisibleMathFunction NO_FUNCTION = QuadraticPolynomial.of(Double.NaN, Double.NaN, Double.NaN);
+
+    static Optional<HumanVisibleMathFunction> fromParameterString(String params) {
+        List<Function<String, Optional<HumanVisibleMathFunction>>> lambdas =
+        Arrays.asList(
+                QuarticPolynomial::fromParamString,
+                CubicPolynomial::fromParamString,
+                QuadraticPolynomial::fromParamString,
+                LinearPolynomial::fromParamString,
+                ConstantPolynomial::fromParamString
+        );
+        for (var f : lambdas) {
+            var res = f.apply(params);
+            if (res.isPresent()) {
+                return res;
+            }
+        }
+        return Optional.empty();
+    }
 }
 abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
     static final double ROOT_PREC = 0.001;
@@ -8436,6 +8501,40 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
         var r = findRoots();
         return DoubleStream.of(r).filter(d -> isBetween(x1, d, x2)).toArray();
     }
+
+    /**
+     *
+     * @param s string to parse
+     * @param prefix Prefix common for each class of functions,
+     *              like "P2" for quadratic polynomials
+     * @param f a lambda that receives an Iterator<String>,
+     *         parses fp numbers in strings retrieved from the iterator,
+     *         and creates a HumanVisibleMathFunction or throws a RuntimeException
+     * @return
+     */
+    protected static Optional<HumanVisibleMathFunction> doFromParamString(String s, String prefix, Function<Iterator<String>, HumanVisibleMathFunction> f) {
+        try {
+            var arr = s.split("\\s+");
+            var list = Collections.unmodifiableList(Arrays.asList(arr)); // List.of(arr) requires Java 9 :(
+            var iter = list.iterator();
+            parseExpect(iter.next(), prefix);
+            HumanVisibleMathFunction res = f.apply(iter);
+            parseSuffix(iter);
+            return Optional.of(res);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+    public  static void parseExpect(String s, String e) {
+        if (!s.equals(e)) {
+            throw new IllegalArgumentException();
+        }
+    }
+    public static void parseSuffix(Iterator<String> i) {
+        if (i.hasNext()) {
+            throw new IllegalArgumentException();
+        }
+    }
 }
 class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
     final double a,b,c,d,e;
@@ -8449,6 +8548,20 @@ class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVis
     }
     public static QuarticPolynomial of(double a, double b, double c, double d, double e) {
         return new QuarticPolynomial(a, b, c, d, e);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return doFromParamString(
+                s,
+                "P4",
+                i -> {
+                    var a = Double.parseDouble(i.next());
+                    var b = Double.parseDouble(i.next());
+                    var c = Double.parseDouble(i.next());
+                    var d = Double.parseDouble(i.next());
+                    var e = Double.parseDouble(i.next());
+                    HumanVisibleMathFunction p = QuarticPolynomial.of(a, b, c, d, e);
+                    return p;
+                });
     }
     @Override
     public double apply(double x) {
@@ -8517,6 +8630,19 @@ class CubicPolynomial extends HumanVisibleMathFunctionBase implements HumanVisib
     }
     public static CubicPolynomial of(double a, double b, double c, double d) {
         return new CubicPolynomial(a, b, c, d);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return doFromParamString(
+                s,
+                "P3",
+                i -> {
+                    var a = Double.parseDouble(i.next());
+                    var b = Double.parseDouble(i.next());
+                    var c = Double.parseDouble(i.next());
+                    var d = Double.parseDouble(i.next());
+                    HumanVisibleMathFunction p = CubicPolynomial.of(a, b, c, d);
+                    return p;
+                });
     }
     @Override
     public double apply(double x) {
@@ -8595,6 +8721,18 @@ class QuadraticPolynomial extends HumanVisibleMathFunctionBase implements HumanV
             - YX1 * (x2 + x3) - YX2 * (x1 + x3) - YX3 * (x1 + x2), // *x^1
             YX1*x2*x3 + YX2*x1*x3 + YX3*x1*x2 // *1
         );
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return doFromParamString(
+                s,
+                "P2",
+                i -> {
+                    var a = Double.parseDouble(i.next());
+                    var b = Double.parseDouble(i.next());
+                    var c = Double.parseDouble(i.next());
+                    HumanVisibleMathFunction p = QuadraticPolynomial.of(a, b, c);
+                    return p;
+                });
     }
     @Override
     public double apply(double x) {
@@ -8700,6 +8838,17 @@ class LinearPolynomial extends HumanVisibleMathFunctionBase implements HumanVisi
         double b = y1 - a*x1;
         return of(a, b);
     }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return doFromParamString(
+                s,
+                "P1",
+                i -> {
+                    var a = Double.parseDouble(i.next());
+                    var b = Double.parseDouble(i.next());
+                    HumanVisibleMathFunction p = LinearPolynomial.of(a, b);
+                    return p;
+                });
+    }
     @Override
     public double apply(double x) {
         return a*x + b;
@@ -8766,6 +8915,16 @@ class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVi
     }
     public static ConstantPolynomial from1Points(double x1, double y1) {
         return of(y1);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return doFromParamString(
+                s,
+                "P0",
+                i -> {
+                    var a = Double.parseDouble(i.next());
+                    HumanVisibleMathFunction p = ConstantPolynomial.of(a);
+                    return p;
+                });
     }
     @Override
     public double apply(double x) {
@@ -8844,6 +9003,7 @@ class GraphPlotter {
             for (double y=0; y<yMax; y += d) {
                 int j = (int) Math.round(y * yScale);
                 g.drawLine(0, height - j, width, height - j);
+                g.drawString(String.format("%.1f",y), 0, height - j );
             }
         }
         {
@@ -8863,6 +9023,9 @@ class GraphPlotter {
     }
     static double deltaYBetweenLines(double y) {
         double dy = Math.pow(10, Math.floor(Math.log10(y)-0.004));
+        if (y/dy > 4) {
+            dy *= 2;
+        }
         return dy;
     }
     static double graphMaxY(double y) {

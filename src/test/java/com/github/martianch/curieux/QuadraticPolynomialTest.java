@@ -10,9 +10,25 @@ public class QuadraticPolynomialTest {
     @Test
     public void ofTest() {
         var q = QuadraticPolynomial.of(10, 20, 30);
-        assertEquals(10, q.a, 0);
-        assertEquals(20, q.b, 0);
-        assertEquals(30, q.c, 0);
+        assertOf(q, 10, 20, 30);
+    }
+
+    @Test
+    public void fromParamStringTest() {
+        var q = QuadraticPolynomial.of(10, 20, 30);
+        String params = q.parameterString();
+        var p = QuadraticPolynomial.fromParamString(params);
+        assertOf(q, 10, 20, 30);
+        assertOf((QuadraticPolynomial)p.get(), 10, 20, 30);
+    }
+
+    @Test
+    public void fromParameterStringTest() {
+        var q = QuadraticPolynomial.of(10, 20, 30);
+        String params = q.parameterString();
+        var p = HumanVisibleMathFunction.fromParameterString(params);
+        assertOf(q, 10, 20, 30);
+        assertOf((QuadraticPolynomial)p.get(), 10, 20, 30);
     }
 
     @Test
@@ -212,7 +228,7 @@ public class QuadraticPolynomialTest {
         );
     }
 
-    void assertOf(QuadraticPolynomial p, double a, double b, double c) {
+    static void assertOf(QuadraticPolynomial p, double a, double b, double c) {
         assertEquals(a, p.a, 0);
         assertEquals(b, p.b, 0);
         assertEquals(c, p.c, 0);

@@ -12,19 +12,24 @@ public class GraphPlotterTest {
 
     @Test
     public void deltaYBetweenLinesTest() {
-        assertEquals(.1, GraphPlotter.deltaYBetweenLines(1), 0);
+        assertEquals(.1, GraphPlotter.deltaYBetweenLines(.3), 0);
+        assertEquals(.2, GraphPlotter.deltaYBetweenLines(1), 0);
         assertEquals(1, GraphPlotter.deltaYBetweenLines(1.1), 0);
-        assertEquals(1, GraphPlotter.deltaYBetweenLines(9), 0);
-        assertEquals(1, GraphPlotter.deltaYBetweenLines(10), 0);
+        assertEquals(1, GraphPlotter.deltaYBetweenLines(3.5), 0);
+        assertEquals(2, GraphPlotter.deltaYBetweenLines(9), 0);
+        assertEquals(2, GraphPlotter.deltaYBetweenLines(10), 0);
         assertEquals(10, GraphPlotter.deltaYBetweenLines(11), 0);
 
-        assertEquals(10, GraphPlotter.deltaYBetweenLines(90), 0);
-        assertEquals(10, GraphPlotter.deltaYBetweenLines(100), 0);
+        assertEquals(10, GraphPlotter.deltaYBetweenLines(30), 0);
+        assertEquals(20, GraphPlotter.deltaYBetweenLines(90), 0);
+        assertEquals(20, GraphPlotter.deltaYBetweenLines(100), 0);
         assertEquals(100, GraphPlotter.deltaYBetweenLines(110), 0);
-        assertEquals(.1, GraphPlotter.deltaYBetweenLines(.9), 0);
-        assertEquals(.01, GraphPlotter.deltaYBetweenLines(.10), 0);
+        assertEquals(.1, GraphPlotter.deltaYBetweenLines(.3), 0);
+        assertEquals(.2, GraphPlotter.deltaYBetweenLines(.9), 0);
+        assertEquals(.01, GraphPlotter.deltaYBetweenLines(.03), 0);
+        assertEquals(.02, GraphPlotter.deltaYBetweenLines(.10), 0);
         assertEquals(.1, GraphPlotter.deltaYBetweenLines(.11), 0);
-        assertEquals(.01, GraphPlotter.deltaYBetweenLines(.09), 0);
+        assertEquals(.02, GraphPlotter.deltaYBetweenLines(.09), 0);
     }
     @Test
     public void graphMaxYTest() {
