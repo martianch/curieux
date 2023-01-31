@@ -7975,6 +7975,7 @@ class FisheyeCorrectionPane extends JPanel {
                         fc.distortionCenterLocation.getPoleYBefore(imageDim.width, imageDim.height)
                     );
                 });
+                button.setToolTipText("Distortion center may be outside the image (e.g. for Perseverance Hazcam)");
                 row1.add(button);
             }
             {
@@ -7988,6 +7989,7 @@ class FisheyeCorrectionPane extends JPanel {
                             fc.distortionCenterLocation.getNearestToPoleYBefore(imageDim.width, imageDim.height)
                     );
                 });
+                button.setToolTipText("Point inside the image nearest to the distortion center");
                 row1.add(button);
             }
             {
