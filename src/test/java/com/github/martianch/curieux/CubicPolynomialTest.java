@@ -61,6 +61,10 @@ public class CubicPolynomialTest {
             "0.06000*x^3 + 0.2000*x^2 + -0.3000*x + 0.4000",
             CubicPolynomial.of(.06, .2, -.3, .4).asString()
         );
+        assertEquals(
+                "0.06000*r^3 + 0.2000*r^2 + -0.3000*r + 0.4000",
+                CubicPolynomial.of(.06, .2, -.3, .4).asString("r")
+        );
     }
 
     @Test

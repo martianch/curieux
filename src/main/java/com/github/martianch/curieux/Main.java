@@ -8106,8 +8106,9 @@ class FisheyeCorrectionPane extends JPanel {
         }
         {
             var text = new JLabel("<html>" +
-                "Function <i>g(x):</i> " +
-                "a pixel with polar coordinates <i>(r,φ)</i> comes from the pixel <i>(r·g(r),φ)</i> of the \"fisheye\" image" +
+                "Function <i>g(r):</i> " +
+                "a pixel with polar coordinates <i>(r,φ)</i> comes from the pixel <i>(r·g(r),φ)</i> of the \"fisheye\" image," +
+                " e.g. <i>g(r)=0.5</i> means \"magnify 2x\"" +
                 "</html>"
             );
             GridBagConstraints gbc = new GridBagConstraints();
@@ -8326,7 +8327,7 @@ class FisheyeCorrectionPane extends JPanel {
         ));
         String info =
                 "<html>" +
-                "g(r) = "+g.asString()+"<br>" +
+                "g(r) = "+g.asString("r")+"<br>" +
                 "r from " + rMin + " to " + rMax +"<br>" +
                 "max g(r) = " +g.maxInRange(rMin, rMax)+"<br>" +
                 "min g(r) = " +g.minInRange(rMin, rMax)+"<br>" +
@@ -8374,6 +8375,7 @@ interface HumanVisibleMathFunction {
     double apply(double x);
     DoubleFunction asFunction();
     String asString();
+    default String asString(String x) { return asString().replaceAll("x",x); }
     String parameterString();
     double maxInRange(double x1, double x2);
     double minInRange(double x1, double x2);
