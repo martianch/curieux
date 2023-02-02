@@ -647,6 +647,9 @@ class MeasurementStatus {
         res.measurementShown = this.measurementShown;
         return res;
     }
+    public PanelMeasurementStatus getPanelMeasurementStatus(boolean isRight) {
+        return isRight ? right : left;
+    }
 
     @Override
     public String toString() {
@@ -5829,7 +5832,7 @@ enum DistortionCenterLocation {
         }
         @Override
         double getMaxRBefore(int width, int height) {
-            return Math.hypot(width, height)/4;
+            return Math.hypot(width, height)/2;
         }
         @Override
         double getMaxRAfter(int width, int height, double k) {
@@ -7492,7 +7495,7 @@ class MeasurementPanel extends JPanel {
         dcRY5.setValueAndText(ms.right.y5);
         return this;
     }
-}
+} // MeasurementPanel
 class MeasurementCorrection {
     double dRollL;
     double dPitchL;
@@ -7669,23 +7672,67 @@ class FisheyeCorrectionPane extends JPanel {
     FisheyeCorrection fisheyeCorrectionL;
     FisheyeCorrection fisheyeCorrectionR;
     static class HalfPane {
+        final FisheyeCorrectionPane parentPane;
+        final boolean isRight;
         final FisheyeCorrectionAlgoChooser chooserAlgo;
         final DistortionCenterLocationChooser chooserCenter;
         final JLabel lblGraph;
         final JLabel lblFunctionInfo;
         final JTextField etxFunction;
 //        final JLabel lblWidthXHeightR; // TODO
-        public HalfPane(FisheyeCorrectionAlgoChooser chooserAlgo, DistortionCenterLocationChooser chooserCenter, JLabel lblGraph, JLabel lblFunctionInfo, JTextField etxFunction) {
+        public HalfPane(FisheyeCorrectionPane parentPane,
+                        boolean isRight,
+                        FisheyeCorrectionAlgoChooser chooserAlgo,
+                        DistortionCenterLocationChooser chooserCenter,
+                        JLabel lblGraph,
+                        JLabel lblFunctionInfo,
+                        JTextField etxFunction) {
+            this.parentPane = parentPane;
+            this.isRight = isRight;
             this.chooserAlgo = chooserAlgo;
             this.chooserCenter = chooserCenter;
             this.lblGraph = lblGraph;
             this.lblFunctionInfo = lblFunctionInfo;
             this.etxFunction = etxFunction;
         }
-        void setFrom(int width, int height, FisheyeCorrection fisheyeCorrection) {
+        void setFromData() {
+            FisheyeCorrection fisheyeCorrection = getFC();
             chooserAlgo.setValue(fisheyeCorrection.algo);
             chooserCenter.setValue(fisheyeCorrection.distortionCenterLocation);
-            updateDefisheyeFunctionUi(width, height, fisheyeCorrection, this);
+            etxFunction.setText(fisheyeCorrection.parametersToString());
+            Dimension dim = parentPane.uiEventListener.getRawImageDimensions(isRight);
+            updateDefisheyeFunctionUi(dim.width, dim.height, fisheyeCorrection, this);
+        }
+        static void updateDefisheyeFunctionUi(int width,
+                                              int height,
+                                              FisheyeCorrection fc,
+                                              HalfPane halfPane) {
+            var k = fc.algo.sizeChange();
+            var dcl = fc.distortionCenterLocation;
+            var g = fc.func;
+            var rMin = 0.;
+            var rMax = dcl.getMaxRAfter(width, height, k);
+            halfPane.lblGraph.setIcon(new ImageIcon(
+                    GraphPlotter.plotGraph(
+                            GRAPH_WIDTH, GRAPH_HEIGHT,
+                            rMin, rMax,
+                            g.maxInRange(rMin, rMax),
+                            Color.RED,
+                            g.asFunction()
+                    )
+            ));
+            String info =
+                    "<html>" +
+                            "g(r) = "+g.asString("r")+"<br>" +
+                            "r ∈ [" + (int)Math.round(rMin) + ", " + (int)Math.round(rMax) +"]<br>" +
+                            "max g(r) = " +g.maxInRange(rMin, rMax)+"<br>" +
+                            "min g(r) = " +g.minInRange(rMin, rMax)+"" +
+                            "</html>";
+            halfPane.lblFunctionInfo.setText(info);
+        }
+
+        private FisheyeCorrection getFC() {
+            return parentPane.getFisheyeCorrection(isRight);
         }
     }
 
@@ -7827,15 +7874,13 @@ class FisheyeCorrectionPane extends JPanel {
             }
             row.add(new JLabel("Correction method:"));
             row.add(chooserAlgoL=new FisheyeCorrectionAlgoChooser(algo -> {
-                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
+                setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
-//                doCalculate(isRight);
             }));
             row.add(new JLabel("Distortion center:"));
             row.add(chooserCenterL=new DistortionCenterLocationChooser(dcl -> {
-                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
+                setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
                 System.out.println(getFisheyeCorrection(isRight));
-//                doCalculate(isRight);
             }));
         }
         {
@@ -7852,15 +7897,13 @@ class FisheyeCorrectionPane extends JPanel {
             }
             row.add(new JLabel("Correction method:"));
             row.add(chooserAlgoR=new FisheyeCorrectionAlgoChooser(algo -> {
-                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
+                setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
-//                doCalculate(isRight);
             }));
             row.add(new JLabel("Distortion center:"));
             row.add(chooserCenterR=new DistortionCenterLocationChooser(dcl -> {
-                setFisheyeCorrection(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
+                setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
                 System.out.println(getFisheyeCorrection(isRight));
-//                doCalculate(isRight);
             }));
         }
         {
@@ -8124,18 +8167,13 @@ class FisheyeCorrectionPane extends JPanel {
             this.add(text);
         }
         {
-            lblGraphL = new JLabel(new ImageIcon(
-                new BufferedImage(GRAPH_WIDTH,GRAPH_HEIGHT, BufferedImage.TYPE_INT_ARGB)
-            ));
-            lblGraphR = new JLabel(new ImageIcon(
-                    new BufferedImage(GRAPH_WIDTH,GRAPH_HEIGHT, BufferedImage.TYPE_INT_ARGB)
-            ));
-//                    GraphPlotter.plotGraph(imageSize, imageSize, 0, 100, 100, Color.RED, d -> d)
-//            lblGraphR = new JLabel();
-//                    new ImageIcon(
-////                    new BufferedImage(256,256, BufferedImage.TYPE_INT_ARGB)
-//                    GraphPlotter.plotGraph(imageSize, imageSize, 0, 100, 50, Color.RED, d -> 50-d/2)
-//            ));
+            {
+                ImageIcon emptyIcon = new ImageIcon(
+                    new BufferedImage(GRAPH_WIDTH, GRAPH_HEIGHT, BufferedImage.TYPE_INT_ARGB)
+                );
+                lblGraphL = new JLabel(emptyIcon);
+                lblGraphR = new JLabel(emptyIcon);
+            }
 
             var row = new JPanel();
             GridBagConstraints gbc = new GridBagConstraints();
@@ -8153,24 +8191,16 @@ class FisheyeCorrectionPane extends JPanel {
                 {
                     var button = new JButton("L->R");
                     col.add(button);
-                    button.addActionListener(actionEvent -> {
-                        setFisheyeCorrection(
-                                true,
-                                getFisheyeCorrection(false)
-                        );
-                        setHalfPaneFromData(true);
-                    });
+                    button.addActionListener(actionEvent ->
+                        setFisheyeCorrectionAndUpdateUi(true, getFisheyeCorrection(false))
+                    );
                 }
                 {
                     var button = new JButton("L<-R");
                     col.add(button);
-                    button.addActionListener(actionEvent -> {
-                        setFisheyeCorrection(
-                                false,
-                                getFisheyeCorrection(true)
-                        );
-                        setHalfPaneFromData(false);
-                    });
+                    button.addActionListener(actionEvent ->
+                        setFisheyeCorrectionAndUpdateUi(false, getFisheyeCorrection(true))
+                    );
                 }
                 row.add(col);
             }
@@ -8214,31 +8244,15 @@ class FisheyeCorrectionPane extends JPanel {
             row.add(applyR);
         }
         this.setLayout(gbl);
-        leftHalf = new HalfPane(chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, etxFunctionL);
-        rightHalf = new HalfPane(chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, etxFunctionR);
-        addAncestorListener(new AncestorListener() {
-            @Override
-            public void ancestorAdded(AncestorEvent ancestorEvent) {
-                fisheyeCorrectionL = uiEventListener.getDisplayParameters().lFisheyeCorrection;
-                fisheyeCorrectionR = uiEventListener.getDisplayParameters().rFisheyeCorrection;
-//                chooserAlgoL.setValue(fisheyeCorrectionL.algo);
-//                chooserAlgoR.setValue(fisheyeCorrectionR.algo);
-//                chooserCenterL.setValue(fisheyeCorrectionL.distortionCenterLocation);
-//                chooserCenterR.setValue(fisheyeCorrectionR.distortionCenterLocation);
-//                doCalculate(false);
-//                doCalculate(true);
-                setHalfPaneFromData(false);
-                setHalfPaneFromData(true);
-            }
-            @Override
-            public void ancestorRemoved(AncestorEvent ancestorEvent) { }
-            @Override
-            public void ancestorMoved(AncestorEvent ancestorEvent) { }
-        });
-    }
+        leftHalf = new HalfPane(this, false, chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, etxFunctionL);
+        rightHalf = new HalfPane(this, true, chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, etxFunctionR);
+        // instead of addAncestorListener(new AncestorListener() { ... });
+        // the initialization is done in showDialogIn()
+    } //constructor
+
+    // getters & setters
     PanelMeasurementStatus getPanelMeasurementStatus(boolean isRight) {
-        return isRight ? uiEventListener.getMeasurementStatus().right
-                       : uiEventListener.getMeasurementStatus().left;
+        return uiEventListener.getMeasurementStatus().getPanelMeasurementStatus(isRight);
     }
     FisheyeCorrection getFisheyeCorrection(boolean isRight) {
         return isRight ? fisheyeCorrectionR : fisheyeCorrectionL;
@@ -8250,25 +8264,32 @@ class FisheyeCorrectionPane extends JPanel {
             fisheyeCorrectionL = fc;
         }
     }
+    HalfPane getHalfPane(boolean isRight) {
+        return isRight ? rightHalf : leftHalf;
+    }
+    void setFisheyeCorrectionAndUpdateUi(boolean isRight, FisheyeCorrection fcNew) {
+        setFisheyeCorrection(isRight, fcNew);
+        getHalfPane(isRight).setFromData();
+    }
+
+    // doXxx: reaction on buttons
     void doApply(boolean isRight) {
         uiEventListener.setFisheyeCorrection(isRight, getFisheyeCorrection(isRight));
     }
     void doNormalizeFunction(boolean isRight, double x, double y) {
         System.out.println("normalizeFunction("+isRight+", "+x+", "+y+")");
         var g = getFisheyeCorrection(isRight).func;
-        var gxy = g.apply(Math.hypot(x,y));
+        double r = Math.hypot(x, y);
+        var dim = uiEventListener.getRawImageDimensions(isRight);
+        double Rmax = Math.hypot(dim.width, dim.height) * 2;
+        var Rs = g.findEqualIn(r,0, Rmax); // TODO dc: center or corner?
+        System.out.println("roots in [0, "+Math.round(Rmax)+"]: "+ DoubleStream.of(Rs).boxed().collect(Collectors.toList()));
+        var R = Rs.length > 0 ? Rs[0] : Double.NaN;
+        var gxy = g.apply(R);
+        System.out.println("R="+R+", g(R)="+gxy);
         var fcNew = getFisheyeCorrection(isRight).withFunc(g.mul(1/gxy));
+        System.out.println("R="+R+", g(R)="+fcNew.func.apply(R));
         setFisheyeCorrectionAndUpdateUi(isRight, fcNew);
-    }
-    void setFisheyeCorrectionAndUpdateUi(boolean isRight, FisheyeCorrection fcNew) {
-        setFisheyeCorrection(isRight, fcNew);
-        Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
-        int width = imageDim.width;
-        int height = imageDim.height;
-        HalfPane halfPane = getHalfPane(isRight);
-        updateDefisheyeFunctionUi(width, height, fcNew, halfPane);
-        halfPane.chooserAlgo.setValue(fcNew.algo);
-        halfPane.chooserCenter.setValue(fcNew.distortionCenterLocation);
     }
     boolean doSetFcFromText(boolean isRight, String s) {
         var newFisheyeCorrection = FisheyeCorrection.fromParameterString(s);
@@ -8279,69 +8300,30 @@ class FisheyeCorrectionPane extends JPanel {
             return false;
         }
     }
-    HalfPane getHalfPane(boolean isRight) {
-        return isRight ? rightHalf : leftHalf;
-    }
     void doCalculate(boolean isRight) {
         System.out.println("doCalculate isRight="+isRight);
         new Exception("doCalculate invoked").printStackTrace();
-//        var dp = uiEventListener.getDisplayParameters();
-        var ms = uiEventListener.getMeasurementStatus();
-        HalfPane halfPane = getHalfPane(isRight);
+
+        var pms = uiEventListener.getMeasurementStatus().getPanelMeasurementStatus(isRight);
 
         Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
-        int width = imageDim.width;
-        int height = imageDim.height;
-        var pms = isRight ? ms.right : ms.left;
         FisheyeCorrection fc = getFisheyeCorrection(isRight);
-        FisheyeCorrection fc2 = calculateDefisheyeFunction(width, height, pms, fc);
-        setFisheyeCorrection(isRight, fc2);
-        updateDefisheyeFunctionUi(width, height, fc2, halfPane);
-        System.out.println("doCalculate fc2="+fc2);
-    }
+        DistortionCenterLocation dcl = fc.distortionCenterLocation;
 
-    FisheyeCorrection calculateDefisheyeFunction(
-            int width,
-            int height,
-            PanelMeasurementStatus pms,
-            FisheyeCorrection fc
-    ) {
-        DistortionCenterLocation dcl = fc.distortionCenterLocation;
-        var g = fc.algo.calculateFunction(width, height, dcl, pms);
-        var fc2 = fc.withFunc(g);
-        return fc2;
-    }
-    static void updateDefisheyeFunctionUi(int width,
-                                   int height,
-                                   FisheyeCorrection fc,
-                                   HalfPane halfPane) {
-        var k = fc.algo.sizeChange();
-        DistortionCenterLocation dcl = fc.distortionCenterLocation;
-        var g = fc.func;
-        var rMin = 0.;
-        var rMax = dcl.getMaxRAfter(width, height, k);
-        halfPane.lblGraph.setIcon(new ImageIcon(
-            GraphPlotter.plotGraph(
-                    GRAPH_WIDTH, GRAPH_HEIGHT,
-                    rMin, rMax,
-                    g.maxInRange(rMin, rMax),
-                    Color.RED,
-                    g.asFunction()
-            )
-        ));
-        String info =
-                "<html>" +
-                "g(r) = "+g.asString("r")+"<br>" +
-                "r from " + rMin + " to " + rMax +"<br>" +
-                "max g(r) = " +g.maxInRange(rMin, rMax)+"<br>" +
-                "min g(r) = " +g.minInRange(rMin, rMax)+"<br>" +
-                "</html>";
-        halfPane.lblFunctionInfo.setText(info);
-        halfPane.etxFunction.setText(fc.parametersToString());
+        var g = fc.algo.calculateFunction(imageDim.width, imageDim.height, dcl, pms);
+
+        setFisheyeCorrectionAndUpdateUi(isRight, fc.withFunc(g));
+        System.out.println("doCalculate fc2="+ getFisheyeCorrection(isRight));
     }
 
     void showDialogIn(JFrame mainFrame) {
         setControls(uiEventListener.getMeasurementStatus());
+        setFisheyeCorrectionAndUpdateUi(
+                false,
+                uiEventListener.getDisplayParameters().lFisheyeCorrection);
+        setFisheyeCorrectionAndUpdateUi(
+                true,
+                uiEventListener.getDisplayParameters().rFisheyeCorrection);
         JOptionPane.showMessageDialog(mainFrame, this,"Fisheye Correction", JOptionPane.PLAIN_MESSAGE);
     }
     FisheyeCorrectionPane setControls(MeasurementStatus ms) {
@@ -8367,13 +8349,7 @@ class FisheyeCorrectionPane extends JPanel {
         dcRY5.setValueAndText(ms.right.y5);
         return this;
     }
-    void setHalfPaneFromData(boolean isRight) {
-        FisheyeCorrection fc = getFisheyeCorrection(isRight);
-        HalfPane pane = getHalfPane(isRight);
-        Dimension dim = uiEventListener.getRawImageDimensions(isRight);
-        pane.setFrom(dim.width, dim.height, fc);
-    }
-}
+} // FisheyeCorrectionPane
 
 interface HumanVisibleMathFunction {
     double apply(double x);
