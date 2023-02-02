@@ -9020,6 +9020,7 @@ class GraphPlotter {
         {
             g.setColor(Color.BLACK);
             var d = deltaYBetweenLines(fMax);
+            String yFormat = d % 1. == 0. ? "%.0f" : "%.2f";
             for (double y=0; y<yMax; y += d) {
                 int j = (int) Math.round(y * yScale);
                 if(y != 0) {
@@ -9028,7 +9029,7 @@ class GraphPlotter {
                 g.drawLine(0, zeroYLevel - j, width, zeroYLevel - j);
                 g.setColor(Color.BLACK);
                 if (y!=0) {
-                    g.drawString(String.format(d%1. == 0. ? "%.0f" : "%.2f", y), 0 + DIGIT_XMARGIN, zeroYLevel - j - DIGIT_YMARGIN);
+                    g.drawString(String.format(yFormat, y), 0 + DIGIT_XMARGIN, zeroYLevel - j - DIGIT_YMARGIN);
                 } else {
                     g.drawString("0", 0 + DIGIT_XMARGIN, zeroYLevel - j - DIGIT_YMARGIN);
                 }
