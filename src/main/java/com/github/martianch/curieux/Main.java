@@ -7875,7 +7875,11 @@ class FisheyeCorrectionPane extends JPanel {
         }
 
         {
-            var text = new JLabel("Calibration marks: X and Y coordinates of marks 3, 4 and 5 on the left and right images (Alt 3/Alt 4/Alt 5 after closing this dialog)");
+            var text = new JLabel(
+                    "<html>Calibration marks: X and Y coordinates of marks 3, 4 and 5 on the left and right images" +
+                            " (<font color='blue'>Alt 3</font>/<font color='#00afaf'>Alt 4</font>/<font color='#ff00ff'>Alt 5</font>" +
+                            " after closing this dialog)</html>"
+            );
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
             gbc.gridy = rowNumber+3;
