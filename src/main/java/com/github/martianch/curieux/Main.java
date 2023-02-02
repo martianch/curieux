@@ -7632,7 +7632,7 @@ class StereoCamChooser extends JComboBox<StereoPairParameters> {
 
 class FisheyeCorrectionPane extends JPanel {
     static final int GRAPH_WIDTH = 500;
-    static final int GRAPH_HEIGHT = 150;
+    static final int GRAPH_HEIGHT = 150+1;
     final UiEventListener uiEventListener;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLX1;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLY1;
@@ -8985,6 +8985,10 @@ interface DoubleFunction {
     double apply(double x);
 }
 class GraphPlotter {
+    final static int BMARGIN = 1;
+    final static int DIGIT_XMARGIN = 1;
+    final static int DIGIT_YMARGIN = 2;
+
     static BufferedImage plotGraph(
             final int width, final int height,
             final double xMin, final double xMax,
@@ -8994,18 +8998,46 @@ class GraphPlotter {
         BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = (Graphics2D) bi.getGraphics();
         var yMax = graphMaxY(fMax);
-        var yScale = height / yMax;
+        int zeroYLevel = height - BMARGIN;
+        var yScale = zeroYLevel / yMax;
+        var xScale = width / xMax;
         {
             g.setColor(Color.WHITE);
             g.fillRect(0, 0, width, height);
+        }
+        {
+            int y1 = 0;//zeroYLevel - 3;
+            int y2 = zeroYLevel;
+            var d = deltaXBetweenDotsOnAxis(xMax);
+            for (double x=d; x<xMax; x+=d) {
+                int i = (int) Math.round(x * xScale);
+                g.setColor(Color.LIGHT_GRAY);
+                g.drawLine(i, y1, i, y2);
+                g.setColor(Color.BLACK);
+                g.drawString(String.format("%d",(int)Math.round(x)), i + DIGIT_XMARGIN, y2 - DIGIT_YMARGIN);
+            }
         }
         {
             g.setColor(Color.BLACK);
             var d = deltaYBetweenLines(fMax);
             for (double y=0; y<yMax; y += d) {
                 int j = (int) Math.round(y * yScale);
-                g.drawLine(0, height - j, width, height - j);
-                g.drawString(String.format("%.1f",y), 0, height - j );
+                if(y != 0) {
+                    g.setColor(Color.LIGHT_GRAY);
+                }
+                g.drawLine(0, zeroYLevel - j, width, zeroYLevel - j);
+                g.setColor(Color.BLACK);
+                if (y!=0) {
+                    g.drawString(String.format(d%1. == 0. ? "%.0f" : "%.2f", y), 0 + DIGIT_XMARGIN, zeroYLevel - j - DIGIT_YMARGIN);
+                } else {
+                    g.drawString("0", 0 + DIGIT_XMARGIN, zeroYLevel - j - DIGIT_YMARGIN);
+                }
+            }
+        }
+        {
+            if (xMin == 0) {
+                // Y axis
+                g.drawLine(0,zeroYLevel,0,zeroYLevel-(int)Math.round(yMax * yScale));
             }
         }
         {
@@ -9015,7 +9047,7 @@ class GraphPlotter {
             for (int i = 1; i < width; i++) {
                 double x = xMin + xMax * i / w1;
                 int j = (int) Math.round(f.apply(x) * yScale);
-                g.drawLine(i - 1, height - jOld, i, height - j);
+                g.drawLine(i - 1, zeroYLevel - jOld, i, zeroYLevel - j);
                 jOld = j;
             }
         }
@@ -9025,10 +9057,23 @@ class GraphPlotter {
     }
     static double deltaYBetweenLines(double y) {
         double dy = Math.pow(10, Math.floor(Math.log10(y)-0.004));
-        if (y/dy > 4) {
+        if (y/dy > 9) {
             dy *= 2;
         }
+        if (y/dy < 4) {
+            dy /= 2;
+        }
+        if (y/dy < 4) {
+            dy /= 2;
+        }
         return dy;
+    }
+    static double deltaXBetweenDotsOnAxis(double x) {
+        double dx = Math.pow(10, Math.floor(Math.log10(x)-0.004));
+        if (x/dx < 4) {
+            dx /= 2;
+        }
+        return dx;
     }
     static double graphMaxY(double y) {
         var dy = deltaYBetweenLines(y);
