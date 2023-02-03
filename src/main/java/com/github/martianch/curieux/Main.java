@@ -3296,6 +3296,12 @@ class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
         return df.format(sign*increments[index1]) + ", Shift: " + df.format(sign*increments[index2]);
     }
 }
+class SizeChangeWrapper extends ZoomFactorWrapper {
+    @Override
+    void reset() {
+        value = 2.0;
+    }
+}
 class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     double[] increments = {0.1, 1.0, 0.005, 2.0};
     final static double MIN_ZOOM_VALUE = 0.001;
@@ -5642,43 +5648,54 @@ class RemoteFileNavigator extends FileNavigatorBase {
 }
 
 class FisheyeCorrection {
+    final static double DEFAULT_SIZE_CHANGE = 2.;
     final FisheyeCorrectionAlgo algo;
     final HumanVisibleMathFunction func;
     final DistortionCenterLocation distortionCenterLocation;
+    final double sizeChange;
 
-    private FisheyeCorrection(FisheyeCorrectionAlgo algo, HumanVisibleMathFunction func, DistortionCenterLocation distortionCenterLocation) {
+    private FisheyeCorrection(FisheyeCorrectionAlgo algo, HumanVisibleMathFunction func, DistortionCenterLocation distortionCenterLocation, double sizeChange) {
         this.algo = algo;
         this.func = func;
         this.distortionCenterLocation = distortionCenterLocation;
+        this.sizeChange = sizeChange;
     }
-    static FisheyeCorrection of(FisheyeCorrectionAlgo algo, HumanVisibleMathFunction func, DistortionCenterLocation distortionCenterLocation) {
-        return new FisheyeCorrection(algo, func, distortionCenterLocation);
+    static FisheyeCorrection of(FisheyeCorrectionAlgo algo, HumanVisibleMathFunction func, DistortionCenterLocation distortionCenterLocation, double sizeChange) {
+        return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
     }
     static FisheyeCorrection defaultValue() {
-        return of(FisheyeCorrectionAlgo.NONE, HumanVisibleMathFunction.NO_FUNCTION, DistortionCenterLocation.IN_CENTER_1X1);
+        return of(FisheyeCorrectionAlgo.NONE, HumanVisibleMathFunction.NO_FUNCTION, DistortionCenterLocation.IN_CENTER_1X1, DEFAULT_SIZE_CHANGE);
     }
     FisheyeCorrection withAlgo(FisheyeCorrectionAlgo algo) {
-        return new FisheyeCorrection(algo, func, distortionCenterLocation);
+        return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
     }
     FisheyeCorrection withFunc(HumanVisibleMathFunction func) {
-        return new FisheyeCorrection(algo, func, distortionCenterLocation);
+        return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
     }
     FisheyeCorrection withCenter(DistortionCenterLocation distortionCenterLocation) {
-        return new FisheyeCorrection(algo, func, distortionCenterLocation);
+        return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
+    }
+    FisheyeCorrection withSizeChange(double sizeChange) {
+        return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
     }
     BufferedImage doFisheyeCorrection(BufferedImage orig) {
         return algo.doFisheyeCorrection(orig, this);
     }
     String parametersToString() {
-        return "" + algo + " " + distortionCenterLocation + " " + func.parameterString();
+        return "" + algo + " " + distortionCenterLocation + " " + func.parameterString()
+             + " : " + sizeChange + " # "; // + descr
     }
     static FisheyeCorrection fromParameterString(String s) {
         try {
             var p = s.trim().split("\\s+", 3);
             var algo1 = FisheyeCorrectionAlgo.valueOf(p[0]);
             var center1 = DistortionCenterLocation.valueOf(p[1]);
-            var f1 = HumanVisibleMathFunction.fromParameterString(p[2]).get();
-            return FisheyeCorrection.of(algo1, f1, center1);
+            var pp = p[2].split("\\s*:\\s*", 2);
+            var f1 = HumanVisibleMathFunction.fromParameterString(pp[0]).get();
+            var ppp = pp[1].split("\\s*#\\s*", 2);
+            var sizeChange1 = Double.parseDouble(ppp[0]);
+            //String descr1 = ppp[1];
+            return FisheyeCorrection.of(algo1, f1, center1, sizeChange1);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -5691,6 +5708,7 @@ class FisheyeCorrection {
                 "algo=" + algo +
                 ", distortionCenterLocation=" + distortionCenterLocation +
                 ", func=" + func +
+                ", sizeChange=" + sizeChange +
                 "}@"+Integer.toHexString(hashCode());
     }
 }
@@ -7968,6 +7986,36 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
+            row.add(new JLabel("<html>in: 1234567x1234567 r=1234567<br>out: 1234567x1234567 R=1234567</html>"));
+            row.add(new  DigitalZoomControl<Double, SizeChangeWrapper>().init("Size change:",4, new SizeChangeWrapper(), d -> doUpdateSizeChange(isRight, d)));
+        }
+        {
+            boolean isRight = true;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 3;
+                gbc.gridy = rowNumber++;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            row.add(new JLabel("<html>in: 1234567x1234567 r=1234567<br>out: 1234567x1234567 R=1234567</html>"));
+            row.add(new  DigitalZoomControl<Double, SizeChangeWrapper>().init("Size change:",4, new SizeChangeWrapper(), d -> doUpdateSizeChange(isRight, d)));
+        }
+        {
+            boolean isRight = false;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = rowNumber;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
             row.add(lblCorrectionMethodL = new JLabel("Correction method:"));
             row.add(chooserAlgoL=new FisheyeCorrectionAlgoChooser(algo -> {
                 setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
@@ -8417,6 +8465,10 @@ class FisheyeCorrectionPane extends JPanel {
 
         setFisheyeCorrectionAndUpdateUi(isRight, fc.withFunc(g));
         System.out.println("doCalculate fc2="+ getFisheyeCorrection(isRight));
+    }
+    void doUpdateSizeChange(boolean isRight, Double d) {
+        System.out.println("doUpdateSizeChange isRight="+isRight+" d="+d);
+        setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withSizeChange(d));
     }
 
     void showDialogIn(JFrame mainFrame) {
