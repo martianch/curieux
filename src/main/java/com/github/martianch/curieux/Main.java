@@ -213,6 +213,7 @@ interface UiEventListener {
     DisplayParameters getDisplayParameters();
     ColorRange getViewportColorRange(boolean isRight);
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
+    FisheyeCorrection getFisheyeCorrection(boolean isRight);
     Dimension getRawImageDimensions(boolean isRight);
     void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight); //???
     void setSaveOptions(boolean saveGif, boolean saveLeftRIght);
@@ -1568,6 +1569,12 @@ class UiController implements UiEventListener {
     @Override
     public CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight) {
         return displayParameters.getColorCorrection(isRight).customStretchRgbParameters;
+    }
+    @Override
+    public FisheyeCorrection getFisheyeCorrection(boolean isRight) {
+        return isRight
+             ? displayParameters.rFisheyeCorrection
+             : displayParameters.lFisheyeCorrection;
     }
     @Override
     public Dimension getRawImageDimensions(boolean isRight) {
@@ -3169,6 +3176,9 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         valueWrapper.setValue(v);
         setTextFieldFromValue();
         return this;
+    }
+    T getSafeValue() {
+        return valueWrapper.getSafeValue();
     }
     @Override
     public String toString() {
@@ -7634,6 +7644,7 @@ class StereoCamChooser extends JComboBox<StereoPairParameters> {
 }
 
 class FisheyeCorrectionPane extends JPanel {
+    static final Color HILI_BGCOLOR = new Color(0xffff80);
     static final int GRAPH_WIDTH = 500;
     static final int GRAPH_HEIGHT = 150+1;
     final UiEventListener uiEventListener;
@@ -7665,6 +7676,16 @@ class FisheyeCorrectionPane extends JPanel {
     final JLabel lblGraphR;
     final JLabel lblFunctionInfoL;
     final JLabel lblFunctionInfoR;
+    // for highlighting {
+    final JLabel lblCorrectionMethodL;
+    final JLabel lblCorrectionMethodR;
+    final JLabel lblFunctionL;
+    final JLabel lblFunctionR;
+    final JButton btnCalculateL;
+    final JButton btnCalculateR;
+    final JButton btnApplyL;
+    final JButton btnApplyR;
+    // } for highlighting
     final JTextField etxFunctionL;
     final JTextField etxFunctionR;
     final HalfPane leftHalf;
@@ -7679,6 +7700,13 @@ class FisheyeCorrectionPane extends JPanel {
         final JLabel lblGraph;
         final JLabel lblFunctionInfo;
         final JTextField etxFunction;
+        // for highlighting {
+        final JLabel lblCorrectionMethod;
+        final JLabel lblFunction;
+        final JButton btnCalculate;
+        final JButton btnApply;
+        final List<DigitalZoomControl<Double, OffsetWrapper2>> digitalZoomControls;
+        // } for highlighting
 //        final JLabel lblWidthXHeightR; // TODO
         public HalfPane(FisheyeCorrectionPane parentPane,
                         boolean isRight,
@@ -7686,7 +7714,12 @@ class FisheyeCorrectionPane extends JPanel {
                         DistortionCenterLocationChooser chooserCenter,
                         JLabel lblGraph,
                         JLabel lblFunctionInfo,
-                        JTextField etxFunction) {
+                        JTextField etxFunction,
+                        JLabel lblCorrectionMethod,
+                        JLabel lblFunction,
+                        JButton btnCalculate,
+                        JButton btnApply,
+                        List<DigitalZoomControl<Double, OffsetWrapper2>> digitalZoomControls) {
             this.parentPane = parentPane;
             this.isRight = isRight;
             this.chooserAlgo = chooserAlgo;
@@ -7694,6 +7727,11 @@ class FisheyeCorrectionPane extends JPanel {
             this.lblGraph = lblGraph;
             this.lblFunctionInfo = lblFunctionInfo;
             this.etxFunction = etxFunction;
+            this.lblCorrectionMethod = lblCorrectionMethod;
+            this.lblFunction = lblFunction;
+            this.btnCalculate = btnCalculate;
+            this.btnApply = btnApply;
+            this.digitalZoomControls = digitalZoomControls;
         }
         void setFromData() {
             FisheyeCorrection fisheyeCorrection = getFC();
@@ -7702,6 +7740,7 @@ class FisheyeCorrectionPane extends JPanel {
             etxFunction.setText(fisheyeCorrection.parametersToString());
             Dimension dim = parentPane.uiEventListener.getRawImageDimensions(isRight);
             updateDefisheyeFunctionUi(dim.width, dim.height, fisheyeCorrection, this);
+            updateHilighting();
         }
         static void updateDefisheyeFunctionUi(int width,
                                               int height,
@@ -7729,6 +7768,63 @@ class FisheyeCorrectionPane extends JPanel {
                             "min g(r) = " +g.minInRange(rMin, rMax)+"" +
                             "</html>";
             halfPane.lblFunctionInfo.setText(info);
+        }
+
+        /** The purpose of this highlighting is to inform the user what to do in this dialog */
+        void updateHilighting() {
+            int phase1; // 0: nothing 1:got correction method 2:got marks 3:calculated 4:after apply
+            int phase2; // 0: nothing 3: after setFromText 4:after apply
+            var fc = getFC();
+
+            if (fc.algo == FisheyeCorrectionAlgo.NONE) {
+                phase1 = 0;
+            } else if (digitalZoomControls.stream().anyMatch(c -> c.getSafeValue()<0)) {
+                phase1 = 1;
+            } else if (!Double.isFinite(fc.func.apply(1))) {
+                phase1 = 2;
+            } else if (!fc.parametersToString().equals(
+                       parentPane.uiEventListener.getFisheyeCorrection(isRight).parametersToString()
+            )) {
+                phase1 = 3;
+            } else {
+                phase1 = 4;
+            }
+            if (!Double.isFinite(fc.func.apply(1))) {
+                phase2 = 2;
+            } else if (!fc.parametersToString().equals(
+                       parentPane.uiEventListener.getFisheyeCorrection(isRight).parametersToString()
+            )) {
+                phase2 = 3;
+            } else {
+                phase2 = 4;
+            }
+            System.out.println("updateHilighting phase1="+phase1+" phase2="+phase2);
+            highlightLabel(lblCorrectionMethod, phase1 == 0);
+            for (var dc: digitalZoomControls) {
+                highlightLabel(dc.label, phase1 == 1 && phase2 <= 2 && dc.getSafeValue() < 0);
+            }
+            highlightButton(btnCalculate, phase1 == 2 && phase2 <= 2);
+            highlightLabel(lblFunction, phase2 <= 2);
+            highlightButton(btnApply, phase2 == 3);
+        }
+        void highlightLabel(JLabel label, boolean highlight) {
+            System.out.println(" "+label.getText()+" -- "+highlight);
+            if (highlight) {
+                label.setBackground(HILI_BGCOLOR);
+                label.setOpaque(true);
+            } else {
+                label.setOpaque(false);
+            }
+            label.repaint();
+        }
+        void highlightButton(JButton button, boolean highlight) {
+            System.out.println(" "+button.getText()+" -- "+highlight);
+            if (highlight) {
+                button.setBackground(HILI_BGCOLOR);
+            } else {
+                button.setBackground(null);
+            }
+            button.repaint();
         }
 
         private FisheyeCorrection getFC() {
@@ -7872,7 +7968,7 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
-            row.add(new JLabel("Correction method:"));
+            row.add(lblCorrectionMethodL = new JLabel("Correction method:"));
             row.add(chooserAlgoL=new FisheyeCorrectionAlgoChooser(algo -> {
                 setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
@@ -7895,7 +7991,7 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
-            row.add(new JLabel("Correction method:"));
+            row.add(lblCorrectionMethodR = new JLabel("Correction method:"));
             row.add(chooserAlgoR=new FisheyeCorrectionAlgoChooser(algo -> {
                 setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
@@ -7970,7 +8066,7 @@ class FisheyeCorrectionPane extends JPanel {
                 this.add(row);
             }
             {
-                var button = new JButton("Calculate Left");
+                var button = btnCalculateL = new JButton("Calculate Left");
                 button.addActionListener(e -> doCalculate(false));
                 row.add(button);
             }
@@ -7981,7 +8077,7 @@ class FisheyeCorrectionPane extends JPanel {
                 row.add(text);
             }
             {
-                var button = new JButton("Calculate Right");
+                var button = btnCalculateR = new JButton("Calculate Right");
                 button.addActionListener(e -> doCalculate(true));
                 row.add(button);
             }
@@ -8113,7 +8209,7 @@ class FisheyeCorrectionPane extends JPanel {
                 this.add(row);
             }
             {
-                row.add(new JLabel("L:"));
+                row.add(lblFunctionL = new JLabel("L:"));
                 row.add(etxFunctionL = new JTextField(80));
                 var button = new JButton("Set From Text");
                 button.addActionListener(e -> {
@@ -8138,7 +8234,7 @@ class FisheyeCorrectionPane extends JPanel {
                 this.add(row);
             }
             {
-                row.add(new JLabel("R:"));
+                row.add(lblFunctionR = new JLabel("R:"));
                 row.add(etxFunctionR = new JTextField(80));
                 var button = new JButton("Set From Text");
                 button.addActionListener(e -> {
@@ -8235,17 +8331,25 @@ class FisheyeCorrectionPane extends JPanel {
             gbl.setConstraints(row, gbc);
             this.add(row);
 
-            JButton applyL = new JButton("Apply (Left)");
+            JButton applyL = btnApplyL = new JButton("Apply (Left)");
             applyL.addActionListener(a -> { doApply(false); });
             row.add(applyL);
             row.add(new JLabel(""));
-            JButton applyR = new JButton("Apply (Right)");
+            JButton applyR = btnApplyR = new JButton("Apply (Right)");
             applyR.addActionListener(a -> { doApply(true); });
             row.add(applyR);
         }
         this.setLayout(gbl);
-        leftHalf = new HalfPane(this, false, chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, etxFunctionL);
-        rightHalf = new HalfPane(this, true, chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, etxFunctionR);
+        leftHalf = new HalfPane(this, false,
+                chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, etxFunctionL,
+                lblCorrectionMethodL, lblFunctionL, btnCalculateL, btnApplyL,
+                Arrays.asList(dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5)
+        );
+        rightHalf = new HalfPane(this, true,
+                chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, etxFunctionR,
+                lblCorrectionMethodR, lblFunctionR, btnCalculateR, btnApplyR,
+                Arrays.asList(dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5)
+        );
         // instead of addAncestorListener(new AncestorListener() { ... });
         // the initialization is done in showDialogIn()
     } //constructor
