@@ -8277,18 +8277,17 @@ class FisheyeCorrectionPane extends JPanel {
         uiEventListener.setFisheyeCorrection(isRight, getFisheyeCorrection(isRight));
     }
     void doNormalizeFunction(boolean isRight, double x, double y) {
-        System.out.println("normalizeFunction("+isRight+", "+x+", "+y+")");
+        var fc = getFisheyeCorrection(isRight);
+        Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
+        var x0 = fc.distortionCenterLocation.getPoleXBefore(imageDim.width, imageDim.height);
+        var y0 = fc.distortionCenterLocation.getPoleYBefore(imageDim.width, imageDim.height);
+
+        System.out.println("normalizeFunction("+isRight+", "+x+", "+y+")  center:"+x0+", "+y0);
         var g = getFisheyeCorrection(isRight).func;
-        double r = Math.hypot(x, y);
-        var dim = uiEventListener.getRawImageDimensions(isRight);
-        double Rmax = Math.hypot(dim.width, dim.height) * 2;
-        var Rs = g.findEqualIn(r,0, Rmax); // TODO dc: center or corner?
-        System.out.println("roots in [0, "+Math.round(Rmax)+"]: "+ DoubleStream.of(Rs).boxed().collect(Collectors.toList()));
-        var R = Rs.length > 0 ? Rs[0] : Double.NaN;
-        var gxy = g.apply(R);
-        System.out.println("R="+R+", g(R)="+gxy);
-        var fcNew = getFisheyeCorrection(isRight).withFunc(g.mul(1/gxy));
-        System.out.println("R="+R+", g(R)="+fcNew.func.apply(R));
+        double r = Math.hypot(x-x0, y-y0);
+        var gr = g.apply(r);
+        var fcNew = getFisheyeCorrection(isRight).withFunc(g.mul(1/gr));
+        System.out.println("R=r="+r+", g(R)="+fcNew.func.apply(r));
         setFisheyeCorrectionAndUpdateUi(isRight, fcNew);
     }
     boolean doSetFcFromText(boolean isRight, String s) {
