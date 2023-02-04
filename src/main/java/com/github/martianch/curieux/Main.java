@@ -8427,6 +8427,7 @@ class FisheyeCorrectionPane extends JPanel {
     // doXxx: reaction on buttons
     void doApply(boolean isRight) {
         uiEventListener.setFisheyeCorrection(isRight, getFisheyeCorrection(isRight));
+        getHalfPane(isRight).setFromData();
     }
     void doNormalizeFunction(boolean isRight, double x, double y) {
         var fc = getFisheyeCorrection(isRight);
