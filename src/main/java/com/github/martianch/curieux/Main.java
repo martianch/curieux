@@ -5722,13 +5722,11 @@ enum FisheyeCorrectionAlgo {
         HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
             return QuadraticPolynomial.of(0, 0, 1);
         }
-        @Override
-        double sizeChange() { return 1.; }
     },
     UNFISH1 {
         @Override
         BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            var k = fc.algo.sizeChange();
+            var k = fc.sizeChange;
 
             int width = orig.getWidth();
             int height = orig.getHeight();
@@ -5792,10 +5790,6 @@ enum FisheyeCorrectionAlgo {
                                                         int height,
                                                         DistortionCenterLocation dcl,
                                                         PanelMeasurementStatus pms);
-//    abstract FisheyeCorrection fisheyeCorrectionOf
-    double sizeChange() {
-        return 2.;
-    }
 }
 class FisheyeCorrectionAlgoChooser extends JComboBox<FisheyeCorrectionAlgo> {
     static FisheyeCorrectionAlgo[] modes = FisheyeCorrectionAlgo.values();
@@ -7665,6 +7659,7 @@ class FisheyeCorrectionPane extends JPanel {
     static final Color HILI_BGCOLOR = new Color(0xffff80);
     static final int GRAPH_WIDTH = 500;
     static final int GRAPH_HEIGHT = 150+1;
+    static final String IMAGE_INFO_FORMAT = "<html>in: %dx%d r=%d<br>out: %dx%d R=%d</html>";
     final UiEventListener uiEventListener;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLX1;
     final DigitalZoomControl<Double, OffsetWrapper2> dcLY1;
@@ -7694,6 +7689,8 @@ class FisheyeCorrectionPane extends JPanel {
     final JLabel lblGraphR;
     final JLabel lblFunctionInfoL;
     final JLabel lblFunctionInfoR;
+    final JLabel lblImageInfoL;
+    final JLabel lblImageInfoR;
     // for highlighting {
     final JLabel lblCorrectionMethodL;
     final JLabel lblCorrectionMethodR;
@@ -7717,6 +7714,7 @@ class FisheyeCorrectionPane extends JPanel {
         final DistortionCenterLocationChooser chooserCenter;
         final JLabel lblGraph;
         final JLabel lblFunctionInfo;
+        final JLabel lblImageInfo;
         final JTextField etxFunction;
         // for highlighting {
         final JLabel lblCorrectionMethod;
@@ -7732,6 +7730,7 @@ class FisheyeCorrectionPane extends JPanel {
                         DistortionCenterLocationChooser chooserCenter,
                         JLabel lblGraph,
                         JLabel lblFunctionInfo,
+                        JLabel lblImageInfo,
                         JTextField etxFunction,
                         JLabel lblCorrectionMethod,
                         JLabel lblFunction,
@@ -7744,6 +7743,7 @@ class FisheyeCorrectionPane extends JPanel {
             this.chooserCenter = chooserCenter;
             this.lblGraph = lblGraph;
             this.lblFunctionInfo = lblFunctionInfo;
+            this.lblImageInfo = lblImageInfo;
             this.etxFunction = etxFunction;
             this.lblCorrectionMethod = lblCorrectionMethod;
             this.lblFunction = lblFunction;
@@ -7764,7 +7764,7 @@ class FisheyeCorrectionPane extends JPanel {
                                               int height,
                                               FisheyeCorrection fc,
                                               HalfPane halfPane) {
-            var k = fc.algo.sizeChange();
+            var k = fc.sizeChange;
             var dcl = fc.distortionCenterLocation;
             var g = fc.func;
             var rMin = 0.;
@@ -7779,13 +7779,26 @@ class FisheyeCorrectionPane extends JPanel {
                     )
             ));
             String info =
-                    "<html>" +
-                            "g(r) = "+g.asString("r")+"<br>" +
-                            "r ∈ [" + (int)Math.round(rMin) + ", " + (int)Math.round(rMax) +"]<br>" +
-                            "max g(r) = " +g.maxInRange(rMin, rMax)+"<br>" +
-                            "min g(r) = " +g.minInRange(rMin, rMax)+"" +
-                            "</html>";
+                    "<html>"
+                    + "g(r) = " + g.asString("r") + "<br>"
+                    + "r ∈ [" + (int) Math.round(rMin) + ", " + (int) Math.round(rMax) + "]<br>"
+                    + "g(r) ∈ [" + fmtD(g.minInRange(rMin, rMax)) + ", " + fmtD(g.maxInRange(rMin, rMax)) + "]<br>"
+                    + "&nbsp "
+                    + "</html>";
             halfPane.lblFunctionInfo.setText(info);
+            halfPane.lblImageInfo.setText(
+                String.format(IMAGE_INFO_FORMAT,
+                    width,
+                        height,
+                        (int)Math.round(dcl.getMaxRBefore(width, height)),
+                    dcl.getWidthAfter(width, height, k),
+                        dcl.getHeightAfter(width, height, k),
+                        (int)Math.round(dcl.getMaxRAfter(width, height, k))
+                )
+            );
+        }
+        static String fmtD(double x) {
+            return String.format("%.4g",x);
         }
 
         /** The purpose of this highlighting is to inform the user what to do in this dialog */
@@ -7816,7 +7829,9 @@ class FisheyeCorrectionPane extends JPanel {
             } else {
                 phase2 = 4;
             }
-            System.out.println("updateHilighting phase1="+phase1+" phase2="+phase2);
+//            System.out.println("updateHilighting phase1="+phase1+" phase2="+phase2);
+//            System.out.println("local  fc: "+fc.parametersToString());
+//            System.out.println("global fc: "+parentPane.uiEventListener.getFisheyeCorrection(isRight).parametersToString());
             highlightLabel(lblCorrectionMethod, phase1 == 0);
             for (var dc: digitalZoomControls) {
                 highlightLabel(dc.label, phase1 == 1 && phase2 <= 2 && dc.getSafeValue() < 0);
@@ -7986,8 +8001,8 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
-            row.add(new JLabel("<html>in: 1234567x1234567 r=1234567<br>out: 1234567x1234567 R=1234567</html>"));
-            row.add(new  DigitalZoomControl<Double, SizeChangeWrapper>().init("Size change:",4, new SizeChangeWrapper(), d -> doUpdateSizeChange(isRight, d)));
+            row.add(lblImageInfoL = new JLabel("<html>in: 1234567x1234567 r=1234567<br>out: 1234567x1234567 R=1234567</html>"));
+            row.add(new DigitalZoomControl<Double, SizeChangeWrapper>().init("Size change:",4, new SizeChangeWrapper(), d -> doUpdateSizeChange(isRight, d)));
         }
         {
             boolean isRight = true;
@@ -8001,7 +8016,7 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
-            row.add(new JLabel("<html>in: 1234567x1234567 r=1234567<br>out: 1234567x1234567 R=1234567</html>"));
+            row.add(lblImageInfoR = new JLabel("<html>in: 1234567x1234567 r=1234567<br>out: 1234567x1234567 R=1234567</html>"));
             row.add(new  DigitalZoomControl<Double, SizeChangeWrapper>().init("Size change:",4, new SizeChangeWrapper(), d -> doUpdateSizeChange(isRight, d)));
         }
         {
@@ -8389,12 +8404,12 @@ class FisheyeCorrectionPane extends JPanel {
         }
         this.setLayout(gbl);
         leftHalf = new HalfPane(this, false,
-                chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, etxFunctionL,
+                chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, lblImageInfoL, etxFunctionL,
                 lblCorrectionMethodL, lblFunctionL, btnCalculateL, btnApplyL,
                 Arrays.asList(dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5)
         );
         rightHalf = new HalfPane(this, true,
-                chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, etxFunctionR,
+                chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, lblImageInfoR, etxFunctionR,
                 lblCorrectionMethodR, lblFunctionR, btnCalculateR, btnApplyR,
                 Arrays.asList(dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5)
         );
