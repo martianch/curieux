@@ -6386,7 +6386,8 @@ class ColorCorrectionPane extends JPanel {
     }
 
     void showDialogIn(JFrame mainFrame) {
-        JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
+        JustDialog.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
+//        JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
     }
 
     ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers, ColorRangeAndFlagsChooser colorRangeChooser) {
@@ -7224,7 +7225,8 @@ class MeasurementPanel extends JPanel {
     void showDialogIn(JFrame mainFrame) {
         setControls(uiEventListener.getMeasurementStatus());
         doCalculate7();
-        JOptionPane.showMessageDialog(mainFrame, this,"Measurement", JOptionPane.PLAIN_MESSAGE);
+        JustDialog.showMessageDialog(mainFrame, this,"Measurement", JOptionPane.PLAIN_MESSAGE);
+//        JOptionPane.showMessageDialog(mainFrame, this,"Measurement", JOptionPane.PLAIN_MESSAGE);
     }
 
     void setResult(String s) {
@@ -8495,7 +8497,8 @@ class FisheyeCorrectionPane extends JPanel {
         setFisheyeCorrectionAndUpdateUi(
                 true,
                 uiEventListener.getDisplayParameters().rFisheyeCorrection);
-        JOptionPane.showMessageDialog(mainFrame, this,"Fisheye Correction", JOptionPane.PLAIN_MESSAGE);
+        JustDialog.showMessageDialog(mainFrame, this,"Fisheye Correction", JOptionPane.PLAIN_MESSAGE);
+//        JOptionPane.showMessageDialog(mainFrame, this,"Fisheye Correction", JOptionPane.PLAIN_MESSAGE);
     }
     FisheyeCorrectionPane setControls(MeasurementStatus ms) {
         dcLX1.setValueAndText(ms.left.x1);
@@ -9712,5 +9715,46 @@ class SuccessFailureCounter {
         }
         res += "}\n";
         return res;
+    }
+}
+
+class JustDialog {
+    static void showMessageDialog(JFrame parent, JPanel message, String title, int messageTypeIgnored) {
+        JDialog dialog = new JDialog(parent, title, true);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        panel.add(message);
+
+        panel.add(Box.createRigidArea(new Dimension(5, 10)));
+
+        JButton closeButton = new JButton("OK");
+        closeButton.setMargin(new Insets(2, 8, 2, 8));
+        closeButton.addActionListener(e -> {
+            dialog.dispose();
+        });
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new GridBagLayout());
+        buttonPanel.add(closeButton, new GridBagConstraints());
+        panel.add(buttonPanel);
+
+        JPanel contentPane = (JPanel) dialog.getContentPane();
+        InputMap inputMap = contentPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = contentPane.getActionMap();
+        KeyStroke escKs = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
+        inputMap.put(escKs, "__esc");
+        actionMap.put("__esc", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent arg0) {
+                dialog.dispose();
+            }
+        });
+
+        dialog.add(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(parent);
+        closeButton.requestFocus();
+        dialog.setVisible(true);
     }
 }
