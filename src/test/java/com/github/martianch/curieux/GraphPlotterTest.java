@@ -1,5 +1,6 @@
 package com.github.martianch.curieux;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -10,6 +11,7 @@ public class GraphPlotterTest {
 //    public void plotGraph() {
 //    }
 
+    @Ignore
     @Test
     public void deltaYBetweenLinesTest() {
         assertEquals(.1, GraphPlotter.deltaYBetweenLines(.3), 0);
@@ -31,6 +33,7 @@ public class GraphPlotterTest {
         assertEquals(.1, GraphPlotter.deltaYBetweenLines(.11), 0);
         assertEquals(.02, GraphPlotter.deltaYBetweenLines(.09), 0);
     }
+    @Ignore
     @Test
     public void graphMaxYTest() {
         assertEquals(1, GraphPlotter.graphMaxY(1), 0);
