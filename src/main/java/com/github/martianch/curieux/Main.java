@@ -1893,8 +1893,8 @@ class X3DViewer {
                 urlR.setText(coloredPaths.get(1));
             }
             {
-                colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription(rd.left.path, dp.debayerL));
-                colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription(rd.right.path, dp.debayerR));
+                colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription(rd.left.path, dp.debayerL, dp.lFisheyeCorrection.algo));
+                colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription(rd.right.path, dp.debayerR, dp.rFisheyeCorrection.algo));
             }
         }
     }
@@ -5712,7 +5712,7 @@ class FisheyeCorrection {
                 "}@"+Integer.toHexString(hashCode());
     }
 }
-enum FisheyeCorrectionAlgo {
+enum FisheyeCorrectionAlgo implements ImageEffect {
     NONE {
         @Override
         BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
@@ -5722,6 +5722,8 @@ enum FisheyeCorrectionAlgo {
         HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
             return QuadraticPolynomial.of(0, 0, 1);
         }
+        @Override public boolean notNothing() { return false; }
+        @Override public String effectShortName() { return ""; }
     },
     UNFISH1 {
         @Override
@@ -5790,6 +5792,13 @@ enum FisheyeCorrectionAlgo {
                                                         int height,
                                                         DistortionCenterLocation dcl,
                                                         PanelMeasurementStatus pms);
+    @Override public String effectName() { return toString(); }
+    @Override
+    public String effectShortName() {
+        return effectName().replaceAll("UNFISH", "uf");
+    }
+    @Override public boolean notNothing() { return true; }
+    @Override public boolean notNothingFor(String path) { return notNothing(); }
 }
 class FisheyeCorrectionAlgoChooser extends JComboBox<FisheyeCorrectionAlgo> {
     static FisheyeCorrectionAlgo[] modes = FisheyeCorrectionAlgo.values();
