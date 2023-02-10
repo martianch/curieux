@@ -5,6 +5,7 @@ import org.junit.Test;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
@@ -212,6 +213,21 @@ public class HumanVisibleMathFunctionBaseTest {
                         i -> { i.next(); return HumanVisibleMathFunction.NO_FUNCTION; }
                 )
         );
+    }
+
+    @Test
+    public void ifParamStringPrefixTest() {
+        String [] holder = new String[] {""};
+        var p = ConstantPolynomial.of(1);
+        var res = HumanVisibleMathFunctionBase.ifParamStringPrefix(
+                "foo",
+                "foo bar baz qux",
+                s -> {
+                    holder[0] = s;
+                    return Optional.of(p);
+        });
+        assertSame(p, res.get());
+        assertEquals("bar baz qux", holder[0]);
     }
 
     @Test

@@ -147,5 +147,6 @@ public class ConstantPolynomialTest {
     public void coverageTest() {
         TestCoverage.check(HumanVisibleMathFunction.class, getClass());
         TestCoverage.check(ConstantPolynomial.class, getClass());
+        TestCoverage.checkNames(getClass(), "toString");
     }
 }

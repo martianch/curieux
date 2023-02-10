@@ -159,5 +159,6 @@ public class QuarticPolynomialTest {
     public void coverageTest() {
         TestCoverage.check(HumanVisibleMathFunction.class, getClass());
         TestCoverage.check(QuarticPolynomial.class, getClass());
+        TestCoverage.checkNames(getClass(), "toString");
     }
 }

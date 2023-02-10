@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -24,13 +25,24 @@ public class TestCoverage {
     }
 
     public static void check(Class appClass, Class testingClass, ExcludeList excludeList) {
-        assertTrue("testingClass must end with \"Test\"", testingClass.getSimpleName().endsWith("Test"));
         var appMethodNamesToTest =
                 Arrays.stream(appClass.getDeclaredMethods())
                         //.filter(m -> !Modifier.isStatic(m.getModifiers()))
                         .map(Method::getName)
                         .filter(s -> !s.contains("$"))
                         .filter(excludeList::notExcluded)
+                        .collect(Collectors.toList());
+        checkNameList(testingClass, appMethodNamesToTest);
+    }
+
+    public static void checkNames(Class testingClass, String... appMethodNamesToTest) {
+        checkNameList(testingClass, Arrays.asList(appMethodNamesToTest));
+    }
+
+    private static void checkNameList(Class testingClass, List<String> appMethodNamesToTest) {
+        assertTrue("testingClass must end with \"Test\"", testingClass.getSimpleName().endsWith("Test"));
+        var testMethodNamesToTest =
+                        appMethodNamesToTest.stream()
                         .map(s -> s + "Test")
                         .sorted()
                         .distinct() // when we override a method to return a subtype, a new method with the same name appears
@@ -40,7 +52,7 @@ public class TestCoverage {
                         .map(Method::getName)
                         .filter(s -> s.endsWith("Test"))
                         .collect(Collectors.toSet());
-        var missingMethods = appMethodNamesToTest.stream()
+        var missingMethods = testMethodNamesToTest.stream()
                 .filter(methodName -> !testingMethodNames.contains(methodName))
                 .collect(Collectors.joining(", "));
         if (!missingMethods.isEmpty()) {

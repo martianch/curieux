@@ -156,6 +156,7 @@ public class LinearPolynomialTest {
     public void coverageTest() {
         TestCoverage.check(HumanVisibleMathFunction.class, getClass());
         TestCoverage.check(CubicPolynomial.class, getClass());
+        TestCoverage.checkNames(getClass(), "toString");
     }
 
 }

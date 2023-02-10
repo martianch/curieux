@@ -8555,16 +8555,26 @@ interface HumanVisibleMathFunction {
     HumanVisibleMathFunction NO_FUNCTION = QuadraticPolynomial.of(Double.NaN, Double.NaN, Double.NaN);
 
     static Optional<HumanVisibleMathFunction> fromParameterString(String params) {
-        List<Function<String, Optional<HumanVisibleMathFunction>>> lambdas =
+        // It is bad, that the interface knows its implementations, but...
+        // There is a side effect that all these classes are loaded and are
+        // available via the UI, even if not referenced from the code.
+        // We could use a static initializer:
+        //   static { declareParser(Xyz::fromParamString); }
+        // but it does not guarantee loading of all these classes.
+        // Static referencing a subclass from a superclass opens a possibility for a class loader deadlock.
+        List<Function<String, Optional<HumanVisibleMathFunction>>> parsers =
         Arrays.asList(
+                MultiplicativeInversePlusC::fromParamString,
+                OfXSquared::fromParamString,
+                BiquadraticPolynomial::fromParamString,
                 QuarticPolynomial::fromParamString,
                 CubicPolynomial::fromParamString,
                 QuadraticPolynomial::fromParamString,
                 LinearPolynomial::fromParamString,
                 ConstantPolynomial::fromParamString
         );
-        for (var f : lambdas) {
-            var res = f.apply(params);
+        for (var p : parsers) {
+            var res = p.apply(params);
             if (res.isPresent()) {
                 return res;
             }
@@ -8690,6 +8700,14 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
             return Optional.empty();
         }
     }
+    protected static Optional<HumanVisibleMathFunction> ifParamStringPrefix(String prefix, String paramString, Function<String, Optional<HumanVisibleMathFunction>> parseTheRest) {
+        var ss = paramString.split("\\s+", 2);
+        if (ss.length == 2 && prefix.equals(ss[0])) {
+            return parseTheRest.apply(ss[1]);
+        } else {
+            return Optional.empty();
+        }
+    }
     public  static void parseExpect(String s, String e) {
         if (!s.equals(e)) {
             throw new IllegalArgumentException();
@@ -8700,7 +8718,235 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
             throw new IllegalArgumentException();
         }
     }
-}
+} // HumanVisibleMathFunctionBase
+class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends HumanVisibleMathFunctionBase {
+    final T f;
+    final double c;
+
+    MultiplicativeInversePlusC(T f, double c) {
+        this.f = f;
+        this.c = c;
+    }
+    public static<TT extends HumanVisibleMathFunction> MultiplicativeInversePlusC<TT> of(TT f, double c) {
+        return new MultiplicativeInversePlusC<TT>(f, c);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return ifParamStringPrefix("C+1/", s, rest -> {
+            try {
+                var ss = rest.split("\\s+", 2);
+                var c = Double.parseDouble(ss[0]);
+                var fo = HumanVisibleMathFunction.fromParameterString(ss[1]);
+                return fo.map(f -> of(f, c));
+            } catch (Exception e) {
+                return Optional.empty();
+            }
+        });
+    }
+
+    @Override
+    public double apply(double x) {
+        return 1./f.apply(x) + c;
+    }
+    @Override
+    public DoubleFunction asFunction() {
+        return this::apply;
+    }
+    @Override
+    public String asString() {
+        return String.format(DOUBLE_FMT, c) + " + 1/( " + f.asString() + " )";
+    }
+    @Override
+    public String parameterString() {
+        return "C+1/ " + c + " " + f.parameterString();
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        double[] roots = f.findRootsIn(x1, x2);
+        for (var r: roots) {
+            if (x1 <= r && r <= x2) {
+                return Double.NaN;
+            }
+        }
+        return 1./f.minInRange(x1,x2) + c;
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        double[] roots = f.findRootsIn(x1, x2);
+        for (var r: roots) {
+            if (x1 <= r && r <= x2) {
+                return Double.NaN;
+            }
+        }
+        return 1./f.maxInRange(x1, x2) + c;
+    }
+    @Override
+    public HumanVisibleMathFunction mul(double k) {
+        return of(f.mul(1/k), k*c);
+    }
+    @Override
+    public HumanVisibleMathFunction sub(double m) {
+        return of(f, c-m);
+    }
+    @Override
+    public HumanVisibleMathFunction derivative() {
+        throw new UnsupportedOperationException("derivative not implemented");
+    }
+    @Override
+    public double[] findRoots() {
+        return f.add(1./c).findRoots();
+    }
+    @Override
+    public double[] findRootsIn(double x1, double x2) {
+        return f.add(1./c).findRootsIn(x1, x2);
+    }
+    @Override
+    public String toString() {
+        return "MultiplicativeInversePlusC{" +
+               "f=" + f +
+               ", c=" + c +
+               ", " + asString() +
+               '}';
+    }
+} // MultiplicativeInversePlusC
+class OfXSquared<T extends HumanVisibleMathFunction> extends HumanVisibleMathFunctionBase {
+    final T f;
+
+    OfXSquared(T f) {
+        this.f = f;
+    }
+    public static<TT extends HumanVisibleMathFunction> OfXSquared<TT> of(TT f) {
+        return new OfXSquared<TT>(f);
+    }
+    public OfXSquared<T> v_of(T f) {
+        return of(f);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return ifParamStringPrefix("OFSQR", s, restOfS ->
+                HumanVisibleMathFunction.fromParameterString(restOfS).map(OfXSquared::of)
+        );
+    }
+    @Override
+    public double apply(double x) {
+        return f.apply(x*x);
+    }
+    @Override
+    public DoubleFunction asFunction() {
+        return this::apply;
+    }
+    @Override
+    public String asString() {
+        return f.asString("(x^2)");
+    }
+    @Override
+    public String parameterString() {
+        return "OFSQR "+f.parameterString();
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        return f.maxInRange(x1*x1, x2*x2);
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        return f.minInRange(x1*x1, x2*x2);
+    }
+    @Override
+    public OfXSquared<T> mul(double k) {
+        return v_of((T)f.mul(k)); // mul() returns type_of(this)
+    }
+    @Override
+    public OfXSquared<T> sub(double m) {
+        return v_of((T)f.sub(m)); // sub() returns type_of(this)
+    }
+    @Override
+    public HumanVisibleMathFunction derivative() {
+        throw new UnsupportedOperationException("derivative not implemented");
+    }
+    @Override
+    public double[] findRoots() {
+        double[] roots = Arrays.stream(f.findRoots())
+                .map(Math::sqrt)
+                .filter(Double::isFinite)
+                .flatMap(d -> d==0. ? DoubleStream.of(d) : DoubleStream.of(d, -d) )
+                .toArray();
+        Arrays.sort(roots);
+        return roots;
+    }
+    @Override
+    public double[] findRootsIn(double x1, double x2) {
+        double xx1 = x1*x1, xx2 = x2*x2;
+        double l, u;
+        if (x1 < 0 && x2 < 0 || x1 > 0 && x2 > 0) {
+            l = Math.min(xx1, xx2);
+            u = Math.max(xx1, xx2);
+        } else {
+            l = 0.;
+            u = Math.max(xx1, xx2);
+        }
+        double[] roots = Arrays.stream(f.findRootsIn(l, u))
+                .map(Math::sqrt)
+                .filter(Double::isFinite)
+                .flatMap(d -> d==0. ? DoubleStream.of(d) : DoubleStream.of(d, -d) )
+                .filter(x -> x >= x1 && x <= x2)
+                .toArray();
+        Arrays.sort(roots);
+        return roots;
+    }
+    @Override
+    public String toString() {
+        return "OfXSquared{"+f.toString()+"}";
+    }
+} // OfXSquared
+class BiquadraticPolynomial extends OfXSquared<QuadraticPolynomial> {
+    private BiquadraticPolynomial(QuadraticPolynomial f) {
+        super(f);
+    }
+    public static BiquadraticPolynomial of(QuadraticPolynomial f) {
+        return new BiquadraticPolynomial(f);
+    }
+    public static<TT extends HumanVisibleMathFunction> OfXSquared<TT> of(TT f) {
+        throw new UnsupportedOperationException("generic of() disabled");
+    }
+    public BiquadraticPolynomial v_of(QuadraticPolynomial f) {
+        return of(f);
+    }
+    public static BiquadraticPolynomial from3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+        QuadraticPolynomial q = QuadraticPolynomial.from3Points(x1*x1,y1, x2*x2,y2,x3*x3,y3);
+        return of(q);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        var ss = s.split("\\s+", 2);
+        if (ss.length == 2 && "BIQUADR".equals(ss[0])) {
+            return HumanVisibleMathFunction.fromParameterString(ss[1]).map(p -> of((QuadraticPolynomial)p));
+        } else {
+            return Optional.empty();
+        }
+    }
+    @Override
+    public String parameterString() {
+        return "BIQUADR "+f.parameterString();
+    }
+    @Override
+    public BiquadraticPolynomial mul(double k) {
+        return (BiquadraticPolynomial) super.mul(k);
+    }
+    @Override
+    public BiquadraticPolynomial sub(double m) {
+        return (BiquadraticPolynomial) super.sub(m);
+    }
+    @Override
+    public CubicPolynomial derivative() {
+        return toQuartic().derivative();
+    }
+    QuarticPolynomial toQuartic() {
+        return QuarticPolynomial.of(f.a, 0, f.b, 0, f.c);
+    }
+    @Override
+    public String toString() {
+        return "BiquadraticPolynomial{"+f.toString()
+               + ", " + asString()
+               + "}";
+    }
+} // BiquadraticPolynomial
 class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
     final double a,b,c,d,e;
 

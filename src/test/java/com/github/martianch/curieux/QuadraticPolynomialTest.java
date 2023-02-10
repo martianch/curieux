@@ -238,5 +238,6 @@ public class QuadraticPolynomialTest {
     public void coverageTest() {
         TestCoverage.check(HumanVisibleMathFunction.class, getClass());
         TestCoverage.check(QuadraticPolynomial.class, getClass());
+        TestCoverage.checkNames(getClass(), "toString");
     }
 }
