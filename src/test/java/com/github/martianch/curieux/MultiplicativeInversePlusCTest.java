@@ -2,6 +2,8 @@ package com.github.martianch.curieux;
 
 import org.junit.Test;
 
+import java.util.Arrays;
+
 import static org.junit.Assert.*;
 
 public class MultiplicativeInversePlusCTest {
@@ -12,6 +14,38 @@ public class MultiplicativeInversePlusCTest {
         assertEquals(1, p.c, 0);
         assertEquals(1, p.f.a, 0);
         assertEquals(0, p.f.b, 0);
+    }
+
+    @Test
+    public void from3PointsTest() {
+        var p = MultiplicativeInversePlusC.of(QuadraticPolynomial.of(1, -4, 3), 0);
+        double[] x = new double[]{4, 60, 10};
+        double[] y = Arrays.stream(x).map(p::apply).toArray();
+        {
+            MultiplicativeInversePlusC<QuadraticPolynomial> q = MultiplicativeInversePlusC.from3Points(x[0],y[0], x[1],y[1], x[2],y[2], QuadraticPolynomial::from3Points);
+            assertEquals(p.f.a, q.f.a, 1e-9);
+            assertEquals(p.f.b, q.f.b, 1e-9);
+            assertEquals(p.f.c, q.f.c, 1e-9);
+        }
+        {
+            MultiplicativeInversePlusC<QuadraticPolynomial> q = MultiplicativeInversePlusC.from3Points(x[1],y[1], x[2],y[2], x[0],y[0], QuadraticPolynomial::from3Points);
+            assertEquals(p.f.a, q.f.a, 1e-9);
+            assertEquals(p.f.b, q.f.b, 1e-9);
+            assertEquals(p.f.c, q.f.c, 1e-9);
+        }
+        {
+            MultiplicativeInversePlusC<QuadraticPolynomial> q = MultiplicativeInversePlusC.from3Points(x[2],y[2], x[1],y[1], x[0],y[0], QuadraticPolynomial::from3Points);
+            assertEquals(p.f.a, q.f.a, 1e-9);
+            assertEquals(p.f.b, q.f.b, 1e-9);
+            assertEquals(p.f.c, q.f.c, 1e-9);
+        }
+        {
+            MultiplicativeInversePlusC<QuadraticPolynomial> q = MultiplicativeInversePlusC.from3Points(x[0],2*y[0], x[1],2*y[1], x[2],2*y[2], QuadraticPolynomial::from3Points);
+            assertEquals(0.5*p.f.a, q.f.a, 1e-9);
+            assertEquals(0.5*p.f.b, q.f.b, 1e-9);
+            assertEquals(0.5*p.f.c, q.f.c, 1e-9);
+        }
+
     }
 
     @Test

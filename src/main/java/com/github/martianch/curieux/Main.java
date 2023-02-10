@@ -5722,80 +5722,123 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
             return QuadraticPolynomial.of(0, 0, 1);
         }
-        @Override public boolean notNothing() { return false; }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            return QuadraticPolynomial.of(0, 0, 1);
+        }
         @Override public String effectShortName() { return ""; }
+        @Override public boolean notNothing() { return false; }
     },
     UNFISH1 {
         @Override
         BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            var k = fc.sizeChange;
+            return doFisheyeCorrectionNearestNeighbor(orig, fc);
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            return QuadraticPolynomial.from3Points(x1, y1, x2, y2, x3, y3);
+        }
+        @Override public String effectName() { return "Unfish, quadratic"; }
+    },
+    UNFISH2 {
+        @Override
+        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+            return doFisheyeCorrectionNearestNeighbor(orig, fc);
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            return BiquadraticPolynomial.from3Points(x1, y1, x2, y2, x3, y3);
+        }
+        @Override public String effectName() { return "Unfish, biquadratic"; }
+    },
+    UNFISH3 {
+        @Override
+        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+            return doFisheyeCorrectionNearestNeighbor(orig, fc);
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            return MultiplicativeInversePlusC.from3Points(x1, y1, x2, y2, x3, y3, QuadraticPolynomial::from3Points);
+        }
+        @Override public String effectName() { return "Unfish, inverse quadratic"; }
+    },
+    UNFISH4 {
+        @Override
+        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+            return doFisheyeCorrectionNearestNeighbor(orig, fc);
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            return MultiplicativeInversePlusC.from3Points(x1, y1, x2, y2, x3, y3, BiquadraticPolynomial::from3Points);
+        }
+        @Override public String effectName() { return "Unfish, inverse biquadratic"; }
+    },
+    ;
 
-            int width = orig.getWidth();
-            int height = orig.getHeight();
-            int WIDTH = fc.distortionCenterLocation.getWidthAfter(width, height, k);
-            int HEIGHT = fc.distortionCenterLocation.getHeightAfter(width, height, k);
+    private static BufferedImage doFisheyeCorrectionNearestNeighbor(BufferedImage orig, FisheyeCorrection fc) {
+        var k = fc.sizeChange;
 
-            int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
-            int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
-            int XC = fc.distortionCenterLocation.getPoleXAfter(width, height, k);
-            int YC = fc.distortionCenterLocation.getPoleYAfter(width, height, k);
+        int width = orig.getWidth();
+        int height = orig.getHeight();
+        int WIDTH = fc.distortionCenterLocation.getWidthAfter(width, height, k);
+        int HEIGHT = fc.distortionCenterLocation.getHeightAfter(width, height, k);
 
-            BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-            DoubleFunction f = fc.func.asFunction();
-            for (int j = 0; j < HEIGHT; j++) {
-                for (int i = 0; i < WIDTH; i++) {
-                    double R = Math.hypot(i - XC, j - YC);
-                    double theta = Math.atan2(j - YC, i - XC);
-                    double r = R * f.apply(R);
-                    double xx = r * Math.cos(theta);
-                    double yy = r * Math.sin(theta);
-                    if (Double.isFinite(xx) && Double.isFinite(yy)) { // false if NaN
-                        int x = (int) Math.round(xc + xx);
-                        int y = (int) Math.round(yc + yy);
-                        if (x >= 0 && x < width && y >= 0 && y < height) {
-                            res.setRGB(i, j, orig.getRGB(x, y));
-                        }
+        int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
+        int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
+        int XC = fc.distortionCenterLocation.getPoleXAfter(width, height, k);
+        int YC = fc.distortionCenterLocation.getPoleYAfter(width, height, k);
+
+        BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        DoubleFunction f = fc.func.asFunction();
+        for (int j = 0; j < HEIGHT; j++) {
+            for (int i = 0; i < WIDTH; i++) {
+                double R = Math.hypot(i - XC, j - YC);
+                double theta = Math.atan2(j - YC, i - XC);
+                double r = R * f.apply(R);
+                double xx = r * Math.cos(theta);
+                double yy = r * Math.sin(theta);
+                if (Double.isFinite(xx) && Double.isFinite(yy)) { // false if NaN
+                    int x = (int) Math.round(xc + xx);
+                    int y = (int) Math.round(yc + yy);
+                    if (x >= 0 && x < width && y >= 0 && y < height) {
+                        res.setRGB(i, j, orig.getRGB(x, y));
                     }
                 }
             }
-            return res;
         }
+        return res;
+    }
 
-        @Override
-        HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
-            double x0 = dcl.getPoleXBefore(width, height);
-            double y0 = dcl.getPoleYBefore(width, height);
-            double x1 = pms.x3;
-            double y1 = pms.y3;
-            double x2 = pms.x4;
-            double y2 = pms.y4;
-            double x3 = pms.x5;
-            double y3 = pms.y5;
-            double r1 = Math.hypot(x1-x0,y1-y0);
-            double r2 = Math.hypot(x2-x0,y2-y0);
-            double r3 = Math.hypot(x3-x0,y3-y0);
-            double R3 = r3;
-            double R2 = r2*(y3-y0)/(y2-y0);
-            double R1 = r1*(y3-y0)/(y1-y0);
-            QuadraticPolynomial g = QuadraticPolynomial.from3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
-
-            System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
-            System.out.println("r1="+r1+" r2="+r2+" r3="+r3);
-            System.out.println("g="+g);
-
-            return g;
-        }
-    },
-    ;
     abstract BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc);
-    abstract HumanVisibleMathFunction calculateFunction(int width,
-                                                        int height,
-                                                        DistortionCenterLocation dcl,
-                                                        PanelMeasurementStatus pms);
+
+    HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+        double x0 = dcl.getPoleXBefore(width, height);
+        double y0 = dcl.getPoleYBefore(width, height);
+        double x1 = pms.x3;
+        double y1 = pms.y3;
+        double x2 = pms.x4;
+        double y2 = pms.y4;
+        double x3 = pms.x5;
+        double y3 = pms.y5;
+        double r1 = Math.hypot(x1-x0,y1-y0);
+        double r2 = Math.hypot(x2-x0,y2-y0);
+        double r3 = Math.hypot(x3-x0,y3-y0);
+        double R3 = r3;
+        double R2 = r2*(y3-y0)/(y2-y0);
+        double R1 = r1*(y3-y0)/(y1-y0);
+        HumanVisibleMathFunction g = calculateFunctionFrom3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
+
+        System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
+        System.out.println("r1="+r1+" r2="+r2+" r3="+r3);
+        System.out.println("g="+g);
+
+        return g;
+    }
+    abstract HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3);
     @Override public String effectName() { return toString(); }
     @Override
     public String effectShortName() {
-        return effectName().replaceAll("UNFISH", "uf");
+        return toString().replaceAll("UNFISH", "uf");
     }
     @Override public boolean notNothing() { return true; }
     @Override public boolean notNothingFor(String path) { return notNothing(); }
@@ -8584,6 +8627,11 @@ interface HumanVisibleMathFunction {
 }
 abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
     static final double ROOT_PREC = 0.001;
+
+    interface Double6ToHvmfFunction<T extends HumanVisibleMathFunction> {
+        T apply(double x1, double y1, double x2, double y2, double x3, double y3);
+    }
+
     static boolean isBetween(double xLim1, double x, double xLim2) {
         return Double.isFinite(x)
             && ((xLim1 <= x && x <= xLim2) || (xLim2 <= x && x <= xLim1));
@@ -8729,6 +8777,10 @@ class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends Hum
     }
     public static<TT extends HumanVisibleMathFunction> MultiplicativeInversePlusC<TT> of(TT f, double c) {
         return new MultiplicativeInversePlusC<TT>(f, c);
+    }
+    public static<TT extends HumanVisibleMathFunction> MultiplicativeInversePlusC<TT> from3Points(double x1, double y1, double x2, double y2, double x3, double y3, HumanVisibleMathFunctionBase.Double6ToHvmfFunction<TT> from3points) {
+        TT q = from3points.apply(x1,1/y1, x2,1/y2,x3,1/y3);
+        return of(q, 0);
     }
     public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
         return ifParamStringPrefix("C+1/", s, rest -> {
