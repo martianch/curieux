@@ -211,7 +211,7 @@ interface UiEventListener {
     Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
     DisplayParameters getDisplayParameters();
-    ColorRange getViewportColorRange(boolean isRight);
+    ColorRange getViewportColorRange(boolean isRight, boolean ignoreBroken);
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
     FisheyeCorrection getFisheyeCorrection(boolean isRight);
     Dimension getRawImageDimensions(boolean isRight);
@@ -268,6 +268,39 @@ class ColorRange {
         return minR == 0 && maxR == 255
             && minG == 0 && maxG == 255
             && minB == 0 && maxB == 255;
+    }
+    void setEmpty() {
+        minR = minG = minB = Integer.MAX_VALUE;
+        maxR = maxG = maxB = 0;
+    }
+    void update(int rgb) {
+        {
+            int r = 0xff & (rgb >> 16);
+            minR = Math.min(minR, r);
+            maxR = Math.max(maxR, r);
+        }
+        {
+            int g = 0xff & (rgb >> 8);
+            minG = Math.min(minG, g);
+            maxG = Math.max(maxG, g);
+        }
+        {
+            int b = 0xff & (rgb);
+            minB = Math.min(minB, b);
+            maxB = Math.max(maxB, b);
+        }
+    }
+    boolean contains(int rgb) {
+        int c;
+        return minR <= (c = 0xff & (rgb >> 16)) && c <= maxR
+            && minG <= (c = 0xff & (rgb >> 8))  && c <= maxG
+            && minB <= (c = 0xff & (rgb))       && c <= maxB;
+    }
+    boolean almostContains(int rgb, int d) {
+        int c;
+        return minR-d <= (c = 0xff & (rgb >> 16)) && c <= maxR+d
+               && minG-d <= (c = 0xff & (rgb >> 8))  && c <= maxG+d
+               && minB-d <= (c = 0xff & (rgb))       && c <= maxB+d;
     }
     @Override
     public String toString() {
@@ -412,6 +445,9 @@ class DisplayParameters {
     }
     ColorCorrection getColorCorrection(boolean isRight) {
         return isRight ? rColorCorrection : lColorCorrection;
+    }
+    double getFullZoom(boolean isRight) {
+        return zoom * (isRight ? zoomR : zoomL);
     }
 }
 class ImageAndPath {
@@ -1555,7 +1591,7 @@ class UiController implements UiEventListener {
         return cc;
     }
     @Override
-    public ColorRange getViewportColorRange(boolean isRight) {
+    public ColorRange getViewportColorRange(boolean isRight, boolean ignoreBroken) {
         Rectangle visibleArea = x3dViewer.getViewportRectangle(isRight);
         ColorCorrection lcc = insertSrgb3IfNotThere(displayParameters.lColorCorrection);
         ColorCorrection rcc = insertSrgb3IfNotThere(displayParameters.rColorCorrection);
@@ -1563,7 +1599,8 @@ class UiController implements UiEventListener {
                 .withColorCorrection(lcc, rcc);
         var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE);
         var bi = bis.get(isRight ? 1 : 0);
-        var cr = ColorBalancer.getColorRangeFromImage(visibleArea, bi);
+        int d = (int) Math.round(displayParameters.getFullZoom(isRight));
+        var cr = ColorBalancer.getColorRangeFromImage(visibleArea, bi, ignoreBroken, d);
         return cr;
     }
     @Override
@@ -5989,11 +6026,17 @@ class ColorCorrection {
                 case DO_NOTHING:
                     break;
                 case STRETCH_CONTRAST_RGB_RGB:
-                    res = ColorBalancer.stretchColorsRgb(res, true);
+                    res = ColorBalancer.stretchColorsRgb(res, true, false);
                     break;
+//                case STRETCH_CONTRAST_RGB_RGB_I:
+//                    res = ColorBalancer.stretchColorsRgb(res, true, true);
+//                    break;
                 case STRETCH_CONTRAST_RGB_V:
-                    res = ColorBalancer.stretchColorsRgb(res, false);
+                    res = ColorBalancer.stretchColorsRgb(res, false, false);
                     break;
+//                case STRETCH_CONTRAST_RGB_V_I:
+//                    res = ColorBalancer.stretchColorsRgb(res, false, true);
+//                    break;
                 case STRETCH_CONTRAST_RGB_RGB3:
                     if (command == Command.GET_RANGE) {
                         break loop;
@@ -6069,7 +6112,9 @@ interface ImageEffect {
 enum ColorCorrectionAlgo implements ImageEffect {
     DO_NOTHING("as is", "") { @Override public boolean notNothing() { return false; } },
     STRETCH_CONTRAST_RGB_RGB("stretch R,G,B separately in RGB space", "sRGB"),
+//    STRETCH_CONTRAST_RGB_RGB_I("stretch R,G,B separately in RGB space, ignore broken pixels", "sRGBi"),
     STRETCH_CONTRAST_RGB_V("stretch R,G,B together in RGB space", "sRGB2"),
+//    STRETCH_CONTRAST_RGB_V_I("stretch R,G,B together in RGB space, ignore broken pixels", "sRGB2i"),
     STRETCH_CONTRAST_RGB_RGB3("stretch R,G,B in RGB space, custom parameters", "sRGB3"),
     STRETCH_CONTRAST_HSV_V("stretch V in HSV space", "sHSVv"),
     STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
@@ -6236,7 +6281,14 @@ class ColorRangeAndFlagsChooser extends JPanel {
         {
             JButton button = new JButton("Get from Viewport");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
-            button.addActionListener(e -> actionCalculateViewportColorRange());
+            button.addActionListener(e -> actionCalculateViewportColorRange(false));
+            button.setToolTipText("First zoom/resize/scroll the window to exclude pixels that are too dark/too bright");
+            this.add(button);
+        }
+        {
+            JButton button = new JButton("Get from Viewport, Ignore Broken Pixels");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionCalculateViewportColorRange(true));
             button.setToolTipText("First zoom/resize/scroll the window to exclude pixels that are too dark/too bright");
             this.add(button);
         }
@@ -6286,8 +6338,8 @@ class ColorRangeAndFlagsChooser extends JPanel {
         usedNow = uiEventListener.getCurrentCustomStretchRgbParameters(isRight).copy();
         whenUpdated();
     }
-    private void actionCalculateViewportColorRange() {
-        ColorRange cr = uiEventListener.getViewportColorRange(isRight);
+    private void actionCalculateViewportColorRange(boolean ignoreBroken) {
+        ColorRange cr = uiEventListener.getViewportColorRange(isRight, ignoreBroken);
         colorRangeToControls(cr);
         proposed.colorRange = cr.copy();
         whenUpdated();
@@ -6468,43 +6520,83 @@ class ColorCorrectionPane extends JPanel {
 }
 
 class ColorBalancer {
-    static ColorRange getColorRangeFromImage(Rectangle rectangle, BufferedImage src) {
+    static ColorRange getColorRangeFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d) {
         int iStart = (int) rectangle.getX();
         int iFinal = (int) rectangle.getMaxX();
         int jStart = (int) rectangle.getY();
         int jFinal = (int) rectangle.getMaxY();
-        return getColorRangeFromImage(iStart, iFinal, jStart, jFinal, src);
+        return getColorRangeFromImage(iStart, iFinal, jStart, jFinal, src, ignoreBroken, d);
     }
-    static ColorRange getColorRangeFromImage(int iStart, int iFinal, int jStart, int jFinal, BufferedImage src) {
+    static ColorRange getColorRangeFromImage(int iStart, int iFinal, int jStart, int jFinal, BufferedImage src, boolean ignoreBroken) {
+        return getColorRangeFromImage(iStart, iFinal, jStart, jFinal, src, ignoreBroken, 1);
+    }
+    static ColorRange getColorRangeFromImage(int iStart, int iFinal, int jStart, int jFinal, BufferedImage src, boolean ignoreBroken, int d) {
         // if the viewport rectangle is wider/higher than the image,
         // we take the whole width/height of the image.
         // We assume that either the viewport is somewhere within the image,
         // or the image is somewhere within the viewport.
-        iFinal = Math.min(iFinal, src.getWidth());
-        jFinal = Math.min(jFinal, src.getHeight());
+        int M = 16*d;
+        iStart = Math.max(iStart, M);
+        jStart = Math.max(jStart, M);
+        iFinal = Math.min(iFinal, src.getWidth()-M);
+        jFinal = Math.min(jFinal, src.getHeight()-M);
+        if (ignoreBroken) { // TODO ??
+            iStart+=d;
+            iFinal-=d;
+            jStart+=d;
+            jFinal-=d;
+        }
         ColorRange cr = ColorRange.newEmptyRange();
+        ColorRange around = ColorRange.newEmptyRange();
+        int dd = d + d/2;
         for (int j = jStart; j < jFinal; j++) {
             for (int i = iStart; i < iFinal; i++) {
                 int color = src.getRGB(i, j);
-                cr.minR = Math.min(cr.minR, 0xff & (color >> 16));
-                cr.minG = Math.min(cr.minG, 0xff & (color >> 8));
-                cr.minB = Math.min(cr.minB, 0xff & (color));
-                cr.maxR = Math.max(cr.maxR, 0xff & (color >> 16));
-                cr.maxG = Math.max(cr.maxG, 0xff & (color >> 8));
-                cr.maxB = Math.max(cr.maxB, 0xff & (color));
+                if (ignoreBroken) {
+                    setToMinMaxRgbDiag(around, src, i, j, dd);
+                    if (pixelLooksNotBroken(around, color)) {
+                        if ((color&0xff_ff_ff)==0xff_ff_ff) {
+                            System.out.println("not broken 255: ("+i+","+j+")");
+                        }
+                        cr.update(color);
+                    }
+                } else {
+                    cr.update(color);
+                }
             }
         }
         return cr;
     }
-    public static BufferedImage stretchColorsRgb(BufferedImage src, boolean perChannel) {
-//        if (ImageAndPath.isDummyImage(src)) {
-//            return src;
-//        }
+    static boolean pixelLooksNotBroken(ColorRange rgbs, int rgb) {
+        return rgbs.almostContains(rgb, 10); // 20?
+    }
+    static void setToMinMaxRgbDiag(ColorRange rgbs, BufferedImage src, int i, int j, int d) {
+        rgbs.setEmpty();
+        rgbs.update(src.getRGB(i-d, j-d));
+        rgbs.update(src.getRGB(i+d, j-d));
+        rgbs.update(src.getRGB(i-d, j+d));
+        rgbs.update(src.getRGB(i+d, j+d));
+    }
+//    static void setToMinMaxRgbAround(ColorRange rgbs, BufferedImage src, int i, int j, int d) {
+//        rgbs.setEmpty();
+//        rgbs.update(src.getRGB(i-d, j-d));
+//        rgbs.update(src.getRGB(i, j-d));
+//        rgbs.update(src.getRGB(i+d, j-d));
+//        rgbs.update(src.getRGB(i-d, j));
+//        rgbs.update(src.getRGB(i+d, j));
+//        rgbs.update(src.getRGB(i-d, j+d));
+//        rgbs.update(src.getRGB(i, j+d));
+//        rgbs.update(src.getRGB(i+d, j+d));
+//    }
+    public static BufferedImage stretchColorsRgb(BufferedImage src, boolean perChannel, boolean ignoreBroken) {
+        if (ImageAndPath.isDummyImage(src)) {
+            return src;
+        }
         try {
             final int M = 16;
             int width = src.getWidth();
             int height = src.getHeight();
-            ColorRange cr = getColorRangeFromImage(M, width - M, M, height - M, src);
+            ColorRange cr = getColorRangeFromImage(M, width - M, M, height - M, src, ignoreBroken);
             BufferedImage res = stretchColorsUsingRgbRange(cr, src, perChannel, false, false);
             return res;
         } catch (ArithmeticException e) {
@@ -6513,9 +6605,9 @@ class ColorBalancer {
         }
     }
     public static BufferedImage stretchColorsRgb(BufferedImage src, CustomStretchRgbParameters customStretchRgbParameters) {
-//        if (ImageAndPath.isDummyImage(src)) {
-//            return src;
-//        }
+        if (ImageAndPath.isDummyImage(src)) {
+            return src;
+        }
         if (customStretchRgbParameters.colorRange.isEmpty()
          || customStretchRgbParameters.colorRange.isFullRange()
         ) {
@@ -6609,9 +6701,9 @@ class ColorBalancer {
 
 class HSVColorBalancer {
     public static BufferedImage balanceColors(BufferedImage src, boolean stretchH, boolean stretchS, boolean stretchV) {
-//        if (ImageAndPath.isDummyImage(src)) {
-//            return src;
-//        }
+        if (ImageAndPath.isDummyImage(src)) {
+            return src;
+        }
         try {
             final int M = 16;
             float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
@@ -6682,9 +6774,9 @@ class HSVColorBalancer {
 
 class GammaColorBalancer {
     public static BufferedImage balanceColors(BufferedImage src, double gamma) {
-//        if (ImageAndPath.isDummyImage(src)) {
-//            return src;
-//        }
+        if (ImageAndPath.isDummyImage(src)) {
+            return src;
+        }
         try {
             int width = src.getWidth();
             int height = src.getHeight();
