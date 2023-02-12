@@ -214,11 +214,13 @@ interface UiEventListener {
     ColorRange getViewportColorRange(boolean isRight, boolean ignoreBroken);
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
     FisheyeCorrection getFisheyeCorrection(boolean isRight);
+    ColorCorrectionAlgo getPreFilter(boolean isRight);
     Dimension getRawImageDimensions(boolean isRight);
     void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight); //???
     void setSaveOptions(boolean saveGif, boolean saveLeftRIght);
     void setUseCustomCrosshairCursor(boolean useCustomCrosshairCursor);
     void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc);
+    void setPreFilter(boolean isRight, boolean isOn);
 }
 
 enum GoToImageOptions {
@@ -384,6 +386,7 @@ class DisplayParameters {
     int offsetX, offsetY;
     double angle, angleR, angleL;
     DebayerMode debayerL, debayerR;
+    ColorCorrectionAlgo preFilterL, preFilterR; // either nothing or repair-broken-pixels, for Curiosity rear cam
     ImageResamplingMode imageResamplingModeL, imageResamplingModeR;
     ColorCorrection lColorCorrection, rColorCorrection;
     FisheyeCorrection lFisheyeCorrection, rFisheyeCorrection;
@@ -396,6 +399,7 @@ class DisplayParameters {
         offsetX = offsetY = 0;
         angle = angleL = angleR = 0.;
         debayerL = debayerR = DebayerMode.getUiDefault();
+        preFilterL = preFilterR = ColorCorrectionAlgo.DO_NOTHING;
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
         lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, CustomStretchRgbParameters.newFullRange());
         lFisheyeCorrection = rFisheyeCorrection = FisheyeCorrection.defaultValue();
@@ -406,7 +410,7 @@ class DisplayParameters {
         offsetX = -820;
         offsetY = 20;
     }
-    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection, FisheyeCorrection lFisheyeCorrection, FisheyeCorrection rFisheyeCorrection) {
+    private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ColorCorrectionAlgo preFilterL, ColorCorrectionAlgo preFilterR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection, FisheyeCorrection lFisheyeCorrection, FisheyeCorrection rFisheyeCorrection) {
         this.zoom = zoom;
         this.zoomL = zoomL;
         this.zoomR = zoomR;
@@ -417,6 +421,8 @@ class DisplayParameters {
         this.angleR = angleR;
         this.debayerL = debayerL;
         this.debayerR = debayerR;
+        this.preFilterL = preFilterL;
+        this.preFilterR = preFilterR;
         this.imageResamplingModeL = imageResamplingModeL;
         this.imageResamplingModeR = imageResamplingModeR;
         this.lColorCorrection = lColorCorrection;
@@ -425,24 +431,39 @@ class DisplayParameters {
         this.rFisheyeCorrection = rFisheyeCorrection;
     }
     public DisplayParameters swapped() {
-        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection, rFisheyeCorrection, lFisheyeCorrection);
+        return new DisplayParameters(zoom, zoomR, zoomL, -offsetX, -offsetY, angle, angleR, angleL, debayerR, debayerL, preFilterR, preFilterL, imageResamplingModeR, imageResamplingModeL, rColorCorrection, lColorCorrection, rFisheyeCorrection, lFisheyeCorrection);
     }
     public DisplayParameters withColorCorrection(ColorCorrection lColorCorrection, ColorCorrection rColorCorrection) {
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, preFilterL, preFilterR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
     }
     public DisplayParameters withColorCorrection(boolean isRight, ColorCorrection cc) {
         ColorCorrection lColorCorrection = isRight ? this.lColorCorrection : cc;
         ColorCorrection rColorCorrection = isRight ? cc : this.rColorCorrection;
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, preFilterL, preFilterR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
     }
     public DisplayParameters withFisheyeCorrection(boolean isRight, FisheyeCorrection fc) {
         FisheyeCorrection lFisheyeCorrection = isRight ? this.lFisheyeCorrection : fc;
         FisheyeCorrection rFisheyeCorrection = isRight ? fc : this.rFisheyeCorrection;
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, preFilterL, preFilterR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
     }
-    public DisplayParameters withMeasurementShown(boolean measurementShown) {
-        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
+    public DisplayParameters withPreFilter(boolean isRight, ColorCorrectionAlgo algo) {
+        ColorCorrectionAlgo preFilterL = isRight ? this.preFilterL : algo;
+        ColorCorrectionAlgo preFilterR = isRight ? algo : this.preFilterR;
+        return new DisplayParameters(zoom, zoomL, zoomR, offsetX, offsetY, angle, angleL, angleR, debayerL, debayerR, preFilterL, preFilterR, imageResamplingModeL, imageResamplingModeR, lColorCorrection, rColorCorrection, lFisheyeCorrection, rFisheyeCorrection);
     }
+    public DisplayParameters withPreFilter(boolean isRight, boolean isOn) {
+        return withPreFilter(isRight, isOn
+                                      ? ColorCorrectionAlgo.INTERPOLATE_BROKEN_PIXELS
+                                      : ColorCorrectionAlgo.DO_NOTHING);
+    }
+    public ImageEffect[] getImageEffects(boolean isRight) {
+        return isRight
+            ? new ImageEffect[] {debayerR, preFilterR, rFisheyeCorrection.algo}
+            : new ImageEffect[] {debayerL, preFilterL, lFisheyeCorrection.algo};
+    }
+//    public boolean isPreFilterOn(boolean isRight) {
+//        return (isRight ? preFilterR : preFilterL).notNothing();
+//    }
     ColorCorrection getColorCorrection(boolean isRight) {
         return isRight ? rColorCorrection : lColorCorrection;
     }
@@ -1194,14 +1215,14 @@ class UiController implements UiEventListener {
                     urlOrPath,
                     imgFile -> {
                         String effects = isRight
-                            ? displayParameters.rColorCorrection.getShortDescription(rawData.right.path, displayParameters.debayerR)
-                            : displayParameters.lColorCorrection.getShortDescription(rawData.left.path, displayParameters.debayerL);
+                            ? displayParameters.rColorCorrection.getShortDescription(rawData.right.path, displayParameters.getImageEffects(isRight))
+                            : displayParameters.lColorCorrection.getShortDescription(rawData.left.path, displayParameters.getImageEffects(isRight));
                         if (effects.trim().isEmpty()) {
                             effects = "none";
                         }
                         String effects2 = isRight
-                            ? displayParameters.rColorCorrection.getFullDescription(rawData.right.path, displayParameters.debayerR)
-                            : displayParameters.lColorCorrection.getFullDescription(rawData.left.path, displayParameters.debayerL);
+                            ? displayParameters.rColorCorrection.getFullDescription(rawData.right.path, displayParameters.getImageEffects(isRight))
+                            : displayParameters.lColorCorrection.getFullDescription(rawData.left.path, displayParameters.getImageEffects(isRight));
                         if (effects2.trim().isEmpty()) {
                             effects2 = "none";
                         }
@@ -1614,6 +1635,12 @@ class UiController implements UiEventListener {
              : displayParameters.lFisheyeCorrection;
     }
     @Override
+    public ColorCorrectionAlgo getPreFilter(boolean isRight) {
+        return isRight
+             ? displayParameters.preFilterR
+             : displayParameters.preFilterL;
+    }
+    @Override
     public Dimension getRawImageDimensions(boolean isRight) {
         BufferedImage bi = isRight ? rawData.right.image : rawData.left.image;
         return new Dimension(bi.getWidth(), bi.getHeight());
@@ -1622,6 +1649,11 @@ class UiController implements UiEventListener {
     public void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc) {
         System.out.println("setFisheyeCorrection isRight=" + isRight + " fc=" + fc);
         var newDp = displayParameters.withFisheyeCorrection(isRight, fc);
+        x3dViewer.updateViews(rawData, displayParameters=newDp, measurementStatus);
+    }
+    @Override
+    public void setPreFilter(boolean isRight, boolean isOn) {
+        var newDp = displayParameters.withPreFilter(isRight, isOn);
         x3dViewer.updateViews(rawData, displayParameters=newDp, measurementStatus);
     }
     @Override
@@ -1844,8 +1876,16 @@ class X3DViewer {
         BufferedImage imgL = dp.debayerL.doAlgo2(rd.left.image, rd.left.path);
         BufferedImage imgR = dp.debayerR.doAlgo2(rd.right.image, rd.right.path);
 
+        System.out.println("processBothImages L:" + dp.preFilterL);
+        System.out.println("processBothImages R:" + dp.preFilterR);
         System.out.println("processBothImages L:" + dp.lFisheyeCorrection);
         System.out.println("processBothImages R:" + dp.rFisheyeCorrection);
+        if (dp.preFilterL.notNothing()) {
+            imgL = ColorBalancer.interpolateBrokenPixels(imgL);
+        }
+        if (dp.preFilterR.notNothing()) {
+            imgR = ColorBalancer.interpolateBrokenPixels(imgR);
+        }
         // barrel distortion correction
         imgL = dp.lFisheyeCorrection.doFisheyeCorrection(imgL);
         imgR = dp.rFisheyeCorrection.doFisheyeCorrection(imgR);
@@ -1930,8 +1970,8 @@ class X3DViewer {
                 urlR.setText(coloredPaths.get(1));
             }
             {
-                colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription(rd.left.path, dp.debayerL, dp.lFisheyeCorrection.algo));
-                colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription(rd.right.path, dp.debayerR, dp.rFisheyeCorrection.algo));
+                colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription(rd.left.path, dp.getImageEffects(false)));
+                colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription(rd.right.path, dp.getImageEffects(true)));
             }
         }
     }
@@ -5691,7 +5731,11 @@ class FisheyeCorrection {
     final DistortionCenterLocation distortionCenterLocation;
     final double sizeChange;
 
-    private FisheyeCorrection(FisheyeCorrectionAlgo algo, HumanVisibleMathFunction func, DistortionCenterLocation distortionCenterLocation, double sizeChange) {
+    private FisheyeCorrection(
+            FisheyeCorrectionAlgo algo,
+            HumanVisibleMathFunction func,
+            DistortionCenterLocation distortionCenterLocation,
+            double sizeChange) {
         this.algo = algo;
         this.func = func;
         this.distortionCenterLocation = distortionCenterLocation;
@@ -5701,7 +5745,10 @@ class FisheyeCorrection {
         return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
     }
     static FisheyeCorrection defaultValue() {
-        return of(FisheyeCorrectionAlgo.NONE, HumanVisibleMathFunction.NO_FUNCTION, DistortionCenterLocation.IN_CENTER_1X1, DEFAULT_SIZE_CHANGE);
+        return of(FisheyeCorrectionAlgo.NONE,
+                  HumanVisibleMathFunction.NO_FUNCTION,
+                  DistortionCenterLocation.IN_CENTER_1X1,
+                  DEFAULT_SIZE_CHANGE);
     }
     FisheyeCorrection withAlgo(FisheyeCorrectionAlgo algo) {
         return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
@@ -6053,6 +6100,9 @@ class ColorCorrection {
                 case STRETCH_CONTRAST_HSV_SV:
                     res = HSVColorBalancer.balanceColors(res, false, true, true);
                     break;
+                case INTERPOLATE_BROKEN_PIXELS:
+                    res = ColorBalancer.interpolateBrokenPixels(res);
+                    break;
                 case GAMMA_DECODE_2_4:
                     res = GammaColorBalancer.balanceColors(res, 2.4);
                     break;
@@ -6119,6 +6169,7 @@ enum ColorCorrectionAlgo implements ImageEffect {
     STRETCH_CONTRAST_HSV_V("stretch V in HSV space", "sHSVv"),
     STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
     STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space", "sHSV"),
+    INTERPOLATE_BROKEN_PIXELS("interpolate broken pixels", "ib"),
     //  γ<1 is sometimes called an encoding gamma (γ-compression), γ>1 is called a decoding gamma (γ-expansion)
     GAMMA_DECODE_2_4("gamma decode, γ=2.4", "gd24"),
     GAMMA_DECODE_2_2("gamma decode, γ=2.2", "gd22"),
@@ -6553,8 +6604,9 @@ class ColorBalancer {
             for (int i = iStart; i < iFinal; i++) {
                 int color = src.getRGB(i, j);
                 if (ignoreBroken) {
-                    setToMinMaxRgbDiag(around, src, i, j, dd);
-                    if (pixelLooksNotBroken(around, color)) {
+                    if (pixelLooksNotBroken(color, setToMinMaxRgbDiag(around, src, i, j, dd))
+                     && pixelLooksNotBroken(color, setToMinMaxRgbHorVer(around, src, i, j, dd))
+                    ) {
                         if ((color&0xff_ff_ff)==0xff_ff_ff) {
                             System.out.println("not broken 255: ("+i+","+j+")");
                         }
@@ -6567,15 +6619,24 @@ class ColorBalancer {
         }
         return cr;
     }
-    static boolean pixelLooksNotBroken(ColorRange rgbs, int rgb) {
+    static boolean pixelLooksNotBroken(int rgb, ColorRange rgbs) {
         return rgbs.almostContains(rgb, 10); // 20?
     }
-    static void setToMinMaxRgbDiag(ColorRange rgbs, BufferedImage src, int i, int j, int d) {
+    static ColorRange setToMinMaxRgbDiag(ColorRange rgbs, BufferedImage src, int i, int j, int d) {
         rgbs.setEmpty();
         rgbs.update(src.getRGB(i-d, j-d));
         rgbs.update(src.getRGB(i+d, j-d));
         rgbs.update(src.getRGB(i-d, j+d));
         rgbs.update(src.getRGB(i+d, j+d));
+        return rgbs;
+    }
+    static ColorRange setToMinMaxRgbHorVer(ColorRange rgbs, BufferedImage src, int i, int j, int d) {
+        rgbs.setEmpty();
+        rgbs.update(src.getRGB(i-d, j));
+        rgbs.update(src.getRGB(i+d, j));
+        rgbs.update(src.getRGB(i, j-d));
+        rgbs.update(src.getRGB(i, j+d));
+        return rgbs;
     }
 //    static void setToMinMaxRgbAround(ColorRange rgbs, BufferedImage src, int i, int j, int d) {
 //        rgbs.setEmpty();
@@ -6588,6 +6649,52 @@ class ColorBalancer {
 //        rgbs.update(src.getRGB(i, j+d));
 //        rgbs.update(src.getRGB(i+d, j+d));
 //    }
+    public static BufferedImage interpolateBrokenPixels(BufferedImage src) {
+        int width = src.getWidth();
+        int height = src.getHeight();
+        var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        ColorRange around = ColorRange.newEmptyRange();
+        for (int j = 0; j < height; j += height-1) {
+            for (int i = 0; i < width; i += width-1) {
+                res.setRGB(i, j, src.getRGB(i, j));
+            }
+        }
+
+        for (int j = 1; j < height-1; j++) {
+            for (int i = 1; i < width-1; i++) {
+                int color = src.getRGB(i, j);
+                if (!pixelLooksNotBroken(color, setToMinMaxRgbDiag(around, src, i, j, 1))) {
+                    res.setRGB(i, j, mendRgbDiag(src, j, i));
+                } else if(!pixelLooksNotBroken(color, setToMinMaxRgbHorVer(around, src, i, j, 1))) {
+                    res.setRGB(i, j, mendRgbHorVer(src, j, i));
+                }else {
+                    res.setRGB(i, j, color);
+                }
+            }
+        }
+        return res;
+    }
+    private static int mendRgbDiag(BufferedImage src, int j, int i) {
+        int c1 = src.getRGB(i-1, j-1);
+        int c2 = src.getRGB(i+1, j-1);
+        int c3 = src.getRGB(i-1, j+1);
+        int c4 = src.getRGB(i+1, j+1);
+        int r = (((c1&0xff0000) + (c2&0xff0000) + (c3&0xff0000) + (c4&0xff0000)) >> 2) & 0xff0000;
+        int g = (((c1&0xff00) + (c2&0xff00) + (c3&0xff00) + (c4&0xff00)) >> 2) & 0xff00;
+        int b = (((c1&0xff) + (c2&0xff) + (c3&0xff) + (c4&0xff)) >> 2) & 0xff;
+        return r|g|b;
+    }
+    private static int mendRgbHorVer(BufferedImage src, int j, int i) {
+        int c1 = src.getRGB(i-1, j);
+        int c2 = src.getRGB(i+1, j);
+        int c3 = src.getRGB(i, j-1);
+        int c4 = src.getRGB(i, j+1);
+        int r = (((c1&0xff0000) + (c2&0xff0000) + (c3&0xff0000) + (c4&0xff0000)) >> 2) & 0xff0000;
+        int g = (((c1&0xff00) + (c2&0xff00) + (c3&0xff00) + (c4&0xff00)) >> 2) & 0xff00;
+        int b = (((c1&0xff) + (c2&0xff) + (c3&0xff) + (c4&0xff)) >> 2) & 0xff;
+        return r|g|b;
+    }
+
     public static BufferedImage stretchColorsRgb(BufferedImage src, boolean perChannel, boolean ignoreBroken) {
         if (ImageAndPath.isDummyImage(src)) {
             return src;
@@ -7827,6 +7934,8 @@ class FisheyeCorrectionPane extends JPanel {
     final DigitalZoomControl<Double, OffsetWrapper2> dcRY4;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRX5;
     final DigitalZoomControl<Double, OffsetWrapper2> dcRY5;
+    final JCheckBox cbMendPixelsPrefilterL;
+    final JCheckBox cbMendPixelsPrefilterR;
     final FisheyeCorrectionAlgoChooser chooserAlgoL;
     final FisheyeCorrectionAlgoChooser chooserAlgoR;
     final DistortionCenterLocationChooser chooserCenterL;
@@ -7856,6 +7965,7 @@ class FisheyeCorrectionPane extends JPanel {
     static class HalfPane {
         final FisheyeCorrectionPane parentPane;
         final boolean isRight;
+        final JCheckBox cbMendPixelsPrefilter;
         final FisheyeCorrectionAlgoChooser chooserAlgo;
         final DistortionCenterLocationChooser chooserCenter;
         final JLabel lblGraph;
@@ -7872,7 +7982,7 @@ class FisheyeCorrectionPane extends JPanel {
 //        final JLabel lblWidthXHeightR; // TODO
         public HalfPane(FisheyeCorrectionPane parentPane,
                         boolean isRight,
-                        FisheyeCorrectionAlgoChooser chooserAlgo,
+                        JCheckBox cbMendPixelsPrefilter, FisheyeCorrectionAlgoChooser chooserAlgo,
                         DistortionCenterLocationChooser chooserCenter,
                         JLabel lblGraph,
                         JLabel lblFunctionInfo,
@@ -7885,6 +7995,7 @@ class FisheyeCorrectionPane extends JPanel {
                         List<DigitalZoomControl<Double, OffsetWrapper2>> digitalZoomControls) {
             this.parentPane = parentPane;
             this.isRight = isRight;
+            this.cbMendPixelsPrefilter = cbMendPixelsPrefilter;
             this.chooserAlgo = chooserAlgo;
             this.chooserCenter = chooserCenter;
             this.lblGraph = lblGraph;
@@ -7904,6 +8015,7 @@ class FisheyeCorrectionPane extends JPanel {
             etxFunction.setText(fisheyeCorrection.parametersToString());
             Dimension dim = parentPane.uiEventListener.getRawImageDimensions(isRight);
             updateDefisheyeFunctionUi(dim.width, dim.height, fisheyeCorrection, this);
+            cbMendPixelsPrefilter.setSelected(parentPane.uiEventListener.getPreFilter(isRight).notNothing());
             updateHilighting();
         }
         static void updateDefisheyeFunctionUi(int width,
@@ -8130,10 +8242,44 @@ class FisheyeCorrectionPane extends JPanel {
                     "press Alt 3 (the mouse cursor will become a crosshair), and click the point that you want to mark." +
                     "</html>");
             var text3 = new JLabel("Note that moving a mark by 1 pixel MAY significantly change the result.");
-            var text5 = new JLabel(" ");
+//            var text5 = new JLabel(" ");
             row.add(text1);
             row.add(text3);
-            row.add(text5);
+//            row.add(text5);
+        }
+        {
+            boolean isRight = false;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = rowNumber;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            row.add(cbMendPixelsPrefilterL = new JCheckBox("Pre-filter: interpolate broken pixels"));
+            cbMendPixelsPrefilterL.addActionListener( e -> {
+                doSetPrefilter(isRight, cbMendPixelsPrefilterL.isSelected());
+            });
+        }
+        {
+            boolean isRight = true;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 3;
+                gbc.gridy = rowNumber++;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            row.add(cbMendPixelsPrefilterR = new JCheckBox("Pre-filter: interpolate broken pixels"));
+            cbMendPixelsPrefilterR.addActionListener( e -> {
+                doSetPrefilter(isRight, cbMendPixelsPrefilterR.isSelected());
+            });
         }
         {
             boolean isRight = false;
@@ -8550,12 +8696,12 @@ class FisheyeCorrectionPane extends JPanel {
         }
         this.setLayout(gbl);
         leftHalf = new HalfPane(this, false,
-                chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, lblImageInfoL, etxFunctionL,
+                cbMendPixelsPrefilterL, chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, lblImageInfoL, etxFunctionL,
                 lblCorrectionMethodL, lblFunctionL, btnCalculateL, btnApplyL,
                 Arrays.asList(dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5)
         );
         rightHalf = new HalfPane(this, true,
-                chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, lblImageInfoR, etxFunctionR,
+                cbMendPixelsPrefilterR, chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, lblImageInfoR, etxFunctionR,
                 lblCorrectionMethodR, lblFunctionR, btnCalculateR, btnApplyR,
                 Arrays.asList(dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5)
         );
@@ -8589,6 +8735,9 @@ class FisheyeCorrectionPane extends JPanel {
     void doApply(boolean isRight) {
         uiEventListener.setFisheyeCorrection(isRight, getFisheyeCorrection(isRight));
         getHalfPane(isRight).setFromData();
+    }
+    void doSetPrefilter(boolean isRight, boolean isOn) {
+        uiEventListener.setPreFilter(isRight, isOn);
     }
     void doNormalizeFunction(boolean isRight, double x, double y) {
         var fc = getFisheyeCorrection(isRight);
