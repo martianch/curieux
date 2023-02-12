@@ -92,7 +92,7 @@ f'(1) = q2 - q1
 f(1/2) = (4*p2 + 4*p1 - q2 + 2*q1 - q0)/8 
 ```
 
-## Where Cubic Interpolation is enough?
+## Where is Cubic Interpolation Enough?
 
 Here's the Bayer mosaic pattern, again:
 
