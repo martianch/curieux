@@ -97,6 +97,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
 import java.util.function.Supplier;
@@ -5891,7 +5892,7 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         int WIDTH = fc.distortionCenterLocation.getWidthAfter(width, height, k);
         int HEIGHT = fc.distortionCenterLocation.getHeightAfter(width, height, k);
 
-        DoubleFunction f = fc.func.asFunction();
+        DoubleUnaryOperator f = fc.func.asFunction();
 
         int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
         int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
@@ -5903,7 +5904,7 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
             for (int i = 0; i < WIDTH; i++) {
                 double R = Math.hypot(i - XC, j - YC);
                 double theta = Math.atan2(j - YC, i - XC);
-                double r = R * f.apply(R);
+                double r = R * f.applyAsDouble(R);
                 double xx = r * Math.cos(theta);
                 double yy = r * Math.sin(theta);
                 if (Double.isFinite(xx) && Double.isFinite(yy)) { // false if NaN
@@ -5991,8 +5992,8 @@ interface DistortionCenterLocation {
     int getNearestToPoleXBefore(int width, int height);
     /** y of the point in the image nearest to the distortion center, before correction */
     int getNearestToPoleYBefore(int width, int height);
-    int getPoleXAfter(int width, int height, double k, DoubleFunction f);
-    int getPoleYAfter(int width, int height, double k, DoubleFunction f);
+    int getPoleXAfter(int width, int height, double k, DoubleUnaryOperator f);
+    int getPoleYAfter(int width, int height, double k, DoubleUnaryOperator f);
     int getWidthAfter(int width, int height, double k);
     int getHeightAfter(int width, int height, double k);
     double getMinRBefore(int width, int height);
@@ -6095,11 +6096,11 @@ class DistortionCenterLocationImpl implements DistortionCenterLocation {
         return cy.getNearestToPoleCoordBefore(height);
     }
     @Override
-    public int getPoleXAfter(int width, int height, double k, DoubleFunction f) {
+    public int getPoleXAfter(int width, int height, double k, DoubleUnaryOperator f) {
         return cx.getPoleCoordAfter(width, k);
     }
     @Override
-    public int getPoleYAfter(int width, int height, double k, DoubleFunction f) {
+    public int getPoleYAfter(int width, int height, double k, DoubleUnaryOperator f) {
         return cy.getPoleCoordAfter(height, k);
     }
     @Override
@@ -8964,7 +8965,7 @@ class FisheyeCorrectionPane extends JPanel {
 
 interface HumanVisibleMathFunction {
     double apply(double x);
-    DoubleFunction asFunction();
+    DoubleUnaryOperator asFunction();
     String asString();
     default String asString(String x) { return asString().replaceAll("x",x); }
     String parameterString();
@@ -9185,7 +9186,7 @@ class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends Hum
         return 1./f.apply(x) + c;
     }
     @Override
-    public DoubleFunction asFunction() {
+    public DoubleUnaryOperator asFunction() {
         return this::apply;
     }
     @Override
@@ -9267,7 +9268,7 @@ class OfXSquared<T extends HumanVisibleMathFunction> extends HumanVisibleMathFun
         return f.apply(x*x);
     }
     @Override
-    public DoubleFunction asFunction() {
+    public DoubleUnaryOperator asFunction() {
         return this::apply;
     }
     @Override
@@ -9416,7 +9417,7 @@ class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVis
         return (((a*x + b)*x + c)*x + d)*x +e;
     }
     @Override
-    public DoubleFunction asFunction() {
+    public DoubleUnaryOperator asFunction() {
         return this::apply;
     }
     @Override
@@ -9497,7 +9498,7 @@ class CubicPolynomial extends HumanVisibleMathFunctionBase implements HumanVisib
         return ((a*x + b)*x + c)*x + d;
     }
     @Override
-    public DoubleFunction asFunction() {
+    public DoubleUnaryOperator asFunction() {
         return this::apply;
     }
     @Override
@@ -9587,7 +9588,7 @@ class QuadraticPolynomial extends HumanVisibleMathFunctionBase implements HumanV
         return (a*x + b)*x + c;
     }
     @Override
-    public DoubleFunction asFunction() {
+    public DoubleUnaryOperator asFunction() {
         return this::apply;
     }
     @Override
@@ -9702,7 +9703,7 @@ class LinearPolynomial extends HumanVisibleMathFunctionBase implements HumanVisi
         return a*x + b;
     }
     @Override
-    public DoubleFunction asFunction() {
+    public DoubleUnaryOperator asFunction() {
         return this::apply;
     }
     @Override
@@ -9779,7 +9780,7 @@ class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVi
         return a;
     }
     @Override
-    public DoubleFunction asFunction() {
+    public DoubleUnaryOperator asFunction() {
         return this::apply;
     }
     @Override
@@ -9827,10 +9828,6 @@ class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVi
                 '}';
     }
 }
-//TODO: DoubleUnaryOperator
-interface DoubleFunction {
-    double apply(double x);
-}
 class GraphPlotter {
     final static int BMARGIN = 1;
     final static int DIGIT_XMARGIN = 1;
@@ -9841,7 +9838,7 @@ class GraphPlotter {
             final double xMin, final double xMax,
             final double fMax,
             Color color,
-            DoubleFunction f) {
+            DoubleUnaryOperator f) {
         BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = (Graphics2D) bi.getGraphics();
         var yMax = graphMaxY(fMax);
@@ -9891,10 +9888,10 @@ class GraphPlotter {
         {
             g.setColor(color);
             double w1 = width - 1;
-            int jOld = (int) Math.round(f.apply(xMin) * yScale);
+            int jOld = (int) Math.round(f.applyAsDouble(xMin) * yScale);
             for (int i = 1; i < width; i++) {
                 double x = xMin + xMax * i / w1;
-                int j = (int) Math.round(f.apply(x) * yScale);
+                int j = (int) Math.round(f.applyAsDouble(x) * yScale);
                 g.drawLine(i - 1, zeroYLevel - jOld, i, zeroYLevel - j);
                 jOld = j;
             }

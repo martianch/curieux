@@ -47,9 +47,9 @@ public class ConstantPolynomialTest {
     @Test
     public void asFunctionTest() {
         var p = ConstantPolynomial.of(5);
-        assertEquals(5, p.asFunction().apply(4), 0);
-        assertEquals(5, p.asFunction().apply(400), 0);
-        assertEquals(5, p.asFunction().apply(Double.NaN), 0);
+        assertEquals(5, p.asFunction().applyAsDouble(4), 0);
+        assertEquals(5, p.asFunction().applyAsDouble(400), 0);
+        assertEquals(5, p.asFunction().applyAsDouble(Double.NaN), 0);
     }
 
     @Test

@@ -42,16 +42,16 @@ public class CubicPolynomialTest {
 
     @Test
     public void asFunctionTest() {
-        assertEquals(1, CubicPolynomial.of(0, 0, 0, 1).asFunction().apply(3), 0);
-        assertEquals(3, CubicPolynomial.of(0, 0, 1, 0).asFunction().apply(3), 0);
-        assertEquals(9, CubicPolynomial.of(0, 1, 0, 0).asFunction().apply(3), 0);
-        assertEquals(27, CubicPolynomial.of(1, 0, 0, 0).asFunction().apply(3), 0);
-        assertEquals(20, CubicPolynomial.of(1, -1, 1, -1).asFunction().apply(3), 0);
+        assertEquals(1, CubicPolynomial.of(0, 0, 0, 1).asFunction().applyAsDouble(3), 0);
+        assertEquals(3, CubicPolynomial.of(0, 0, 1, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(9, CubicPolynomial.of(0, 1, 0, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(27, CubicPolynomial.of(1, 0, 0, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(20, CubicPolynomial.of(1, -1, 1, -1).asFunction().applyAsDouble(3), 0);
         {
             var f = CubicPolynomial.of(1, 2, 3, 4).asFunction();
-            assertEquals(4, f.apply(0), 0);
-            assertEquals(10, f.apply(1), 0);
-            assertEquals(26, f.apply(2), 0);
+            assertEquals(4, f.applyAsDouble(0), 0);
+            assertEquals(10, f.applyAsDouble(1), 0);
+            assertEquals(26, f.applyAsDouble(2), 0);
         }
     }
 

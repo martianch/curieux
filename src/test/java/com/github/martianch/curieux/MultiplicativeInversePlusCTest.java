@@ -96,15 +96,15 @@ public class MultiplicativeInversePlusCTest {
     public void asFunctionTest() {
         {
             var p = MultiplicativeInversePlusC.of(LinearPolynomial.of(1, 0), 1).asFunction();
-            assertEquals(2, p.apply(1), 0);
-            assertEquals(1.5, p.apply(2), 0);
-            assertEquals(3, p.apply(0.5), 0);
+            assertEquals(2, p.applyAsDouble(1), 0);
+            assertEquals(1.5, p.applyAsDouble(2), 0);
+            assertEquals(3, p.applyAsDouble(0.5), 0);
         }
         {
             var p = MultiplicativeInversePlusC.of(QuadraticPolynomial.of(1, 0, 0), 1).asFunction();
-            assertEquals(2, p.apply(1), 0);
-            assertEquals(1.25, p.apply(2), 0);
-            assertEquals(5, p.apply(0.5), 0);
+            assertEquals(2, p.applyAsDouble(1), 0);
+            assertEquals(1.25, p.applyAsDouble(2), 0);
+            assertEquals(5, p.applyAsDouble(0.5), 0);
         }
     }
 

@@ -51,15 +51,15 @@ public class OfXSquaredTest {
     @Test
     public void asFunctionTest() {
         // int math should be ok with delta=0
-        assertEquals(1, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).asFunction().apply(3), 0);
-        assertEquals(9, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).asFunction().apply(3), 0);
-        assertEquals(81, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).asFunction().apply(3), 0);
-        assertEquals(73, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).asFunction().apply(3), 0);
+        assertEquals(1, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).asFunction().applyAsDouble(3), 0);
+        assertEquals(9, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).asFunction().applyAsDouble(3), 0);
+        assertEquals(81, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).asFunction().applyAsDouble(3), 0);
+        assertEquals(73, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).asFunction().applyAsDouble(3), 0);
         {
             var f = OfXSquared.of(QuadraticPolynomial.of(1, 2, 3)).asFunction();
-            assertEquals(3, f.apply(0), 0);
-            assertEquals(6, f.apply(1), 0);
-            assertEquals(11, f.apply(Math.sqrt(2)), 1e-14);
+            assertEquals(3, f.applyAsDouble(0), 0);
+            assertEquals(6, f.applyAsDouble(1), 0);
+            assertEquals(11, f.applyAsDouble(Math.sqrt(2)), 1e-14);
         }
     }
 
@@ -68,11 +68,11 @@ public class OfXSquaredTest {
         var p = OfXSquared.of(QuadraticPolynomial.of(-1, 6, -7));
         var f = p.asFunction();
         {
-            assertEquals(-2, f.apply(1), 0);
-            assertEquals(1, f.apply(Math.sqrt(2)), 1e-14);
-            assertEquals(2, f.apply(Math.sqrt(3)), 1e-14);
-            assertEquals(1, f.apply(2), 0);
-            assertEquals(-2, f.apply(Math.sqrt(5)), 1e-14);
+            assertEquals(-2, f.applyAsDouble(1), 0);
+            assertEquals(1, f.applyAsDouble(Math.sqrt(2)), 1e-14);
+            assertEquals(2, f.applyAsDouble(Math.sqrt(3)), 1e-14);
+            assertEquals(1, f.applyAsDouble(2), 0);
+            assertEquals(-2, f.applyAsDouble(Math.sqrt(5)), 1e-14);
         }
         assertEquals(-2, p.maxInRange(0, 1), 0);
         assertEquals(1, p.maxInRange(0, Math.sqrt(2)), 1e-14);
@@ -87,11 +87,11 @@ public class OfXSquaredTest {
         var p = OfXSquared.of(QuadraticPolynomial.of(1, -6, 7));
         var f = p.asFunction();
         {
-            assertEquals(2, f.apply(1), 0);
-            assertEquals(-1, f.apply(Math.sqrt(2)), 1e-14);
-            assertEquals(-2, f.apply(Math.sqrt(3)), 1e-14);
-            assertEquals(-1, f.apply(2), 0);
-            assertEquals(2, f.apply(Math.sqrt(5)), 1e-14);
+            assertEquals(2, f.applyAsDouble(1), 0);
+            assertEquals(-1, f.applyAsDouble(Math.sqrt(2)), 1e-14);
+            assertEquals(-2, f.applyAsDouble(Math.sqrt(3)), 1e-14);
+            assertEquals(-1, f.applyAsDouble(2), 0);
+            assertEquals(2, f.applyAsDouble(Math.sqrt(5)), 1e-14);
         }
         assertEquals( 2, p.minInRange(0, 1), 0);
         assertEquals(-1, p.minInRange(0, Math.sqrt(2)), 1e-14);

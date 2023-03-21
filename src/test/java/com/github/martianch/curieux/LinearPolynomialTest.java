@@ -48,9 +48,9 @@ public class LinearPolynomialTest {
 
     @Test
     public void asFunctionTest() {
-        assertEquals(1, LinearPolynomial.of(0, 1).asFunction().apply(3), 0);
-        assertEquals(3, LinearPolynomial.of(1, 0).asFunction().apply(3), 0);
-        assertEquals(2, LinearPolynomial.of(1, -1).asFunction().apply(3), 0);
+        assertEquals(1, LinearPolynomial.of(0, 1).asFunction().applyAsDouble(3), 0);
+        assertEquals(3, LinearPolynomial.of(1, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(2, LinearPolynomial.of(1, -1).asFunction().applyAsDouble(3), 0);
     }
 
     @Test

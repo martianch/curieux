@@ -43,12 +43,12 @@ public class QuarticPolynomialTest {
 
     @Test
     public void asFunctionTest() {
-        assertEquals(1, QuarticPolynomial.of(0, 0, 0, 0, 1).asFunction().apply(3), 0);
-        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 1, 0).asFunction().apply(3), 0);
-        assertEquals(9, QuarticPolynomial.of(0, 0, 1, 0, 0).asFunction().apply(3), 0);
-        assertEquals(27, QuarticPolynomial.of(0, 1, 0, 0, 0).asFunction().apply(3), 0);
-        assertEquals(81, QuarticPolynomial.of(1, 0, 0, 0, 0).asFunction().apply(3), 0);
-        assertEquals(101, QuarticPolynomial.of(1, 1, -1, 1, -1).asFunction().apply(3), 0);
+        assertEquals(1, QuarticPolynomial.of(0, 0, 0, 0, 1).asFunction().applyAsDouble(3), 0);
+        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 1, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(9, QuarticPolynomial.of(0, 0, 1, 0, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(27, QuarticPolynomial.of(0, 1, 0, 0, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(81, QuarticPolynomial.of(1, 0, 0, 0, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(101, QuarticPolynomial.of(1, 1, -1, 1, -1).asFunction().applyAsDouble(3), 0);
     }
 
     @Test

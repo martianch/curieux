@@ -43,15 +43,15 @@ public class QuadraticPolynomialTest {
     @Test
     public void asFunctionTest() {
         // int math should be ok with delta=0
-        assertEquals(1, QuadraticPolynomial.of(0, 0, 1).asFunction().apply(3), 0);
-        assertEquals(3, QuadraticPolynomial.of(0, 1, 0).asFunction().apply(3), 0);
-        assertEquals(9, QuadraticPolynomial.of(1, 0, 0).asFunction().apply(3), 0);
-        assertEquals(7, QuadraticPolynomial.of(1, -1, 1).asFunction().apply(3), 0);
+        assertEquals(1, QuadraticPolynomial.of(0, 0, 1).asFunction().applyAsDouble(3), 0);
+        assertEquals(3, QuadraticPolynomial.of(0, 1, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(9, QuadraticPolynomial.of(1, 0, 0).asFunction().applyAsDouble(3), 0);
+        assertEquals(7, QuadraticPolynomial.of(1, -1, 1).asFunction().applyAsDouble(3), 0);
         {
             var f = QuadraticPolynomial.of(1, 2, 3).asFunction();
-            assertEquals(3, f.apply(0), 0);
-            assertEquals(6, f.apply(1), 0);
-            assertEquals(11, f.apply(2), 0);
+            assertEquals(3, f.applyAsDouble(0), 0);
+            assertEquals(6, f.applyAsDouble(1), 0);
+            assertEquals(11, f.applyAsDouble(2), 0);
         }
     }
 
@@ -66,11 +66,11 @@ public class QuadraticPolynomialTest {
         var p = QuadraticPolynomial.of(-1, 6, -7);
         var f = p.asFunction();
         {
-            assertEquals(-2, f.apply(1), 0);
-            assertEquals(1, f.apply(2), 0);
-            assertEquals(2, f.apply(3), 0);
-            assertEquals(1, f.apply(4), 0);
-            assertEquals(-2, f.apply(5), 0);
+            assertEquals(-2, f.applyAsDouble(1), 0);
+            assertEquals(1, f.applyAsDouble(2), 0);
+            assertEquals(2, f.applyAsDouble(3), 0);
+            assertEquals(1, f.applyAsDouble(4), 0);
+            assertEquals(-2, f.applyAsDouble(5), 0);
         }
         assertEquals(-2, p.maxInRange(0, 1), 0);
         assertEquals(1, p.maxInRange(0, 2), 0);
@@ -85,11 +85,11 @@ public class QuadraticPolynomialTest {
         var p = QuadraticPolynomial.of(1, -6, 7);
         var f = p.asFunction();
         {
-            assertEquals(2, f.apply(1), 0);
-            assertEquals(-1, f.apply(2), 0);
-            assertEquals(-2, f.apply(3), 0);
-            assertEquals(-1, f.apply(4), 0);
-            assertEquals(2, f.apply(5), 0);
+            assertEquals(2, f.applyAsDouble(1), 0);
+            assertEquals(-1, f.applyAsDouble(2), 0);
+            assertEquals(-2, f.applyAsDouble(3), 0);
+            assertEquals(-1, f.applyAsDouble(4), 0);
+            assertEquals(2, f.applyAsDouble(5), 0);
         }
         assertEquals( 2, p.minInRange(0, 1), 0);
         assertEquals(-1, p.minInRange(0, 2), 0);
