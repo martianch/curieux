@@ -3288,7 +3288,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     }
 }
 class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
-    int[] increments = {3,30,1,100};
+    int[] increments = {3,30,1,100}; // [+] [++] [shift+] [shift++]
     final String tooltipPrefixForMinus, tooltipPrefixForPlus;
 
     public OffsetWrapper() {
@@ -3336,8 +3336,9 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
     }
 }
 class OffsetWrapper2 extends RotationAngleWrapper {
+    static final double[] INCREMENTS = {1, 3, 30, 100};
     {
-        increments = new double[]{1,3,30,100};
+        increments = INCREMENTS;
     }
 }
 class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
@@ -5747,7 +5748,10 @@ class FisheyeCorrection {
     static FisheyeCorrection defaultValue() {
         return of(FisheyeCorrectionAlgo.NONE,
                   HumanVisibleMathFunction.NO_FUNCTION,
-                  DistortionCenterLocation.IN_CENTER_1X1,
+                  DistortionCenterLocation.of(
+                          DistortionCenterStationing.CENTER,
+                          DistortionCenterStationing.CENTER
+                  ),
                   DEFAULT_SIZE_CHANGE);
     }
     FisheyeCorrection withAlgo(FisheyeCorrectionAlgo algo) {
@@ -5756,8 +5760,23 @@ class FisheyeCorrection {
     FisheyeCorrection withFunc(HumanVisibleMathFunction func) {
         return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
     }
-    FisheyeCorrection withCenter(DistortionCenterLocation distortionCenterLocation) {
-        return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
+    FisheyeCorrection withCenterH(DistortionCenterStationing distortionCenterStationingH) {
+        return new FisheyeCorrection(
+                algo,
+                func,
+                DistortionCenterLocation.of(
+                        distortionCenterStationingH,
+                        distortionCenterLocation.getV()),
+                sizeChange);
+    }
+    FisheyeCorrection withCenterV(DistortionCenterStationing distortionCenterStationingV) {
+        return new FisheyeCorrection(
+                algo,
+                func,
+                DistortionCenterLocation.of(
+                        distortionCenterLocation.getH(),
+                        distortionCenterStationingV),
+                sizeChange);
     }
     FisheyeCorrection withSizeChange(double sizeChange) {
         return new FisheyeCorrection(algo, func, distortionCenterLocation, sizeChange);
@@ -5766,15 +5785,20 @@ class FisheyeCorrection {
         return algo.doFisheyeCorrection(orig, this);
     }
     String parametersToString() {
-        return "" + algo + " " + distortionCenterLocation + " " + func.parameterString()
+        return "" + algo
+             + " " + distortionCenterLocation.getH()
+             + " " + distortionCenterLocation.getV()
+             + " " + func.parameterString()
              + " : " + sizeChange + " # "; // + descr
     }
     static FisheyeCorrection fromParameterString(String s) {
         try {
-            var p = s.trim().split("\\s+", 3);
+            var p = s.trim().split("\\s+", 4);
             var algo1 = FisheyeCorrectionAlgo.valueOf(p[0]);
-            var center1 = DistortionCenterLocation.valueOf(p[1]);
-            var pp = p[2].split("\\s*:\\s*", 2);
+            var center1x = DistortionCenterStationing.valueOf(p[1]);
+            var center1y = DistortionCenterStationing.valueOf(p[2]);
+            var center1 = DistortionCenterLocation.of(center1x, center1y);
+            var pp = p[3].split("\\s*:\\s*", 2);
             var f1 = HumanVisibleMathFunction.fromParameterString(pp[0]).get();
             var ppp = pp[1].split("\\s*#\\s*", 2);
             var sizeChange1 = Double.parseDouble(ppp[0]);
@@ -5867,13 +5891,14 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         int WIDTH = fc.distortionCenterLocation.getWidthAfter(width, height, k);
         int HEIGHT = fc.distortionCenterLocation.getHeightAfter(width, height, k);
 
+        DoubleFunction f = fc.func.asFunction();
+
         int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
         int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
-        int XC = fc.distortionCenterLocation.getPoleXAfter(width, height, k);
-        int YC = fc.distortionCenterLocation.getPoleYAfter(width, height, k);
+        int XC = fc.distortionCenterLocation.getPoleXAfter(width, height, k, f);
+        int YC = fc.distortionCenterLocation.getPoleYAfter(width, height, k, f);
 
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        DoubleFunction f = fc.func.asFunction();
         for (int j = 0; j < HEIGHT; j++) {
             for (int i = 0; i < WIDTH; i++) {
                 double R = Math.hypot(i - XC, j - YC);
@@ -5942,84 +5967,178 @@ class FisheyeCorrectionAlgoChooser extends JComboBox<FisheyeCorrectionAlgo> {
         setSelectedItem(algo);
     }
 }
-class DistortionCenterLocationChooser extends JComboBox<DistortionCenterLocation> {
-    static DistortionCenterLocation[] modes = DistortionCenterLocation.values();
-    public DistortionCenterLocationChooser(Consumer<DistortionCenterLocation> valueListener) {
-        super(modes);
-        setValue(DistortionCenterLocation.IN_CENTER_1X1);
+class DistortionCenterStationingChooser extends JComboBox<DistortionCenterStationing> {
+    public DistortionCenterStationingChooser(int modes, Consumer<DistortionCenterStationing> valueListener) {
+        super(DistortionCenterStationing.values(modes));
+        setValue(DistortionCenterStationing.CENTER);
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
-                valueListener.accept((DistortionCenterLocation) itemEvent.getItem());
+                valueListener.accept((DistortionCenterStationing) itemEvent.getItem());
             }
         });
     }
-    public void setValue(DistortionCenterLocation location) {
+    public void setValue(DistortionCenterStationing location) {
         setSelectedItem(location);
     }
 }
 
-enum DistortionCenterLocation {
-    IN_CENTER_1X1 {
-        @Override
-        int getPoleXBefore(int width, int height) { return width/2; }
-        @Override
-        int getPoleYBefore(int width, int height) { return height/2; }
-        @Override
-        int getNearestToPoleXBefore(int width, int height) {
-            return width/2;
-        }
-        @Override
-        int getNearestToPoleYBefore(int width, int height) {
-            return height/2;
-        }
-        @Override
-        int getPoleXAfter(int width, int height, double k) {
-            return (int) Math.round(k*getPoleXBefore(width, height));
-        }
-        @Override
-        int getPoleYAfter(int width, int height, double k) {
-            return (int) Math.round(k*getPoleYBefore(width, height));
-        }
-        @Override
-        int getWidthAfter(int width, int height, double k) {
-            return 2*getPoleXAfter(width, height, k);
-        }
-        @Override
-        int getHeightAfter(int width, int height, double k) {
-            return 2*getPoleYAfter(width, height, k);
-        }
-        @Override
-        double getMaxRBefore(int width, int height) {
-            return Math.hypot(width, height)/2;
-        }
-        @Override
-        double getMaxRAfter(int width, int height, double k) {
-            return k*getMaxRBefore(width, height);
-        }
-        @Override
-        double getMaxRThetaBefore(int width, int height) {
-            return Math.atan2(height, width);
-        }
-    },
-    //RIGHT_CENTER_2X1, LEFT_CENTER_2X1,
-//    RIGHT_BELOW_2X2,
-//    LEFT_BELOW_2X2
-    ;
+interface DistortionCenterLocation {
     /** x of the distortion center, before correction, probably outside of the image */
-    abstract int getPoleXBefore(int width, int height);
+    int getPoleXBefore(int width, int height);
     /** y of the distortion center, before correction, probably outside of the image */
-    abstract int getPoleYBefore(int width, int height);
+    int getPoleYBefore(int width, int height);
     /** x of the point in the image nearest to the distortion center, before correction */
-    abstract int getNearestToPoleXBefore(int width, int height);
+    int getNearestToPoleXBefore(int width, int height);
     /** y of the point in the image nearest to the distortion center, before correction */
-    abstract int getNearestToPoleYBefore(int width, int height);
-    abstract int getPoleXAfter(int width, int height, double k);
-    abstract int getPoleYAfter(int width, int height, double k);
-    abstract int getWidthAfter(int width, int height, double k);
-    abstract int getHeightAfter(int width, int height, double k);
-    abstract double getMaxRBefore(int width, int height);
-    abstract double getMaxRAfter(int width, int height, double k);
-    abstract double getMaxRThetaBefore(int width, int height);
+    int getNearestToPoleYBefore(int width, int height);
+    int getPoleXAfter(int width, int height, double k, DoubleFunction f);
+    int getPoleYAfter(int width, int height, double k, DoubleFunction f);
+    int getWidthAfter(int width, int height, double k);
+    int getHeightAfter(int width, int height, double k);
+    double getMinRBefore(int width, int height);
+    double getMaxRBefore(int width, int height);
+    double getMinRAfter(int width, int height, double k);
+    double getMaxRAfter(int width, int height, double k);
+//    double getMaxRThetaBefore(int width, int height);
+    DistortionCenterStationing getH();
+    DistortionCenterStationing getV();
+    static DistortionCenterLocation of(DistortionCenterStationing cx, DistortionCenterStationing cy) {
+        return new DistortionCenterLocationImpl(cx, cy);
+    }
+
+}
+interface DistortionCenterStationingAux {
+    // These could be defined in DistortionCenterStationing but this would require testing on different VMs,
+    // since forward-referencing a constant inside an enum definitely is a corner case,
+    // and such testing is expensive.
+    public static final int HORIZ = 1;
+    public static final int VERT = 2;
+}
+enum DistortionCenterStationing implements DistortionCenterStationingAux {
+    CENTER(0, 0, 0.5, HORIZ+VERT),
+    LEFT_EDGE(8, 8, 0.0, HORIZ),
+    RIGHT_EDGE(8, 8, 1.0, HORIZ),
+    LEFT_EDGE_OVER(8, 0, -1.0, HORIZ),
+    RIGHT_EDGE_OVER(0, 8, 2.0, HORIZ),
+    TOP_EDGE(8, 8, 0.0, VERT),
+    BOTTOM_EDGE(8, 8, 1.0, VERT),
+    TOP_EDGE_OVER(8, 0, -1.0, VERT),
+    BOTTOM_EDGE_OVER(0, 8, 2.0, VERT),
+    ;
+
+    int margin1, margin2;
+    double m;
+    int flags;
+
+    public static DistortionCenterStationing[] values(int flags) {
+        if (flags==0) {
+            return values(); // 0 should never
+        }
+        return Arrays.stream(values())
+               .filter(x -> (x.flags & flags) != 0)
+               .toArray(DistortionCenterStationing[]::new);
+    }
+    DistortionCenterStationing(int margin1, int margin2, double m, int flags) {
+        this.margin1 = margin1;
+        this.margin2 = margin2;
+        this.m = m;
+        this.flags = flags;
+    }
+//    private DistortionCenterStationing(int m)
+    /** coordinate (x or y) of the distortion center, before correction, probably outside of the image */
+    int getPoleCoordBefore(int widthOrHeight) {
+        return margin1 + (int)((widthOrHeight - margin1 - margin2)*m);
+    }
+    /** coordinate (x or y) of the point in the image nearest to the distortion center, before correction */
+    int getNearestToPoleCoordBefore(int widthOrHeight) {
+        return Math.max(0, Math.min(widthOrHeight, getPoleCoordBefore(widthOrHeight)));
+    }
+    int getPoleCoordAfter(int widthOrHeight, double k) {
+        return (int) Math.round(k*getPoleCoordBefore(widthOrHeight));
+    }
+    int getSizeAfter(int widthOrHeight, double k) {
+        return (int) Math.round(widthOrHeight*k);
+    }
+    int getMinRBefore(int widthOrHeight) {
+        int c = getPoleCoordBefore(widthOrHeight);
+        return 0 <= c && c <= widthOrHeight
+             ? 0
+             : Math.min(Math.abs(c), Math.abs(c-widthOrHeight));
+    }
+    int getMaxRBefore(int widthOrHeight) {
+        int c = getPoleCoordBefore(widthOrHeight);
+        return Math.max(Math.abs(c), Math.abs(c-widthOrHeight));
+    }
+}
+class DistortionCenterLocationImpl implements DistortionCenterLocation {
+    DistortionCenterStationing cx, cy;
+
+    public DistortionCenterLocationImpl(DistortionCenterStationing cx, DistortionCenterStationing cy) {
+        this.cx = cx;
+        this.cy = cy;
+    }
+
+    @Override
+    public int getPoleXBefore(int width, int height) {
+        return cx.getPoleCoordBefore(width);
+    }
+    @Override
+    public int getPoleYBefore(int width, int height) {
+        return cy.getPoleCoordBefore(height);
+    }
+    @Override
+    public int getNearestToPoleXBefore(int width, int height) {
+        return cx.getNearestToPoleCoordBefore(width);
+    }
+    @Override
+    public int getNearestToPoleYBefore(int width, int height) {
+        return cy.getNearestToPoleCoordBefore(height);
+    }
+    @Override
+    public int getPoleXAfter(int width, int height, double k, DoubleFunction f) {
+        return cx.getPoleCoordAfter(width, k);
+    }
+    @Override
+    public int getPoleYAfter(int width, int height, double k, DoubleFunction f) {
+        return cy.getPoleCoordAfter(height, k);
+    }
+    @Override
+    public int getWidthAfter(int width, int height, double k) {
+        return cx.getSizeAfter(width, k);
+    }
+    @Override
+    public int getHeightAfter(int width, int height, double k) {
+        return cy.getSizeAfter(height, k);
+    }
+    @Override
+    public double getMinRBefore(int width, int height) {
+        return Math.hypot(cx.getMinRBefore(width), cy.getMinRBefore(height));
+    }
+    @Override
+    public double getMaxRBefore(int width, int height) {
+        return Math.hypot(cx.getMaxRBefore(width), cy.getMaxRBefore(height));
+    }
+    @Override
+    public double getMinRAfter(int width, int height, double k) {
+        return k * getMinRBefore(width, height);
+    }
+    @Override
+    public double getMaxRAfter(int width, int height, double k) {
+        return k * getMaxRBefore(width, height);
+    }
+
+    @Override public DistortionCenterStationing getH() { return cx; }
+    @Override public DistortionCenterStationing getV() { return cy; }
+
+//    @Override
+//    public double getMaxRThetaBefore(int width, int height) {
+//        return 0;
+//    }
+
+    @Override
+    public String toString() {
+        return "(" + cx + ", " + cy + ')';
+    }
 }
 
 class ColorCorrection {
@@ -7938,8 +8057,10 @@ class FisheyeCorrectionPane extends JPanel {
     final JCheckBox cbMendPixelsPrefilterR;
     final FisheyeCorrectionAlgoChooser chooserAlgoL;
     final FisheyeCorrectionAlgoChooser chooserAlgoR;
-    final DistortionCenterLocationChooser chooserCenterL;
-    final DistortionCenterLocationChooser chooserCenterR;
+    final DistortionCenterStationingChooser chooserCenterHL;
+    final DistortionCenterStationingChooser chooserCenterVL;
+    final DistortionCenterStationingChooser chooserCenterHR;
+    final DistortionCenterStationingChooser chooserCenterVR;
     final JLabel lblGraphL;
     final JLabel lblGraphR;
     final JLabel lblFunctionInfoL;
@@ -7967,7 +8088,8 @@ class FisheyeCorrectionPane extends JPanel {
         final boolean isRight;
         final JCheckBox cbMendPixelsPrefilter;
         final FisheyeCorrectionAlgoChooser chooserAlgo;
-        final DistortionCenterLocationChooser chooserCenter;
+        final DistortionCenterStationingChooser chooserCenterH;
+        final DistortionCenterStationingChooser chooserCenterV;
         final JLabel lblGraph;
         final JLabel lblFunctionInfo;
         final JLabel lblImageInfo;
@@ -7982,8 +8104,10 @@ class FisheyeCorrectionPane extends JPanel {
 //        final JLabel lblWidthXHeightR; // TODO
         public HalfPane(FisheyeCorrectionPane parentPane,
                         boolean isRight,
-                        JCheckBox cbMendPixelsPrefilter, FisheyeCorrectionAlgoChooser chooserAlgo,
-                        DistortionCenterLocationChooser chooserCenter,
+                        JCheckBox cbMendPixelsPrefilter,
+                        FisheyeCorrectionAlgoChooser chooserAlgo,
+                        DistortionCenterStationingChooser chooserCenterH,
+                        DistortionCenterStationingChooser chooserCenterV,
                         JLabel lblGraph,
                         JLabel lblFunctionInfo,
                         JLabel lblImageInfo,
@@ -7997,7 +8121,8 @@ class FisheyeCorrectionPane extends JPanel {
             this.isRight = isRight;
             this.cbMendPixelsPrefilter = cbMendPixelsPrefilter;
             this.chooserAlgo = chooserAlgo;
-            this.chooserCenter = chooserCenter;
+            this.chooserCenterH = chooserCenterH;
+            this.chooserCenterV = chooserCenterV;
             this.lblGraph = lblGraph;
             this.lblFunctionInfo = lblFunctionInfo;
             this.lblImageInfo = lblImageInfo;
@@ -8011,7 +8136,8 @@ class FisheyeCorrectionPane extends JPanel {
         void setFromData() {
             FisheyeCorrection fisheyeCorrection = getFC();
             chooserAlgo.setValue(fisheyeCorrection.algo);
-            chooserCenter.setValue(fisheyeCorrection.distortionCenterLocation);
+            chooserCenterH.setValue(fisheyeCorrection.distortionCenterLocation.getH());
+            chooserCenterV.setValue(fisheyeCorrection.distortionCenterLocation.getV());
             etxFunction.setText(fisheyeCorrection.parametersToString());
             Dimension dim = parentPane.uiEventListener.getRawImageDimensions(isRight);
             updateDefisheyeFunctionUi(dim.width, dim.height, fisheyeCorrection, this);
@@ -8259,40 +8385,6 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
-            row.add(cbMendPixelsPrefilterL = new JCheckBox("Pre-filter: interpolate broken pixels"));
-            cbMendPixelsPrefilterL.addActionListener( e -> {
-                doSetPrefilter(isRight, cbMendPixelsPrefilterL.isSelected());
-            });
-        }
-        {
-            boolean isRight = true;
-            var row = new JPanel();
-            {
-                GridBagConstraints gbc = new GridBagConstraints();
-                gbc.gridx = 3;
-                gbc.gridy = rowNumber++;
-                gbc.gridheight = 1;
-                gbc.gridwidth = 3;
-                gbl.setConstraints(row, gbc);
-                this.add(row);
-            }
-            row.add(cbMendPixelsPrefilterR = new JCheckBox("Pre-filter: interpolate broken pixels"));
-            cbMendPixelsPrefilterR.addActionListener( e -> {
-                doSetPrefilter(isRight, cbMendPixelsPrefilterR.isSelected());
-            });
-        }
-        {
-            boolean isRight = false;
-            var row = new JPanel();
-            {
-                GridBagConstraints gbc = new GridBagConstraints();
-                gbc.gridx = 0;
-                gbc.gridy = rowNumber;
-                gbc.gridheight = 1;
-                gbc.gridwidth = 3;
-                gbl.setConstraints(row, gbc);
-                this.add(row);
-            }
             row.add(lblImageInfoL = new JLabel("<html>in: 1234567x1234567 r=1234567<br>out: 1234567x1234567 R=1234567</html>"));
             row.add(new DigitalZoomControl<Double, SizeChangeWrapper>().init("Size change:",4, new SizeChangeWrapper(), d -> doUpdateSizeChange(isRight, d)));
         }
@@ -8323,14 +8415,13 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
+            row.add(cbMendPixelsPrefilterL = new JCheckBox("Pre-filter: interpolate broken pixels"));
+            cbMendPixelsPrefilterL.addActionListener( e -> {
+                doSetPrefilter(isRight, cbMendPixelsPrefilterL.isSelected());
+            });
             row.add(lblCorrectionMethodL = new JLabel("Correction method:"));
             row.add(chooserAlgoL=new FisheyeCorrectionAlgoChooser(algo -> {
                 setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
-                System.out.println(getFisheyeCorrection(isRight));
-            }));
-            row.add(new JLabel("Distortion center:"));
-            row.add(chooserCenterL=new DistortionCenterLocationChooser(dcl -> {
-                setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
                 System.out.println(getFisheyeCorrection(isRight));
             }));
         }
@@ -8346,16 +8437,67 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
+            row.add(cbMendPixelsPrefilterR = new JCheckBox("Pre-filter: interpolate broken pixels"));
+            cbMendPixelsPrefilterR.addActionListener( e -> {
+                doSetPrefilter(isRight, cbMendPixelsPrefilterR.isSelected());
+            });
             row.add(lblCorrectionMethodR = new JLabel("Correction method:"));
             row.add(chooserAlgoR=new FisheyeCorrectionAlgoChooser(algo -> {
                 setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
             }));
+        }
+        {
+            boolean isRight = false;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 0;
+                gbc.gridy = rowNumber;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
             row.add(new JLabel("Distortion center:"));
-            row.add(chooserCenterR=new DistortionCenterLocationChooser(dcl -> {
-                setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenter(dcl));
-                System.out.println(getFisheyeCorrection(isRight));
-            }));
+            row.add(chooserCenterHL=new DistortionCenterStationingChooser(
+                    DistortionCenterStationing.HORIZ,
+                    c -> {
+                        setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenterH(c));
+                        System.out.println(getFisheyeCorrection(isRight));
+                    }));
+            row.add(chooserCenterVL=new DistortionCenterStationingChooser(
+                    DistortionCenterStationing.VERT,
+                    c -> {
+                        setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenterV(c));
+                        System.out.println(getFisheyeCorrection(isRight));
+                    }));
+        }
+        {
+            boolean isRight = true;
+            var row = new JPanel();
+            {
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.gridx = 3;
+                gbc.gridy = rowNumber++;
+                gbc.gridheight = 1;
+                gbc.gridwidth = 3;
+                gbl.setConstraints(row, gbc);
+                this.add(row);
+            }
+            row.add(new JLabel("Distortion center:"));
+            row.add(chooserCenterHR=new DistortionCenterStationingChooser(
+                    DistortionCenterStationing.HORIZ,
+                    c -> {
+                        setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenterH(c));
+                        System.out.println(getFisheyeCorrection(isRight));
+                    }));
+            row.add(chooserCenterVR=new DistortionCenterStationingChooser(
+                    DistortionCenterStationing.VERT,
+                    c -> {
+                        setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withCenterV(c));
+                        System.out.println(getFisheyeCorrection(isRight));
+                    }));
         }
         {
             var text = new JLabel("Object marks: X and Y coordinates of marks 1 and 2 on the left and right images (NOT used for function calculation)");
@@ -8696,12 +8838,14 @@ class FisheyeCorrectionPane extends JPanel {
         }
         this.setLayout(gbl);
         leftHalf = new HalfPane(this, false,
-                cbMendPixelsPrefilterL, chooserAlgoL, chooserCenterL, lblGraphL, lblFunctionInfoL, lblImageInfoL, etxFunctionL,
+                cbMendPixelsPrefilterL, chooserAlgoL, chooserCenterHL, chooserCenterVL,
+                lblGraphL, lblFunctionInfoL, lblImageInfoL, etxFunctionL,
                 lblCorrectionMethodL, lblFunctionL, btnCalculateL, btnApplyL,
                 Arrays.asList(dcLX3, dcLY3, dcLX4, dcLY4, dcLX5, dcLY5)
         );
         rightHalf = new HalfPane(this, true,
-                cbMendPixelsPrefilterR, chooserAlgoR, chooserCenterR, lblGraphR, lblFunctionInfoR, lblImageInfoR, etxFunctionR,
+                cbMendPixelsPrefilterR, chooserAlgoR, chooserCenterHR, chooserCenterVR,
+                lblGraphR, lblFunctionInfoR, lblImageInfoR, etxFunctionR,
                 lblCorrectionMethodR, lblFunctionR, btnCalculateR, btnApplyR,
                 Arrays.asList(dcRX3, dcRY3, dcRX4, dcRY4, dcRX5, dcRY5)
         );
@@ -9683,6 +9827,7 @@ class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVi
                 '}';
     }
 }
+//TODO: DoubleUnaryOperator
 interface DoubleFunction {
     double apply(double x);
 }
