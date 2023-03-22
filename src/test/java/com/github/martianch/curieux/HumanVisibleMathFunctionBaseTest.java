@@ -2,11 +2,8 @@ package com.github.martianch.curieux;
 
 import org.junit.Test;
 
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 
@@ -87,15 +84,15 @@ public class HumanVisibleMathFunctionBaseTest {
     @Test
     public void findRootWhenSafeTest() {
         {
-            var r = LinearPolynomial.of(1, -5).findRootWhenSafe(-1000, 3000);
+            var r = HumanVisibleMathFunctionBase.findRootWhenSafe(LinearPolynomial.of(1, -5).asFunction(), -1000, 3000);
             assertEquals(5, r, HumanVisibleMathFunctionBase.ROOT_PREC);
         }
         {
-            var r = LinearPolynomial.of(1, -5).findRootWhenSafe(-1000, 5);
+            var r = HumanVisibleMathFunctionBase.findRootWhenSafe(LinearPolynomial.of(1, -5).asFunction(), -1000, 5);
             assertEquals(5, r, HumanVisibleMathFunctionBase.ROOT_PREC);
         }
         {
-            var r = LinearPolynomial.of(1, -5).findRootWhenSafe(5, 3000);
+            var r = HumanVisibleMathFunctionBase.findRootWhenSafe(LinearPolynomial.of(1, -5).asFunction(), 5, 3000);
             assertEquals(5, r, HumanVisibleMathFunctionBase.ROOT_PREC);
         }
     }

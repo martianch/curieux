@@ -5896,8 +5896,29 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
 
         int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
         int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
-        int XC = fc.distortionCenterLocation.getPoleXAfter(width, height, k, f);
-        int YC = fc.distortionCenterLocation.getPoleYAfter(width, height, k, f);
+        int XC, YC;
+        if (between(xc, 0, width) && between(yc, 0, height)) {
+            XC = (int) Math.round(k*xc);
+            YC = (int) Math.round(k*yc);
+        } else {
+            int nx = fc.distortionCenterLocation.getNearestToPoleXBefore(width, height);
+            int ny = fc.distortionCenterLocation.getNearestToPoleYBefore(width, height);
+            double nr = Math.hypot(nx-xc, ny-yc);
+            double rFar = Math.max(Math.max(
+                    Math.hypot(width - xc, height - yc),
+                    Math.hypot(width - xc, yc)
+            ), Math.max(
+                    Math.hypot(xc, height - yc),
+                    Math.hypot(xc, yc)
+            ));
+            double NR = HumanVisibleMathFunctionBase.findRootWhenSafe(
+                    R -> R * f.applyAsDouble(R) - nr,
+                    0,
+                    k * rFar
+            );
+            XC = (int) Math.round(k*nx + (xc-nx)*NR/nr);
+            YC = (int) Math.round(k*ny + (yc-ny)*NR/nr);
+        }
 
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         for (int j = 0; j < HEIGHT; j++) {
@@ -5918,7 +5939,9 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         }
         return res;
     }
-
+    private static boolean between(int value, int lower, int upper) {
+        return lower <= value && value < upper;
+    }
     abstract BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc);
 
     HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
@@ -5992,8 +6015,6 @@ interface DistortionCenterLocation {
     int getNearestToPoleXBefore(int width, int height);
     /** y of the point in the image nearest to the distortion center, before correction */
     int getNearestToPoleYBefore(int width, int height);
-    int getPoleXAfter(int width, int height, double k, DoubleUnaryOperator f);
-    int getPoleYAfter(int width, int height, double k, DoubleUnaryOperator f);
     int getWidthAfter(int width, int height, double k);
     int getHeightAfter(int width, int height, double k);
     double getMinRBefore(int width, int height);
@@ -6054,9 +6075,6 @@ enum DistortionCenterStationing implements DistortionCenterStationingAux {
     int getNearestToPoleCoordBefore(int widthOrHeight) {
         return Math.max(0, Math.min(widthOrHeight, getPoleCoordBefore(widthOrHeight)));
     }
-    int getPoleCoordAfter(int widthOrHeight, double k) {
-        return (int) Math.round(k*getPoleCoordBefore(widthOrHeight));
-    }
     int getSizeAfter(int widthOrHeight, double k) {
         return (int) Math.round(widthOrHeight*k);
     }
@@ -6094,14 +6112,6 @@ class DistortionCenterLocationImpl implements DistortionCenterLocation {
     @Override
     public int getNearestToPoleYBefore(int width, int height) {
         return cy.getNearestToPoleCoordBefore(height);
-    }
-    @Override
-    public int getPoleXAfter(int width, int height, double k, DoubleUnaryOperator f) {
-        return cx.getPoleCoordAfter(width, k);
-    }
-    @Override
-    public int getPoleYAfter(int width, int height, double k, DoubleUnaryOperator f) {
-        return cy.getPoleCoordAfter(height, k);
     }
     @Override
     public int getWidthAfter(int width, int height, double k) {
@@ -9070,12 +9080,12 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
     }
 
     /** Knowing that only one root exists in [x1, x2], find the root */
-    double findRootWhenSafe(double x1, double x2) {
-        var s1 = apply(x1) > 0;
+    static double findRootWhenSafe(DoubleUnaryOperator function, double x1, double x2) {
+        var s1 = function.applyAsDouble(x1) > 0;
         var PREC = ROOT_PREC/2;
         while(Math.abs(x1/2-x2/2) > PREC) {
             var x = x1/2 + x2/2;
-            var s = apply(x) > 0;
+            var s = function.applyAsDouble(x) > 0;
             if (s==s1) {
                 x1 = x;
             } else {
@@ -9097,7 +9107,7 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
         int o = 0;
         for (int i=1; i<points.length; i++) {
             if (haveRoots(points[i-1], points[i])) {
-                roots[o++] = findRootWhenSafe(points[i - 1], points[i]);
+                roots[o++] = findRootWhenSafe(this.asFunction(), points[i - 1], points[i]);
             }
         }
         Arrays.sort(roots,0,o);
