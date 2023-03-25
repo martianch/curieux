@@ -10596,14 +10596,33 @@ class ImageMerger
     static BufferedImage assembleBigImageFromImagesLike(String fname0, Function<String, BufferedImage> imageReader) {
         List<String> smallImageNameList = ImageMerger.getSmallImageNames(fname0);
         System.out.println(smallImageNameList);
-        var idl = ImageMerger.getSmallImages(smallImageNameList, imageReader);
+        var idl = filterOutUniqueSizes(getSmallImages(smallImageNameList, imageReader));
         final int rowSize = idl.size() == 4 ? 2 : 4;
 
-        var seq = ImageMerger.findSequence(idl, rowSize);
+        var seq = findSequence(idl, rowSize);
 
         System.out.println("found sequence: "+seq);
         BufferedImage bigImage = ImageMerger.mergeImages(idl, seq, rowSize);
+        System.out.println("images merged: "+seq);
+        try {
+            idl.forEach(d -> System.out.println(d + " " + smallImageNameList.get(d.id - 1)));
+        } catch (RuntimeException e) {
+            e.printStackTrace();
+        }
         return bigImage;
+    }
+    static List<ImageDescriptor> filterOutUniqueSizes(List<ImageDescriptor> list) {
+        Map<Integer, Integer> widths = new HashMap<>();
+        Map<Integer, Integer> heights = new HashMap<>();
+        list.forEach(descr -> {
+            widths.merge(descr.width, 1, Integer::sum);
+            heights.merge(descr.height, 1, Integer::sum);
+        });
+        var res = list.stream()
+                .filter(descr -> widths.get(descr.width) > 1)
+                .filter(descr -> heights.get(descr.height) > 1)
+                .collect(Collectors.toList());
+        return res;
     }
     static IdSequence findSequence(List<ImageDescriptor> idl, int rowSize) {
         List<ImageDescriptor> imageDescriptorsById = idl.stream().collect(Collector.of(
