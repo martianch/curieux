@@ -6008,7 +6008,10 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
     }
     abstract BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc);
 
-    HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+    <T>T doWith3Points(int width, int height,
+                       DistortionCenterLocation dcl, PanelMeasurementStatus pms,
+                       Function<double[], T> todo
+    ) {
         double x0 = dcl.getPoleXBefore(width, height);
         double y0 = dcl.getPoleYBefore(width, height);
         double x1 = pms.x3;
@@ -6023,13 +6026,56 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         double R3 = r3;
         double R2 = r2*(y3-y0)/(y2-y0);
         double R1 = r1*(y3-y0)/(y1-y0);
-        HumanVisibleMathFunction g = calculateFunctionFrom3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
+        return todo.apply(new double[]{r1, R1, r2, R2, r3, R3});
+    }
 
-        System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
-        System.out.println("r1="+r1+" r2="+r2+" r3="+r3);
-        System.out.println("g="+g);
+    HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+        return doWith3Points(
+                width, height, dcl, pms,
+                rr -> {
+                    double r1 = rr[0], R1 = rr[1], r2 = rr[2], R2 = rr[3], r3 = rr[4], R3 = rr[5];
+                    HumanVisibleMathFunction g = calculateFunctionFrom3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
 
-        return g;
+                    System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
+                    System.out.println("r1="+r1+" r2="+r2+" r3="+r3);
+                    System.out.println("g="+g);
+
+                    return g;
+                }
+        );
+    }
+
+//    HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+//        double x0 = dcl.getPoleXBefore(width, height);
+//        double y0 = dcl.getPoleYBefore(width, height);
+//        double x1 = pms.x3;
+//        double y1 = pms.y3;
+//        double x2 = pms.x4;
+//        double y2 = pms.y4;
+//        double x3 = pms.x5;
+//        double y3 = pms.y5;
+//        double r1 = Math.hypot(x1-x0,y1-y0);
+//        double r2 = Math.hypot(x2-x0,y2-y0);
+//        double r3 = Math.hypot(x3-x0,y3-y0);
+//        double R3 = r3;
+//        double R2 = r2*(y3-y0)/(y2-y0);
+//        double R1 = r1*(y3-y0)/(y1-y0);
+//        HumanVisibleMathFunction g = calculateFunctionFrom3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
+//
+//        System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
+//        System.out.println("r1="+r1+" r2="+r2+" r3="+r3);
+//        System.out.println("g="+g);
+//
+//        return g;
+//    }
+    double[] get3Points(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+        return doWith3Points(
+                width, height, dcl, pms,
+                rr -> {
+                    double r1 = rr[0], R1 = rr[1], r2 = rr[2], R2 = rr[3], r3 = rr[4], R3 = rr[5];
+                    return new double[] {r1, r2, r3};
+                }
+        );
     }
     abstract HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3);
     @Override public String effectName() { return toString(); }
@@ -8215,14 +8261,18 @@ class FisheyeCorrectionPane extends JPanel {
             chooserCenterV.setValue(fisheyeCorrection.distortionCenterLocation.getV());
             etxFunction.setText(fisheyeCorrection.parametersToString());
             Dimension dim = parentPane.uiEventListener.getRawImageDimensions(isRight);
-            updateDefisheyeFunctionUi(dim.width, dim.height, fisheyeCorrection, this);
+            var threePoints = fisheyeCorrection.algo.get3Points(dim.width, dim.height, fisheyeCorrection.distortionCenterLocation, getPMS());
+            var threeColors = new int[] {0x0000FF, 0x00FFFF, 0xFF00FF};
+            updateDefisheyeFunctionUi(dim.width, dim.height, fisheyeCorrection, this, threePoints, threeColors);
             cbMendPixelsPrefilter.setSelected(parentPane.uiEventListener.getPreFilter(isRight).notNothing());
             updateHilighting();
         }
         static void updateDefisheyeFunctionUi(int width,
                                               int height,
                                               FisheyeCorrection fc,
-                                              HalfPane halfPane) {
+                                              HalfPane halfPane,
+                                              double[] threePoints,
+                                              int[] threeColors) {
             var k = fc.sizeChange;
             var dcl = fc.distortionCenterLocation;
             var g = fc.func;
@@ -8234,7 +8284,9 @@ class FisheyeCorrectionPane extends JPanel {
                             rMin, rMax,
                             g.maxInRange(rMin, rMax),
                             Color.RED,
-                            g.asFunction()
+                            g.asFunction(),
+                            threePoints,
+                            threeColors
                     )
             ));
             String info =
@@ -8321,6 +8373,10 @@ class FisheyeCorrectionPane extends JPanel {
 
         private FisheyeCorrection getFC() {
             return parentPane.getFisheyeCorrection(isRight);
+        }
+
+        private PanelMeasurementStatus getPMS() {
+            return parentPane.getPanelMeasurementStatus(isRight);
         }
     }
 
@@ -9912,7 +9968,9 @@ class GraphPlotter {
             final double xMin, final double xMax,
             final double fMax,
             Color color,
-            DoubleUnaryOperator f) {
+            DoubleUnaryOperator f,
+            double[] points,
+            int[] colors) {
         BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = (Graphics2D) bi.getGraphics();
         var yMax = graphMaxY(fMax);
@@ -9922,6 +9980,16 @@ class GraphPlotter {
         {
             g.setColor(Color.WHITE);
             g.fillRect(0, 0, width, height);
+        }
+        {
+            int y1 = 0;//zeroYLevel - 3;
+            int y2 = zeroYLevel;
+            for (int k=0; k<points.length; k++) {
+                double x = points[k];
+                g.setColor(new Color(colors[k]));
+                int i = (int) Math.round(x * xScale);
+                g.drawLine(i, y1, i, y2);
+            }
         }
         {
             int y1 = 0;//zeroYLevel - 3;
