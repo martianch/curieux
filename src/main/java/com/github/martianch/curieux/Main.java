@@ -2345,7 +2345,7 @@ class X3DViewer {
                 );
             }
             {
-                JMenuItem miLoadMatch = new JMenuItem("Assemble Big Image (Perseverance NAV/HAZ)");
+                JMenuItem miLoadMatch = new JMenuItem("Assemble Big Image (Perseverance NAV/HAZ, Slow!)");
                 menuLR.add(miLoadMatch);
                 miLoadMatch.addActionListener(e ->
                         uiEventListener.loadBigImage(
@@ -8547,15 +8547,15 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
-            row.add(cbMendPixelsPrefilterL = new JCheckBox("Pre-filter: interpolate broken pixels"));
-            cbMendPixelsPrefilterL.addActionListener( e -> {
-                doSetPrefilter(isRight, cbMendPixelsPrefilterL.isSelected());
-            });
             row.add(lblCorrectionMethodL = new JLabel("Correction method:"));
             row.add(chooserAlgoL=new FisheyeCorrectionAlgoChooser(algo -> {
                 setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
             }));
+            row.add(cbMendPixelsPrefilterL = new JCheckBox("Pre-filter: interpolate broken pixels"));
+            cbMendPixelsPrefilterL.addActionListener( e -> {
+                doSetPrefilter(isRight, cbMendPixelsPrefilterL.isSelected());
+            });
         }
         {
             boolean isRight = true;
@@ -8569,15 +8569,15 @@ class FisheyeCorrectionPane extends JPanel {
                 gbl.setConstraints(row, gbc);
                 this.add(row);
             }
-            row.add(cbMendPixelsPrefilterR = new JCheckBox("Pre-filter: interpolate broken pixels"));
-            cbMendPixelsPrefilterR.addActionListener( e -> {
-                doSetPrefilter(isRight, cbMendPixelsPrefilterR.isSelected());
-            });
             row.add(lblCorrectionMethodR = new JLabel("Correction method:"));
             row.add(chooserAlgoR=new FisheyeCorrectionAlgoChooser(algo -> {
                 setFisheyeCorrectionAndUpdateUi(isRight, getFisheyeCorrection(isRight).withAlgo(algo));
                 System.out.println(getFisheyeCorrection(isRight));
             }));
+            row.add(cbMendPixelsPrefilterR = new JCheckBox("Pre-filter: interpolate broken pixels"));
+            cbMendPixelsPrefilterR.addActionListener( e -> {
+                doSetPrefilter(isRight, cbMendPixelsPrefilterR.isSelected());
+            });
         }
         {
             boolean isRight = false;
