@@ -6148,6 +6148,7 @@ interface DistortionCenterStationingAux {
 }
 enum DistortionCenterStationing implements DistortionCenterStationingAux {
     CENTER(0, 0, 0.5, HORIZ+VERT),
+    PERS_HAZCAM_1to2(0, 0, 1./3, VERT),
     LEFT_EDGE(8, 8, 0.0, HORIZ),
     RIGHT_EDGE(8, 8, 1.0, HORIZ),
     LEFT_EDGE_OVER(8, 0, -1.0, HORIZ),
