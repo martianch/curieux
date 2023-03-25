@@ -59,6 +59,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
@@ -77,7 +78,9 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -88,6 +91,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.PriorityQueue;
 import java.util.Scanner;
 import java.util.TimeZone;
 import java.util.TreeMap;
@@ -100,9 +104,12 @@ import java.util.function.Consumer;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
+import java.util.function.IntSupplier;
+import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
@@ -190,6 +197,7 @@ interface UiEventListener {
     void copyUrls();
     void loadMatchOfOther(boolean isRight);
     void loadCopyOfOther(boolean isRight);
+    void loadBigImage(boolean isRight);
     void reload(boolean isRight);
     void saveProcessedImage(boolean isRight);
     void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol);
@@ -523,13 +531,27 @@ class ImageAndPath {
                         ? new Color(0, 0, 0)
                         : new Color(80, 20, 20);
             res = dummyImage(color);
-        } else if(FileLocations.isCuriousUrn(path)) {
+        } else if(FileLocations.isCuriousLRUrn(path)) {
             String path1 = FileLocations.uncuriousUri(path);
             String imageid1 = FileLocations.getFileNameNoExt(path1);
             String ext1 = FileLocations.getFileExt(path1);
-            Optional<String> match = MastcamPairFinder.findMrlMatch(imageid1).map(fname -> FileLocations.replaceFileName(path1, fname+ext1));
+            Optional<String> match = MastcamPairFinder.findMrlMatch(imageid1).map(fname -> FileLocations.replaceFileName(path1, fname + ext1));
             String newPath = match.orElse("");
             return imageIoRead(newPath, newPath);
+        } else if(FileLocations.isCuriousMUrn(path)) {
+            String path1 = FileLocations.uncuriousUri(path);
+            res = ImageMerger.assembleBigImageFromImagesLike(
+                    path1,
+                    url -> {
+                        var img = imageIoReadNoExc(url, pathToLoad).image;
+                        if (isDummyImage(img)) {
+                            System.out.println("could not read " + url);
+                            return null;
+                        }
+                        System.out.println("successfully read " + url);
+                        return img;
+                    }
+            );
         } else if(FileLocations.isUrl(path)) {
             System.out.println("downloading "+path+ " ...");
             try {
@@ -606,7 +628,7 @@ class ImageAndPath {
         try {
             return imageIoRead(path, pathToLoad);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -1194,6 +1216,22 @@ class UiController implements UiEventListener {
         changeRawData(new RawData(other, other));
         lrNavigator.left = otherNavigator;
         lrNavigator.right = FileNavigator.copy(otherNavigator);
+    }
+
+    @Override
+    public void loadBigImage(boolean isRight) {
+        boolean toEnable = !FileLocations.isCuriousMUrn((isRight ? rawData.right : rawData.left).pathToLoad);
+        var paths = Arrays.asList(
+                FileLocations.setUriCuriousM(rawData.left.pathToLoad, toEnable),
+                FileLocations.setUriCuriousM(rawData.right.pathToLoad, toEnable)
+        );
+        var uPaths = unThumbnailIfNecessary(paths);
+        lrNavigator
+                .onSetLeft(rawData.left.path, uPaths.get(0))
+                .onSetRight(rawData.right.path, uPaths.get(1));
+        showInProgressViewsAndThen(uPaths,
+                () ->  updateRawDataAsync(uPaths.get(0), uPaths.get(1))
+        );
     }
 
     @Override
@@ -2305,6 +2343,14 @@ class X3DViewer {
                 miFisheye.addActionListener(e ->
                         fisheyeCorrectionPane.showDialogIn(frame)
                 );
+            }
+            {
+                JMenuItem miLoadMatch = new JMenuItem("Assemble Big Image (Perseverance NAV/HAZ)");
+                menuLR.add(miLoadMatch);
+                miLoadMatch.addActionListener(e ->
+                        uiEventListener.loadBigImage(
+                                isFromComponentsMenu(e, lblR)
+                        ));
             }
             {
                 JMenuItem miPrevImage = new JMenuItem("Go To Previous");
@@ -3553,7 +3599,7 @@ abstract class FileLocations {
                         )
                 )
             );
-        if (isUrl(urlOrFile) || isCuriousUrn(urlOrFile) || !isProblemWithFile(unthumbnailed)) {
+        if (isUrl(urlOrFile) || isCuriousLRUrn(urlOrFile) || !isProblemWithFile(unthumbnailed)) {
             return unthumbnailed;
         } else {
             return urlOrFile;
@@ -3740,10 +3786,10 @@ abstract class FileLocations {
         return sb.toString();
     }
     static boolean isMrlMarkedR(String path, String fname) {
-        return isCuriousUrn(path) ? isCuriousRUrn(path) : isMr(fname);
+        return isCuriousLRUrn(path) ? isCuriousRUrn(path) : isMr(fname);
     }
     static boolean isMrlMarkedL(String path, String fname) {
-        return isCuriousUrn(path) ? isCuriousLUrn(path) : isMl(fname);
+        return isCuriousLRUrn(path) ? isCuriousLUrn(path) : isMl(fname);
     }
     static boolean isChemcamMarkedRL(String fname) {
         return isChemcamMarkedR(fname) || isChemcamMarkedL(fname);
@@ -3768,9 +3814,14 @@ abstract class FileLocations {
                 .replace("L1.PNG", "M_.JPG");
         return res;
     }
-    static boolean isCuriousUrn(String path) {
-        return path.startsWith("curious:");
+    static boolean isCuriousLRUrn(String path) {
+        return isCuriousLUrn(path) || isCuriousRUrn(path);
     }
+    // big (4x4 or 4x3) image assembled from multiple images, Perseverance only
+    static boolean isCuriousMUrn(String path) {
+        return path.startsWith("curious:m:");
+    }
+    // left/right match for URI
     static boolean isCuriousRUrn(String path) {
         return path.startsWith("curious:r:");
     }
@@ -3778,10 +3829,21 @@ abstract class FileLocations {
         return path.startsWith("curious:l:");
     }
     static String uncuriousUri(String path) {
-        if (isCuriousLUrn(path) || isCuriousRUrn(path)) {
+        if (isCuriousLRUrn(path)||isCuriousMUrn(path)) {
             return path.substring("curious:l:".length());
         } else {
             return path;
+        }
+    }
+    static String setUriCuriousM(String path, boolean enable) {
+        if (enable) {
+            return isCuriousMUrn(path)
+                 ? path
+                 : "curious:m:" + path;
+        } else {
+            return isCuriousMUrn(path)
+                 ? uncuriousUri(path)
+                 : path;
         }
     }
     static boolean isUrl(String path) {
@@ -4938,12 +5000,14 @@ class LRNavigator {
     FileNavigator<Map<String, Object>> left;
     FileNavigator<Map<String, Object>> right;
     LRNavigator onSetLeft(String oldPath, String newPath) {
+        newPath = FileLocations.setUriCuriousM(newPath, false);
         if (!Objects.equals(oldPath, newPath)) {
             left = null;
         }
         return this;
     }
     LRNavigator onSetRight(String oldPath, String newPath) {
+        newPath = FileLocations.setUriCuriousM(newPath, false);
         if (!Objects.equals(oldPath, newPath)) {
             right = null;
         }
@@ -10456,5 +10520,352 @@ class JustDialog {
         dialog.setLocationRelativeTo(parent);
         closeButton.requestFocus();
         dialog.setVisible(true);
+    }
+}
+
+class ImageMerger
+{
+    static BufferedImage assembleBigImageFromImagesLike(String fname0, Function<String, BufferedImage> imageReader) {
+        List<String> smallImageNameList = ImageMerger.getSmallImageNames(fname0);
+        System.out.println(smallImageNameList);
+        var idl = ImageMerger.getSmallImages(smallImageNameList, imageReader);
+        final int rowSize = idl.size() == 4 ? 2 : 4;
+
+        var seq = ImageMerger.findSequence(idl, rowSize);
+
+        System.out.println("found sequence: "+seq);
+        BufferedImage bigImage = ImageMerger.mergeImages(idl, seq, rowSize);
+        return bigImage;
+    }
+    static IdSequence findSequence(List<ImageDescriptor> idl, int rowSize) {
+        List<ImageDescriptor> imageDescriptorsById = idl.stream().collect(Collector.of(
+                () -> new ArrayList<ImageDescriptor>(idl.size()+1),
+                (a,x) -> listPut(a, x.id, x),
+                (a,b) -> {b.stream().filter(Objects::nonNull).forEach(x -> listPut(a, x.id, x)); return a;},
+                Collections::unmodifiableList
+        ));
+        PriorityQueue<IdSequence> queue = new PriorityQueue<>(Comparator.comparing(IdSequence::getDist));
+        int wSmall = idl.stream().map(d -> d.width).min(Integer::compare).get();
+        int wLarge = idl.stream().map(d -> d.width).max(Integer::compare).get();
+        List<Integer> corners = idl.stream().filter(d -> d.width == wSmall /*&& d.height == HSmall*/).map(d -> d.id).collect(Collectors.toList());
+        System.out.println("corners="+corners);
+        corners.forEach(id -> {
+            IdSequence list = IdSequence.ofJust(id, minDistToNext(imageDescriptorsById.get(id), 0, idl.size(), rowSize));
+            queue.add(list);
+        });
+        System.out.println("idl="+idl);
+//        System.out.println("queue="+queue);
+        int _n_iter_ = 0;
+        while (queue.peek().size() < idl.size()) {
+//            System.out.println("queue="+queue);
+            var oldSequence = queue.poll();
+//            System.out.println("took "+oldSequence);
+            double oldDist = oldSequence.dist
+                             - minDistToNext(imageDescriptorsById.get(oldSequence.getLast()), oldSequence.size() - 1, idl.size(), rowSize);
+            int newPos = oldSequence.size();
+            int left = newPos - 1;
+            int above = newPos - rowSize;
+            int w = widthFor(newPos, wSmall, wLarge, rowSize);
+//            int h = heightFor(newPos, idl.size());
+            idl.stream()
+                    .filter(d -> d.width == w /*&& d.height == h*/)
+                    .filter(d -> !oldSequence.contains(d.id))
+                    .forEach(d -> {
+                        double addedDist = 0.;
+                        if (newPos / rowSize == left / rowSize) { // same row
+                            addedDist += imageDescriptorsById.get(oldSequence.get(left)).distToOtherLeft(d);
+                        }
+                        if (above >= 0) {
+                            addedDist += imageDescriptorsById.get(oldSequence.get(above)).distToOtherTop(d);
+                        }
+                        if (Double.isFinite(addedDist)) {
+                            addedDist += minDistToNext(d, oldSequence.size(), idl.size(), rowSize);
+                            IdSequence newSequence = oldSequence.with(d.id, oldDist + addedDist);
+                            queue.add(newSequence);
+                        }
+                    });
+            _n_iter_++;
+        }
+        System.out.println("iterations: "+_n_iter_);
+        System.out.println("queue size="+queue.size());
+        return queue.peek();
+    }
+    static double minDistToNext(ImageDescriptor descriptor, int pos, int M, int rowSize) {
+        int col = pos%rowSize;
+        int row = pos/rowSize;
+        double res = 0.;
+        if (col != rowSize-1) {
+            res += descriptor.minDistToOtherLeft;
+        }
+        if (row != M/rowSize-1) {
+            res += descriptor.minDistToOtherTop;
+        }
+        return res;
+    }
+    static int widthFor(int i, int wSmall, int wLarge, int rowSize) {
+        return i%rowSize==0 || i%rowSize==rowSize-1 ? wSmall : wLarge;
+    }
+
+    static BufferedImage mergeImages(List<ImageDescriptor> idl, IdSequence seq, int rowSize) {
+        Map<Integer, ImageDescriptor> imageDescriptorsById = idl.stream().collect(Collectors.toMap(descriptor -> descriptor.id, Function.identity()));
+        var xOff = new ArrayList<Integer>();
+        {
+            xOff.add(0);
+            for (int i = 0, M = rowSize; i < M; i++) {
+                xOff.add(lastOf(xOff) + imageDescriptorsById.get(seq.get(i)).width - (i == 0 || i == rowSize-1 ? 8 : 16));
+            }
+        }
+        var yOff = new ArrayList<Integer>();
+        {
+            yOff.add(0);
+            for (int i = 0, M = seq.size(); i < M; i += rowSize) {
+                yOff.add(lastOf(yOff) + imageDescriptorsById.get(seq.get(i)).height - (i == 0 || i/rowSize == M / rowSize-1 ? 8 : 16));
+            }
+        }
+        BufferedImage bigImage = new BufferedImage(lastOf(xOff), lastOf(yOff), BufferedImage.TYPE_INT_RGB);
+        for (int i=0, M=seq.size(); i<M; i++) {
+            var d = imageDescriptorsById.get(seq.get(i));
+            int row = i/rowSize;
+            int col = i%rowSize;
+            copyToFrom(
+                    bigImage, xOff.get(col), yOff.get(row),
+                    d.img,
+                    col == 0 ? 0 : 8,
+                    row == 0 ? 0 : 8,
+                    d.width - (col == 0 || col == rowSize-1 ? 8 : 16),
+                    d.height - (row == 0 || row == M/rowSize-1 ? 8 : 16)
+            );
+        }
+        return bigImage;
+    }
+
+    static BufferedImage copyToFrom(BufferedImage dst, int offx, int offy, BufferedImage src, int fromX, int fromY, int width, int height) {
+        for (int y=0; y<height; y++) {
+            for (int x=0; x<width; x++) {
+                int rgb = src.getRGB(x+fromX,y+fromY);
+                dst.setRGB(offx+x, offy+y, rgb);
+            }
+        }
+        return dst;
+    }
+    static List<ImageMerger.ImageDescriptor> getSmallImages(List<String> fileList, Function<String, BufferedImage> imageReader) {
+        List<ImageMerger.ImageDescriptor> idl = new ArrayList<>();
+        for (var path : fileList) {
+            try {
+                int nn = getFragmentNumber(path);
+                var img = imageReader.apply(path);
+                if (img != null) {
+                    var imgd = new ImageMerger.ImageDescriptor().init(nn, img);
+                    idl.add(imgd);
+                }
+//            } catch (NumberFormatException e) {
+//                System.out.println("ignoring "+path);
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+                System.out.println("ignoring "+path);
+            }
+        }
+        idl.forEach(descriptor -> descriptor.init2(idl));
+        return idl;
+    }
+
+    static List<String> getSmallImageNames(String fname) {
+        var res = new ArrayList<String>();
+        int last, beforeLast;
+        if (!((last = fname.lastIndexOf('_')) > 0 && (beforeLast = fname.lastIndexOf('_', last-1)) > 0)) {
+            throw new NumberFormatException("number not found in string: \""+fname+"\"");
+        }
+        int fnum = Integer.parseInt(fname.substring(beforeLast + 1, last));
+        if (!(0 < fnum && fnum <= 16)) {
+            throw new IllegalArgumentException("bad fragment number: outside range [1..16]");
+        }
+        for (int i=1; i<= 16; i++) {
+            res.add(String.format("%s%02d%s",fname.substring(0,beforeLast+1), i, fname.substring(last)));
+        }
+        return res;
+    }
+    static int getFragmentNumber(String fname) {
+        int last, beforeLast;
+        if ((last = fname.lastIndexOf('_')) > 0 && (beforeLast = fname.lastIndexOf('_', last-1)) > 0)
+            return Integer.parseInt(fname.substring(beforeLast+1, last));
+        throw new NumberFormatException("number not found in string: \""+fname+"\"");
+    }
+    static String getBigFileName(String fname) {
+        int last, beforeLast;
+        return (last = fname.lastIndexOf('_')) > 0 && (beforeLast = fname.lastIndexOf('_', last-1)) > 0
+                ? fname.substring(0, beforeLast+1) + "yy" + fname.substring(last)
+                : fname + ".yy";
+    }
+    private static<T> T lastOf(List<T> list) {
+        return list.get(list.size() - 1);
+    }
+    static<T> void listPut(List<T> list, int i, T x) {
+        if (list.size() > i) {
+            list.set(i, x);
+        } else {
+            while (list.size() < i) {
+                list.add(null);
+            }
+            list.add(x);
+        }
+    }
+    static class Side {
+        int[] points;
+        int[] delta;
+
+        public Side(int[] points, int[] delta) {
+            this.points = points;
+            this.delta = delta;
+        }
+    }
+    static class SideComparator {
+        static final int D = 8;
+        static Side getLine(IntSupplier getSize, IntUnaryOperator getRgb) {
+            int size = getSize.getAsInt();
+            int[] res = new int[3*(size - 2*D)];
+            for (int i=D, ii=0, upb = size-D; i<upb; i++) {
+                int rgb = getRgb.applyAsInt(i);
+                res[ii++] = (rgb & 0xff0000) >> 16;
+                res[ii++] = (rgb & 0xff00) >> 8;
+                res[ii++] = (rgb & 0xff);
+            }
+            int[] min = new int[] {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE};
+            int[] max = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+            for (int i=0, m=res.length; i<m; i++) {
+                min[i%3] = Math.min(min[i%3], res[i]);
+                max[i%3] = Math.max(max[i%3], res[i]);
+            }
+            for (int i=0, m=res.length; i<m; i++) {
+                res[i] = (int) Math.round((res[i] - min[i%3])*255./(max[i%3] - min[i%3]));
+            }
+            int[] delta = new int[3];
+            for (int i=0; i<3; i++) {
+                delta[i] = (int) Math.ceil(255./(max[i] - min[i]));
+            }
+            return new Side(res, delta);
+        }
+        static Side getTopSide(BufferedImage img) {
+            int Y = D;
+            return getLine(img::getWidth, i -> img.getRGB(i,Y));
+        }
+        static Side getBottomSide(BufferedImage img) {
+            int Y = img.getHeight() - D;
+            return getLine(img::getWidth, i -> img.getRGB(i,Y));
+        }
+        static Side getLeftSide(BufferedImage img) {
+            int X = D;
+            return getLine(img::getHeight, i -> img.getRGB(X, i));
+        }
+        static Side getRightSide(BufferedImage img) {
+            int X = img.getWidth() - D;
+            return getLine(img::getHeight, i -> img.getRGB(X, i));
+        }
+        static double distBetweenSides(Side a, Side b) {
+            if (a.points.length != b.points.length) {
+                return Double.POSITIVE_INFINITY;
+            }
+            int length = a.points.length;
+            long s = 0;
+            for (int i=0; i<length; i++) {
+                s += sqr(Math.max(0, Math.abs(a.points[i] - b.points[i]) - 2*Math.max(a.delta[i%3], b.delta[i%3])));
+            }
+            return Math.sqrt(s / (double) length);
+        }
+        static int sqr(int x) {
+            return x*x;
+        }
+    }
+    static class IdSequence {
+        final byte[] ids;
+        final double dist;
+        private IdSequence(byte[] ids, double dist) {
+            this.ids = ids;
+            this.dist = dist;
+        }
+        public static IdSequence ofJust(int id, double dist) {
+            return new IdSequence(new byte[] {(byte)id}, dist);
+        }
+        public IdSequence with(int id, double dist) {
+            byte[] bytes = Arrays.copyOf(ids, ids.length+1);
+            bytes[ids.length] = (byte)id;
+            return new IdSequence(bytes, dist);
+        }
+        public double getDist() {
+            return dist;
+        }
+        public int size() {
+            return ids.length;
+        }
+        public int get(int i) {
+            return ids[i];
+        }
+        public int getLast() {
+            return ids[ids.length-1];
+        }
+        public boolean contains(int id) {
+            for (int i=0, M=ids.length; i<M; i++) {
+                if (ids[i] == id) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IdSequence that = (IdSequence) o;
+            return Arrays.equals(ids, that.ids);
+        }
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(ids);
+        }
+        @Override
+        public String toString() {
+            return Arrays.toString(ids) + ":" + String.format("%.3f",dist);
+        }
+    }
+    static class ImageDescriptor {
+        int id;
+        int width, height;
+        Side sideT, sideB, sideL, sideR;
+        double minDistToOtherTop, minDistToOtherLeft;
+        BufferedImage img;
+        Map<Integer, Double> fromBtoOtherT = new HashMap<>();
+        Map<Integer, Double> fromLtoOtherR = new HashMap<>();
+
+        ImageDescriptor init(int id, BufferedImage img) {
+            this.id = id;
+            this.img = img;
+            width = img.getWidth();
+            height = img.getHeight();
+            sideT = SideComparator.getTopSide(img);
+            sideB = SideComparator.getBottomSide(img);
+            sideL = SideComparator.getLeftSide(img);
+            sideR = SideComparator.getRightSide(img);
+            return this;
+        }
+        ImageDescriptor init2(Collection<ImageDescriptor> others) {
+            minDistToOtherTop = others.stream().filter(other -> this != other).map(this::distToOtherTop).min(Double::compareTo).get();
+            minDistToOtherLeft = others.stream().filter(other -> this != other).map(this::distToOtherLeft).min(Double::compareTo).get();
+            return this;
+        }
+        double distToOtherTop(ImageDescriptor other) {
+            return fromBtoOtherT.computeIfAbsent(other.id, unused -> SideComparator.distBetweenSides(this.sideB, other.sideT));
+        }
+        double distToOtherLeft(ImageDescriptor other) {
+            return fromLtoOtherR.computeIfAbsent(other.id, unused -> SideComparator.distBetweenSides(this.sideR, other.sideL));
+        }
+
+        @Override
+        public String toString() {
+            return "ImageDescriptor{" +
+                   "id=" + id +
+                   " " + width +
+                   "x" + height +
+                   '}';
+        }
     }
 }
