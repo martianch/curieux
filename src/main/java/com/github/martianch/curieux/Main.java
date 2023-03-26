@@ -10073,15 +10073,17 @@ class GraphPlotter {
 }
 
 enum MeasurementPointMark {
-    POINT(new int[][]{{0,0}}),
-    CROSS(new int[][]{{1,0}, {2,0}, {3,0}, {4,0}, {5,0}, {6,0}}),
-    XCROSS(new int[][]{{1,1}, {2,2}, {3,3}, {4,4}, {5,5}, {6,6}}),
-    DAISY(new int[][]{{1,1}, {2,2}, {3,3}, {4,4}, {5,5}, {6,6}, {3,2}, {4,3}, {5,4}, {6,5}, {6,4}, {5,3}});
+    POINT(new int[][]{{0,0}}, "a single pixel"),
+    CROSS(new int[][]{{1,0}, {2,0}, {3,0}, {4,0}, {5,0}, {6,0}}, "cross-hair"),
+    XCROSS(new int[][]{{1,1}, {2,2}, {3,3}, {4,4}, {5,5}, {6,6}}, "x-shaped"),
+    DAISY(new int[][]{{1,1}, {2,2}, {3,3}, {4,4}, {5,5}, {6,6}, {3,2}, {4,3}, {5,4}, {6,5}, {6,4}, {5,3}}, "thick mark, visible with zoom=0.125");
 
-    int[][] listOfXY;
+    final int[][] listOfXY;
+    final String description;
 
-    MeasurementPointMark(int[][] listOfXY) {
+    MeasurementPointMark(int[][] listOfXY, String descr) {
         this.listOfXY = listOfXY;
+        this.description = descr;
     }
     public static MeasurementPointMark getUiDefault() {
         return CROSS;
@@ -10096,11 +10098,12 @@ enum MeasurementPointMark {
                         xy -> bi.setRGB(x + xy[0], y + xy[1], rgb)
                 );
     }
+    public String getDescription() { return description; }
 }
-class MeasurementPointMarkChooser extends JComboBox<MeasurementPointMark> {
+class MeasurementPointMarkChooser extends ComboBoxWithTooltips<MeasurementPointMark> {
     static MeasurementPointMark[] modes = MeasurementPointMark.values();
     public MeasurementPointMarkChooser(Consumer<MeasurementPointMark> valueListener) {
-        super(modes);
+        super(modes, MeasurementPointMark::getDescription);
         setValue(MeasurementPointMark.getUiDefault());
         setMaximumRowCount(modes.length);
         addItemListener(itemEvent -> {
