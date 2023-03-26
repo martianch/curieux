@@ -3081,25 +3081,28 @@ class X3DViewer {
 enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
 
 enum ImageResamplingMode {
-    NEAREST(RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR),
-    BILINEAR(RenderingHints.VALUE_INTERPOLATION_BILINEAR),
-    BICUBIC(RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+    NEAREST(RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR, "\"Nearest Neighbor\" value interpolation"),
+    BILINEAR(RenderingHints.VALUE_INTERPOLATION_BILINEAR, "Bilinear value interpolation"),
+    BICUBIC(RenderingHints.VALUE_INTERPOLATION_BICUBIC, "Biquadratic value interpolation");
 
     final Object renderingHint;
-    ImageResamplingMode(Object hint) {
+    final String description;
+    ImageResamplingMode(Object hint, String descr) {
         renderingHint = hint;
+        description = descr;
     }
     public Object getRenderingHint() {
         return renderingHint;
     }
+    public String getDescription() { return description; }
     static ImageResamplingMode getUiDefault(){
         return BICUBIC;
     }
 };
-class ImageResamplingModeChooser extends JComboBox<ImageResamplingMode> {
+class ImageResamplingModeChooser extends ComboBoxWithTooltips<ImageResamplingMode> {
     static ImageResamplingMode[] modes = ImageResamplingMode.values();
     public ImageResamplingModeChooser(Consumer<ImageResamplingMode> valueListener) {
-        super(modes);
+        super(modes, ImageResamplingMode::getDescription);
         setValue(ImageResamplingMode.getUiDefault());
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
@@ -3141,11 +3144,11 @@ enum DebayerMode implements ImageEffect {
     }
     private static String[] names = {
             "as is", //-1
-            "add color to Bayer mosaic", //0
-            "demosaic (by squares)", //1
-            "demosaic (average between neighbors)", //2
+            "demonstrate color encoding in the Bayer mosaic", //0
+            "decode color (one color value for a 2x2 square)", //1
+            "decode color (average color intensity)", //2
             "closest match clockwise Bayer pattern demosaicing", //3
-            "closest match clockwise Bayer pattern demosaicing", //4
+            "closest match clockwise Bayer pattern demosaicing (v2)", //4
             "cubic/bicubic Bayer pattern demosaicing", //5
     };
     static List<Function<BufferedImage, BufferedImage>> debayering_methods = Arrays.asList(
@@ -3173,10 +3176,10 @@ enum DebayerMode implements ImageEffect {
         return (algo >= 0 && (force || FileLocations.isBayered(path)));
     }
 }
-class DebayerModeChooser extends JComboBox<DebayerMode> {
+class DebayerModeChooser extends ComboBoxWithTooltips<DebayerMode> {
     static DebayerMode[] modes = DebayerMode.values();
     public DebayerModeChooser(Consumer<DebayerMode> valueListener) {
-        super(modes);
+        super(modes, ImageEffect::effectName);
         setValue(DebayerMode.getUiDefault());
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
@@ -6082,10 +6085,10 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
     @Override public boolean notNothing() { return true; }
     @Override public boolean notNothingFor(String path) { return notNothing(); }
 }
-class FisheyeCorrectionAlgoChooser extends JComboBox<FisheyeCorrectionAlgo> {
+class FisheyeCorrectionAlgoChooser extends ComboBoxWithTooltips<FisheyeCorrectionAlgo> {
     static FisheyeCorrectionAlgo[] modes = FisheyeCorrectionAlgo.values();
     public FisheyeCorrectionAlgoChooser(Consumer<FisheyeCorrectionAlgo> valueListener) {
-        super(modes);
+        super(modes, ImageEffect::effectName);
         setValue(FisheyeCorrectionAlgo.NONE);
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
@@ -6097,9 +6100,9 @@ class FisheyeCorrectionAlgoChooser extends JComboBox<FisheyeCorrectionAlgo> {
         setSelectedItem(algo);
     }
 }
-class DistortionCenterStationingChooser extends JComboBox<DistortionCenterStationing> {
+class DistortionCenterStationingChooser extends ComboBoxWithTooltips<DistortionCenterStationing> {
     public DistortionCenterStationingChooser(int modes, Consumer<DistortionCenterStationing> valueListener) {
-        super(DistortionCenterStationing.values(modes));
+        super(DistortionCenterStationing.values(modes), DistortionCenterStationing::getDescription);
         setValue(DistortionCenterStationing.CENTER);
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
@@ -6143,21 +6146,22 @@ interface DistortionCenterStationingAux {
     public static final int VERT = 2;
 }
 enum DistortionCenterStationing implements DistortionCenterStationingAux {
-    CENTER(0, 0, 0.5, HORIZ+VERT),
-    PERS_HAZCAM_1to2(0, 0, 1./3, VERT),
-    LEFT_EDGE(8, 8, 0.0, HORIZ),
-    RIGHT_EDGE(8, 8, 1.0, HORIZ),
-    LEFT_EDGE_OVER(8, 0, -1.0, HORIZ),
-    RIGHT_EDGE_OVER(0, 8, 2.0, HORIZ),
-    TOP_EDGE(8, 8, 0.0, VERT),
-    BOTTOM_EDGE(8, 8, 1.0, VERT),
-    TOP_EDGE_OVER(8, 0, -1.0, VERT),
-    BOTTOM_EDGE_OVER(0, 8, 2.0, VERT),
+    CENTER(0, 0, 0.5, HORIZ+VERT, "Distortion center in the image center"),
+    PERS_HAZCAM_1to2(0, 0, 1./3, VERT, "Distortion center inside image, 1/3 above, 2/3 below"),
+    LEFT_EDGE(8, 8, 0.0, HORIZ, "Distortion center on the left edge of the image"),
+    RIGHT_EDGE(8, 8, 1.0, HORIZ, "Distortion center on the right edge of the image"),
+    LEFT_EDGE_OVER(8, 0, -1.0, HORIZ, "Distortion center on the left edge of the next image"),
+    RIGHT_EDGE_OVER(0, 8, 2.0, HORIZ, "Distortion center on the right edge of the next image"),
+    TOP_EDGE(8, 8, 0.0, VERT, "Distortion center at the top edge of the image"),
+    BOTTOM_EDGE(8, 8, 1.0, VERT, "Distortion center at the bottom edge of the image"),
+    TOP_EDGE_OVER(8, 0, -1.0, VERT, "Distortion center at the top edge of the image above this one"),
+    BOTTOM_EDGE_OVER(0, 8, 2.0, VERT, "Distortion center at the bottom edge of the image below this one"),
     ;
 
-    int margin1, margin2;
-    double m;
-    int flags;
+    final int margin1, margin2;
+    final double m;
+    final int flags;
+    final String description;
 
     public static DistortionCenterStationing[] values(int flags) {
         if (flags==0) {
@@ -6167,11 +6171,12 @@ enum DistortionCenterStationing implements DistortionCenterStationingAux {
                .filter(x -> (x.flags & flags) != 0)
                .toArray(DistortionCenterStationing[]::new);
     }
-    DistortionCenterStationing(int margin1, int margin2, double m, int flags) {
+    DistortionCenterStationing(int margin1, int margin2, double m, int flags, String descr) {
         this.margin1 = margin1;
         this.margin2 = margin2;
         this.m = m;
         this.flags = flags;
+        this.description = descr;
     }
 //    private DistortionCenterStationing(int m)
     /** coordinate (x or y) of the distortion center, before correction, probably outside of the image */
@@ -6195,6 +6200,7 @@ enum DistortionCenterStationing implements DistortionCenterStationingAux {
         int c = getPoleCoordBefore(widthOrHeight);
         return Math.max(Math.abs(c), Math.abs(c-widthOrHeight));
     }
+    public String getDescription() { return description; }
 }
 class DistortionCenterLocationImpl implements DistortionCenterLocation {
     DistortionCenterStationing cx, cy;
@@ -10950,6 +10956,42 @@ class ImageMerger
                    " " + width +
                    "x" + height +
                    '}';
+        }
+    }
+}
+class ComboBoxWithTooltips<T> extends JComboBox<T> {
+    final ComboboxToolTipRenderer toolTipRenderer;
+
+    public ComboBoxWithTooltips(T[] items, Function<T,String> getTooltip) {
+        super(items);
+        this.toolTipRenderer = new ComboboxToolTipRenderer();
+        this.setRenderer(toolTipRenderer);
+        toolTipRenderer.setTooltips(
+                Arrays.stream(items)
+                        .map(getTooltip)
+                        .collect(Collectors.toList())
+        );
+    }
+
+    class ComboboxToolTipRenderer extends DefaultListCellRenderer {
+        //https://stackoverflow.com/a/4480209/755804
+        List<String> tooltips;
+
+        @Override
+        public Component getListCellRendererComponent(JList list, Object value,
+                                                      int index, boolean isSelected, boolean cellHasFocus) {
+
+            JComponent comp = (JComponent) super.getListCellRendererComponent(list,
+                    value, index, isSelected, cellHasFocus);
+
+            if (-1 < index && null != value && null != tooltips) {
+                list.setToolTipText(tooltips.get(index));
+            }
+            return comp;
+        }
+
+        public void setTooltips(List<String> tooltips) {
+            this.tooltips = tooltips;
         }
     }
 }
