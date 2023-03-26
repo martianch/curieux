@@ -476,6 +476,9 @@ class DisplayParameters {
     ColorCorrection getColorCorrection(boolean isRight) {
         return isRight ? rColorCorrection : lColorCorrection;
     }
+    FisheyeCorrection getFisheyeCorrection(boolean isRight) {
+        return isRight ? rFisheyeCorrection : lFisheyeCorrection;
+    }
     double getFullZoom(boolean isRight) {
         return zoom * (isRight ? zoomR : zoomL);
     }
@@ -1266,6 +1269,10 @@ class UiController implements UiEventListener {
                             effects2 = "none";
                         }
 
+                        String fisheyeDescr = "";
+                        if(displayParameters.getFisheyeCorrection(isRight).algo.notNothing()) {
+                            fisheyeDescr = displayParameters.getFisheyeCorrection(isRight).parametersToString() + "\n";
+                        }
                         String description =
                                 ( FileLocations.isNonLocalUrl(urlOrPath)
                                 ? "Original URL: " + urlOrPath + "\n"
@@ -1273,7 +1280,8 @@ class UiController implements UiEventListener {
                                 )
                                 + "Exported from the Curious X3D Viewer.\n"
                                 + "Effects: "+effects + "\n"
-                                + "Effects_verbose: "+effects2 + "\n";
+                                + "Effects_verbose: "+effects2 + "\n"
+                                + fisheyeDescr;
                         ScreenshotSaver.writePng(imgFile, bi,
                                 "Software", "Curious: X3D Viewer",
                                 "Description", description);
@@ -4641,7 +4649,20 @@ class ScreenshotSaver extends SaverBase {
                     FileLocations.getSol(rawData.left.path).map(x -> String.format("%04d-",x)).orElse(""),
                     "-x" + toSuffixNumber(displayParameters.zoom * displayParameters.zoomL),
                     (imgFile) -> {
-                        String description = "Left, Right:\n" + rawData.left.path + "\n" + rawData.right.path + "\n";
+                        String fisheyeDescr = "";
+                        {
+                            if (displayParameters.getFisheyeCorrection(false).algo.notNothing()) {
+                                fisheyeDescr += "De-fisheye, left: " + displayParameters.getFisheyeCorrection(false).parametersToString() + "\n";
+                            }
+                            if (displayParameters.getFisheyeCorrection(true).algo.notNothing()) {
+                                fisheyeDescr += "De-fisheye, right: " + displayParameters.getFisheyeCorrection(true).parametersToString() + "\n";
+                            }
+                        }
+
+                        String description = "Left, Right:\n"
+                                             + rawData.left.path + "\n"
+                                             + rawData.right.path + "\n"
+                                             + fisheyeDescr;
                         ScreenshotSaver.writePng(imgFile, bi,
                             "Software", "Curious: X3D Viewer",
                             "Description", description);
