@@ -5946,6 +5946,28 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         }
         @Override public String effectName() { return "Unfish, inverse biquadratic"; }
     },
+    UNFISH5 {
+        @Override
+        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+            return doFisheyeCorrectionNearestNeighbor(orig, fc);
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            return LinearPolynomial.from2Points(x1, y1, x3, y3);
+        }
+        @Override public String effectName() { return "Unfish, linear"; }
+    },
+    UNFISH6 {
+        @Override
+        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+            return doFisheyeCorrectionNearestNeighbor(orig, fc);
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            return MultiplicativeInversePlusC.from3Points(x1, y1, x2, y2, x3, y3, UNFISH5::calculateFunctionFrom3Points);
+        }
+        @Override public String effectName() { return "Unfish, inverse linear"; }
+    },
     ;
 
     private static BufferedImage doFisheyeCorrectionNearestNeighbor(BufferedImage orig, FisheyeCorrection fc) {
