@@ -6010,7 +6010,7 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
 
     <T>T doWith3Points(int width, int height,
                        DistortionCenterLocation dcl, PanelMeasurementStatus pms,
-                       Function<double[], T> todo
+                       Double6Function<T> todo
     ) {
         double x0 = dcl.getPoleXBefore(width, height);
         double y0 = dcl.getPoleYBefore(width, height);
@@ -6026,14 +6026,14 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         double R3 = r3;
         double R2 = r2*(y3-y0)/(y2-y0);
         double R1 = r1*(y3-y0)/(y1-y0);
-        return todo.apply(new double[]{r1, R1, r2, R2, r3, R3});
+        return todo.apply(R1, r1, R2, r2, R3, r3);
     }
 
     HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
         return doWith3Points(
                 width, height, dcl, pms,
-                rr -> {
-                    double r1 = rr[0], R1 = rr[1], r2 = rr[2], R2 = rr[3], r3 = rr[4], R3 = rr[5];
+                // the function is R->r
+                (R1, r1, R2, r2, R3, r3) -> {
                     HumanVisibleMathFunction g = calculateFunctionFrom3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
 
                     System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
@@ -6045,36 +6045,10 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         );
     }
 
-//    HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
-//        double x0 = dcl.getPoleXBefore(width, height);
-//        double y0 = dcl.getPoleYBefore(width, height);
-//        double x1 = pms.x3;
-//        double y1 = pms.y3;
-//        double x2 = pms.x4;
-//        double y2 = pms.y4;
-//        double x3 = pms.x5;
-//        double y3 = pms.y5;
-//        double r1 = Math.hypot(x1-x0,y1-y0);
-//        double r2 = Math.hypot(x2-x0,y2-y0);
-//        double r3 = Math.hypot(x3-x0,y3-y0);
-//        double R3 = r3;
-//        double R2 = r2*(y3-y0)/(y2-y0);
-//        double R1 = r1*(y3-y0)/(y1-y0);
-//        HumanVisibleMathFunction g = calculateFunctionFrom3Points(R1, r1/R1, R2, r2/R2, R3, r3/R3);
-//
-//        System.out.println("R1="+R1+" R2="+R2+" R3="+R3);
-//        System.out.println("r1="+r1+" r2="+r2+" r3="+r3);
-//        System.out.println("g="+g);
-//
-//        return g;
-//    }
     double[] get3Points(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
         return doWith3Points(
                 width, height, dcl, pms,
-                rr -> {
-                    double r1 = rr[0], R1 = rr[1], r2 = rr[2], R2 = rr[3], r3 = rr[4], R3 = rr[5];
-                    return new double[] {r1, r2, r3};
-                }
+                (R1, r1, R2, r2, R3, r3) -> new double[] {R1, R2, R3}
         );
     }
     abstract HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3);
@@ -8277,8 +8251,9 @@ class FisheyeCorrectionPane extends JPanel {
             var k = fc.sizeChange;
             var dcl = fc.distortionCenterLocation;
             var g = fc.func;
+            var maxPoint = DoubleStream.of(threePoints).max().orElse(0);
             var rMin = 0.;
-            var rMax = dcl.getMaxRAfter(width, height, k);
+            var rMax = Math.max(maxPoint, dcl.getMaxRAfter(width, height, k));
             halfPane.lblGraph.setIcon(new ImageIcon(
                     GraphPlotter.plotGraph(
                             GRAPH_WIDTH, GRAPH_HEIGHT,
@@ -9142,12 +9117,11 @@ interface HumanVisibleMathFunction {
         return Optional.empty();
     }
 }
+interface Double6Function<R> {
+    R apply(double x1, double y1, double x2, double y2, double x3, double y3);
+}
 abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction {
     static final double ROOT_PREC = 0.001;
-
-    interface Double6ToHvmfFunction<T extends HumanVisibleMathFunction> {
-        T apply(double x1, double y1, double x2, double y2, double x3, double y3);
-    }
 
     static boolean isBetween(double xLim1, double x, double xLim2) {
         return Double.isFinite(x)
@@ -9292,11 +9266,11 @@ class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends Hum
         this.f = f;
         this.c = c;
     }
-    public static<TT extends HumanVisibleMathFunction> MultiplicativeInversePlusC<TT> of(TT f, double c) {
-        return new MultiplicativeInversePlusC<TT>(f, c);
+    public static<HVMF extends HumanVisibleMathFunction> MultiplicativeInversePlusC<HVMF> of(HVMF f, double c) {
+        return new MultiplicativeInversePlusC<HVMF>(f, c);
     }
-    public static<TT extends HumanVisibleMathFunction> MultiplicativeInversePlusC<TT> from3Points(double x1, double y1, double x2, double y2, double x3, double y3, HumanVisibleMathFunctionBase.Double6ToHvmfFunction<TT> from3points) {
-        TT q = from3points.apply(x1,1/y1, x2,1/y2,x3,1/y3);
+    public static<HVMF extends HumanVisibleMathFunction> MultiplicativeInversePlusC<HVMF> from3Points(double x1, double y1, double x2, double y2, double x3, double y3, Double6Function<HVMF> from3points) {
+        HVMF q = from3points.apply(x1,1/y1, x2,1/y2, x3,1/y3);
         return of(q, 0);
     }
     public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
@@ -9977,7 +9951,7 @@ class GraphPlotter {
         var yMax = graphMaxY(fMax);
         int zeroYLevel = height - BMARGIN;
         var yScale = zeroYLevel / yMax;
-        var xScale = width / xMax;
+        var xScale = (width-1) / xMax;
         {
             g.setColor(Color.WHITE);
             g.fillRect(0, 0, width, height);
