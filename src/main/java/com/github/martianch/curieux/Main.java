@@ -6168,7 +6168,8 @@ interface DistortionCenterStationingAux {
 }
 enum DistortionCenterStationing implements DistortionCenterStationingAux {
     CENTER(0, 0, 0.5, HORIZ+VERT, "Distortion center in the image center"),
-    PERS_HAZCAM_1to2(0, 0, 1./3, VERT, "Distortion center inside image, 1/3 above, 2/3 below"),
+    INSIDE_1to2(0, 0, 1./3, VERT, "Distortion center inside image, 1/3 above, 2/3 below"),
+    cmINSIDE_2to1(0, 0, 1./3, VERT, "Distortion center inside image, 2/3 above, 1/3 below"),
     LEFT_EDGE(8, 8, 0.0, HORIZ, "Distortion center on the left edge of the image"),
     RIGHT_EDGE(8, 8, 1.0, HORIZ, "Distortion center on the right edge of the image"),
     LEFT_EDGE_OVER(8, 0, -1.0, HORIZ, "Distortion center on the left edge of the next image"),
