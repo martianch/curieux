@@ -42,6 +42,17 @@ public class QuarticPolynomialTest {
     }
 
     @Test
+    public void xapplyTest() {
+        // int math should be ok with delta=0
+        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 0, 1).xapply(3), 0);
+        assertEquals(9, QuarticPolynomial.of(0, 0, 0, 1, 0).xapply(3), 0);
+        assertEquals(27, QuarticPolynomial.of(0, 0, 1, 0, 0).xapply(3), 0);
+        assertEquals(81, QuarticPolynomial.of(0, 1, 0, 0, 0).xapply(3), 0);
+        assertEquals(243, QuarticPolynomial.of(1, 0, 0, 0, 0).xapply(3), 0);
+        assertEquals(303, QuarticPolynomial.of(1, 1, -1, 1, -1).xapply(3), 0);
+    }
+
+    @Test
     public void asFunctionTest() {
         assertEquals(1, QuarticPolynomial.of(0, 0, 0, 0, 1).asFunction().applyAsDouble(3), 0);
         assertEquals(3, QuarticPolynomial.of(0, 0, 0, 1, 0).asFunction().applyAsDouble(3), 0);
@@ -49,6 +60,16 @@ public class QuarticPolynomialTest {
         assertEquals(27, QuarticPolynomial.of(0, 1, 0, 0, 0).asFunction().applyAsDouble(3), 0);
         assertEquals(81, QuarticPolynomial.of(1, 0, 0, 0, 0).asFunction().applyAsDouble(3), 0);
         assertEquals(101, QuarticPolynomial.of(1, 1, -1, 1, -1).asFunction().applyAsDouble(3), 0);
+    }
+
+    @Test
+    public void asFunctionXTest() {
+        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 0, 1).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(9, QuarticPolynomial.of(0, 0, 0, 1, 0).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(27, QuarticPolynomial.of(0, 0, 1, 0, 0).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(81, QuarticPolynomial.of(0, 1, 0, 0, 0).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(243, QuarticPolynomial.of(1, 0, 0, 0, 0).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(303, QuarticPolynomial.of(1, 1, -1, 1, -1).asFunctionX().applyAsDouble(3), 0);
     }
 
     @Test

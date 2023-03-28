@@ -41,6 +41,15 @@ public class QuadraticPolynomialTest {
     }
 
     @Test
+    public void xapplyTest() {
+        // int math should be ok with delta=0
+        assertEquals(3, QuadraticPolynomial.of(0, 0, 1).xapply(3), 0);
+        assertEquals(9, QuadraticPolynomial.of(0, 1, 0).xapply(3), 0);
+        assertEquals(27, QuadraticPolynomial.of(1, 0, 0).xapply(3), 0);
+        assertEquals(21, QuadraticPolynomial.of(1, -1, 1).xapply(3), 0);
+    }
+
+    @Test
     public void asFunctionTest() {
         // int math should be ok with delta=0
         assertEquals(1, QuadraticPolynomial.of(0, 0, 1).asFunction().applyAsDouble(3), 0);
@@ -52,6 +61,21 @@ public class QuadraticPolynomialTest {
             assertEquals(3, f.applyAsDouble(0), 0);
             assertEquals(6, f.applyAsDouble(1), 0);
             assertEquals(11, f.applyAsDouble(2), 0);
+        }
+    }
+
+    @Test
+    public void asFunctionXTest() {
+        // int math should be ok with delta=0
+        assertEquals(3, QuadraticPolynomial.of(0, 0, 1).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(9, QuadraticPolynomial.of(0, 1, 0).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(27, QuadraticPolynomial.of(1, 0, 0).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(21, QuadraticPolynomial.of(1, -1, 1).asFunctionX().applyAsDouble(3), 0);
+        {
+            var f = QuadraticPolynomial.of(1, 2, 3).asFunctionX();
+            assertEquals(0, f.applyAsDouble(0), 0);
+            assertEquals(6, f.applyAsDouble(1), 0);
+            assertEquals(22, f.applyAsDouble(2), 0);
         }
     }
 

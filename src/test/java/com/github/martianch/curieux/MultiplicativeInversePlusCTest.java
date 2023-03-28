@@ -93,6 +93,22 @@ public class MultiplicativeInversePlusCTest {
     }
 
     @Test
+    public void xapplyTest() {
+        {
+            var p = MultiplicativeInversePlusC.of(LinearPolynomial.of(1, 0), 1);
+            assertEquals(2, p.xapply(1), 0);
+            assertEquals(3, p.xapply(2), 0);
+            assertEquals(1.5, p.xapply(0.5), 0);
+        }
+        {
+            var p = MultiplicativeInversePlusC.of(QuadraticPolynomial.of(1, 0, 0), 1);
+            assertEquals(2, p.xapply(1), 0);
+            assertEquals(2.5, p.xapply(2), 0);
+            assertEquals(2.5, p.xapply(0.5), 0);
+        }
+    }
+
+    @Test
     public void asFunctionTest() {
         {
             var p = MultiplicativeInversePlusC.of(LinearPolynomial.of(1, 0), 1).asFunction();
@@ -105,6 +121,22 @@ public class MultiplicativeInversePlusCTest {
             assertEquals(2, p.applyAsDouble(1), 0);
             assertEquals(1.25, p.applyAsDouble(2), 0);
             assertEquals(5, p.applyAsDouble(0.5), 0);
+        }
+    }
+
+    @Test
+    public void asFunctionXTest() {
+        {
+            var p = MultiplicativeInversePlusC.of(LinearPolynomial.of(1, 0), 1).asFunctionX();
+            assertEquals(2, p.applyAsDouble(1), 0);
+            assertEquals(3, p.applyAsDouble(2), 0);
+            assertEquals(1.5, p.applyAsDouble(0.5), 0);
+        }
+        {
+            var p = MultiplicativeInversePlusC.of(QuadraticPolynomial.of(1, 0, 0), 1).asFunctionX();
+            assertEquals(2, p.applyAsDouble(1), 0);
+            assertEquals(2.5, p.applyAsDouble(2), 0);
+            assertEquals(2.5, p.applyAsDouble(0.5), 0);
         }
     }
 

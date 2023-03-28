@@ -9121,7 +9121,9 @@ class FisheyeCorrectionPane extends JPanel {
 
 interface HumanVisibleMathFunction {
     double apply(double x);
-    DoubleUnaryOperator asFunction();
+    default double xapply(double x) { return x*apply(x); }
+    default DoubleUnaryOperator asFunction() { return this::apply; }
+    default DoubleUnaryOperator asFunctionX() { return this::xapply; }
     String asString();
     default String asString(String x) { return asString().replaceAll("x",x); }
     String parameterString();
@@ -9308,6 +9310,74 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
         }
     }
 } // HumanVisibleMathFunctionBase
+class AtanKTan extends HumanVisibleMathFunctionBase {
+    // b*tan(k*arctan(x/b))
+    final double k, q, a, c, aq;
+
+    private AtanKTan(double k, double q, double a, double c) {
+        this.k = k;
+        this.q = q;
+        this.a = a;
+        this.c = c;
+        this.aq = a * q;
+    }
+
+    public static AtanKTan of(double k, double q, double a, double c) {
+        return new AtanKTan(k, q, a, c);
+    }
+    public static AtanKTan of(double k, double q) {
+        return of(k, q, 1., 0.);
+    }
+    @Override
+    public double apply(double x) {
+        return aq * Math.tan(k * Math.atan(x / q)) + c;
+    }
+    @Override
+    public String asString() {
+        return String.format(DOUBLE_FMT + "*tan("+ DOUBLE_FMT + "*atan(x/"+ DOUBLE_FMT+")) + " + DOUBLE_FMT,
+                             k,                    q,                       k,                   c);
+    }
+
+    @Override
+    public String parameterString() {
+        return "ATAN_K_TAN " + k + " " + q + " " + c;
+    }
+
+    @Override
+    public double maxInRange(double x1, double x2) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public double minInRange(double x1, double x2) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public HumanVisibleMathFunction mul(double kk) {
+        return of(k, q, a*kk, c*kk);
+    }
+
+    @Override
+    public HumanVisibleMathFunction sub(double m) {
+        return of(k, q, a, c-m);
+    }
+
+    @Override
+    public HumanVisibleMathFunction derivative() {
+        throw new UnsupportedOperationException();
+    }
+
+//    @Override
+//    public double[] findRoots() {
+//        return new double[0];
+//    }
+
+//    @Override
+//    public double[] findEqualIn(double y, double x1, double x2) {
+//        return new double[0];
+//    }
+}
 class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends HumanVisibleMathFunctionBase {
     final T f;
     final double c;
@@ -9341,8 +9411,8 @@ class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends Hum
         return 1./f.apply(x) + c;
     }
     @Override
-    public DoubleUnaryOperator asFunction() {
-        return this::apply;
+    public double xapply(double x) {
+        return x*(1./f.apply(x) + c);
     }
     @Override
     public String asString() {
@@ -9423,8 +9493,8 @@ class OfXSquared<T extends HumanVisibleMathFunction> extends HumanVisibleMathFun
         return f.apply(x*x);
     }
     @Override
-    public DoubleUnaryOperator asFunction() {
-        return this::apply;
+    public double xapply(double x) {
+        return x*f.apply(x*x);
     }
     @Override
     public String asString() {
@@ -9572,8 +9642,8 @@ class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVis
         return (((a*x + b)*x + c)*x + d)*x +e;
     }
     @Override
-    public DoubleUnaryOperator asFunction() {
-        return this::apply;
+    public double xapply(double x) {
+        return ((((a*x + b)*x + c)*x + d)*x +e)*x;
     }
     @Override
     public String asString() {
@@ -9653,8 +9723,8 @@ class CubicPolynomial extends HumanVisibleMathFunctionBase implements HumanVisib
         return ((a*x + b)*x + c)*x + d;
     }
     @Override
-    public DoubleUnaryOperator asFunction() {
-        return this::apply;
+    public double xapply(double x) {
+        return (((a*x + b)*x + c)*x + d)*x;
     }
     @Override
     public String asString() {
@@ -9743,8 +9813,8 @@ class QuadraticPolynomial extends HumanVisibleMathFunctionBase implements HumanV
         return (a*x + b)*x + c;
     }
     @Override
-    public DoubleUnaryOperator asFunction() {
-        return this::apply;
+    public double xapply(double x) {
+        return ((a*x + b)*x + c)*x;
     }
     @Override
     public String asString() {
@@ -9858,8 +9928,8 @@ class LinearPolynomial extends HumanVisibleMathFunctionBase implements HumanVisi
         return a*x + b;
     }
     @Override
-    public DoubleUnaryOperator asFunction() {
-        return this::apply;
+    public double xapply(double x) {
+        return (a*x + b)*x;
     }
     @Override
     public String asString() {
@@ -9933,10 +10003,6 @@ class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVi
     @Override
     public double apply(double x) {
         return a;
-    }
-    @Override
-    public DoubleUnaryOperator asFunction() {
-        return this::apply;
     }
     @Override
     public String asString() {

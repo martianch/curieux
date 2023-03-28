@@ -76,6 +76,15 @@ public class BiquadraticPolynomialTest {
     }
 
     @Test
+    public void xapplyTest() {
+        // int math should be ok with delta=0
+        assertEquals(3, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).xapply(3), 0);
+        assertEquals(27, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).xapply(3), 0);
+        assertEquals(243, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).xapply(3), 0);
+        assertEquals(219, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).xapply(3), 0);
+    }
+
+    @Test
     public void asFunctionTest() {
         // int math should be ok with delta=0
         assertEquals(1, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).asFunction().applyAsDouble(3), 0);
@@ -87,6 +96,21 @@ public class BiquadraticPolynomialTest {
             assertEquals(3, f.applyAsDouble(0), 0);
             assertEquals(6, f.applyAsDouble(1), 0);
             assertEquals(11, f.applyAsDouble(Math.sqrt(2)), 1e-14);
+        }
+    }
+
+    @Test
+    public void asFunctionXTest() {
+        // int math should be ok with delta=0
+        assertEquals(3, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(27, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(243, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(219, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).asFunctionX().applyAsDouble(3), 0);
+        {
+            var f = OfXSquared.of(QuadraticPolynomial.of(1, 2, 3)).asFunctionX();
+            assertEquals(0, f.applyAsDouble(0), 0);
+            assertEquals(6, f.applyAsDouble(1), 0);
+            assertEquals(11*Math.sqrt(2), f.applyAsDouble(Math.sqrt(2)), 1e-14);
         }
     }
 

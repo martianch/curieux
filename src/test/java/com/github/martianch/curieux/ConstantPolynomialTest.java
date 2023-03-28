@@ -45,11 +45,27 @@ public class ConstantPolynomialTest {
     }
 
     @Test
+    public void xapplyTest() {
+        var p = ConstantPolynomial.of(5);
+        assertEquals(20, p.xapply(4), 0);
+        assertEquals(2000, p.xapply(400), 0);
+        assertEquals(Double.NaN, p.xapply(Double.NaN), 0);
+    }
+
+    @Test
     public void asFunctionTest() {
         var p = ConstantPolynomial.of(5);
         assertEquals(5, p.asFunction().applyAsDouble(4), 0);
         assertEquals(5, p.asFunction().applyAsDouble(400), 0);
         assertEquals(5, p.asFunction().applyAsDouble(Double.NaN), 0);
+    }
+
+    @Test
+    public void asFunctionXTest() {
+        var p = ConstantPolynomial.of(5);
+        assertEquals(20, p.asFunctionX().applyAsDouble(4), 0);
+        assertEquals(2000, p.asFunctionX().applyAsDouble(400), 0);
+        assertEquals(Double.NaN, p.asFunctionX().applyAsDouble(Double.NaN), 0);
     }
 
     @Test
