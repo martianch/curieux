@@ -6002,7 +6002,7 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         int WIDTH = fc.distortionCenterLocation.getWidthAfter(width, height, k);
         int HEIGHT = fc.distortionCenterLocation.getHeightAfter(width, height, k);
 
-        DoubleUnaryOperator xf = fc.func.asFunctionX();
+        DoubleUnaryOperator xf = fc.func.asFunctionMulX();
 
         int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
         int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
@@ -9121,9 +9121,9 @@ class FisheyeCorrectionPane extends JPanel {
 
 interface HumanVisibleMathFunction {
     double apply(double x);
-    default double xapply(double x) { return x*apply(x); }
+    default double applyMulX(double x) { return x*apply(x); }
     default DoubleUnaryOperator asFunction() { return this::apply; }
-    default DoubleUnaryOperator asFunctionX() { return this::xapply; }
+    default DoubleUnaryOperator asFunctionMulX() { return this::applyMulX; }
     String asString();
     default String asString(String x) { return asString().replaceAll("x",x); }
     String parameterString();
@@ -9345,7 +9345,7 @@ class ReTangentPlusC extends HumanVisibleMathFunctionBase {
             return Math.abs(x) > dx0 ? aqk * Math.tan(k * Math.atan(x / q)) / x : a;
         }
         @Override
-        public double xapply(double x) {
+        public double applyMulX(double x) {
             return aqk * Math.tan(k * Math.atan(x / q));
         }
     }
@@ -9377,7 +9377,7 @@ class ReTangentPlusC extends HumanVisibleMathFunctionBase {
         return (Math.abs(x) > dx0 ? aqk * Math.tan(k * Math.atan(x / q)) / x : a) + c;
     }
     @Override
-    public double xapply(double x) {
+    public double applyMulX(double x) {
         return aqk * Math.tan(k * Math.atan(x / q)) + c * x;
     }
     @Override
@@ -9492,7 +9492,7 @@ class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends Hum
         return 1./f.apply(x) + c;
     }
     @Override
-    public double xapply(double x) {
+    public double applyMulX(double x) {
         return x*(1./f.apply(x) + c);
     }
     @Override
@@ -9574,7 +9574,7 @@ class OfXSquared<T extends HumanVisibleMathFunction> extends HumanVisibleMathFun
         return f.apply(x*x);
     }
     @Override
-    public double xapply(double x) {
+    public double applyMulX(double x) {
         return x*f.apply(x*x);
     }
     @Override
@@ -9723,7 +9723,7 @@ class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVis
         return (((a*x + b)*x + c)*x + d)*x +e;
     }
     @Override
-    public double xapply(double x) {
+    public double applyMulX(double x) {
         return ((((a*x + b)*x + c)*x + d)*x +e)*x;
     }
     @Override
@@ -9804,7 +9804,7 @@ class CubicPolynomial extends HumanVisibleMathFunctionBase implements HumanVisib
         return ((a*x + b)*x + c)*x + d;
     }
     @Override
-    public double xapply(double x) {
+    public double applyMulX(double x) {
         return (((a*x + b)*x + c)*x + d)*x;
     }
     @Override
@@ -9894,7 +9894,7 @@ class QuadraticPolynomial extends HumanVisibleMathFunctionBase implements HumanV
         return (a*x + b)*x + c;
     }
     @Override
-    public double xapply(double x) {
+    public double applyMulX(double x) {
         return ((a*x + b)*x + c)*x;
     }
     @Override
@@ -10009,7 +10009,7 @@ class LinearPolynomial extends HumanVisibleMathFunctionBase implements HumanVisi
         return a*x + b;
     }
     @Override
-    public double xapply(double x) {
+    public double applyMulX(double x) {
         return (a*x + b)*x;
     }
     @Override

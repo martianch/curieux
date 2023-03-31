@@ -42,14 +42,14 @@ public class QuarticPolynomialTest {
     }
 
     @Test
-    public void xapplyTest() {
+    public void applyMulXTest() {
         // int math should be ok with delta=0
-        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 0, 1).xapply(3), 0);
-        assertEquals(9, QuarticPolynomial.of(0, 0, 0, 1, 0).xapply(3), 0);
-        assertEquals(27, QuarticPolynomial.of(0, 0, 1, 0, 0).xapply(3), 0);
-        assertEquals(81, QuarticPolynomial.of(0, 1, 0, 0, 0).xapply(3), 0);
-        assertEquals(243, QuarticPolynomial.of(1, 0, 0, 0, 0).xapply(3), 0);
-        assertEquals(303, QuarticPolynomial.of(1, 1, -1, 1, -1).xapply(3), 0);
+        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 0, 1).applyMulX(3), 0);
+        assertEquals(9, QuarticPolynomial.of(0, 0, 0, 1, 0).applyMulX(3), 0);
+        assertEquals(27, QuarticPolynomial.of(0, 0, 1, 0, 0).applyMulX(3), 0);
+        assertEquals(81, QuarticPolynomial.of(0, 1, 0, 0, 0).applyMulX(3), 0);
+        assertEquals(243, QuarticPolynomial.of(1, 0, 0, 0, 0).applyMulX(3), 0);
+        assertEquals(303, QuarticPolynomial.of(1, 1, -1, 1, -1).applyMulX(3), 0);
     }
 
     @Test
@@ -63,13 +63,13 @@ public class QuarticPolynomialTest {
     }
 
     @Test
-    public void asFunctionXTest() {
-        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 0, 1).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(9, QuarticPolynomial.of(0, 0, 0, 1, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(27, QuarticPolynomial.of(0, 0, 1, 0, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(81, QuarticPolynomial.of(0, 1, 0, 0, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(243, QuarticPolynomial.of(1, 0, 0, 0, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(303, QuarticPolynomial.of(1, 1, -1, 1, -1).asFunctionX().applyAsDouble(3), 0);
+    public void asFunctionMulXTest() {
+        assertEquals(3, QuarticPolynomial.of(0, 0, 0, 0, 1).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(9, QuarticPolynomial.of(0, 0, 0, 1, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(27, QuarticPolynomial.of(0, 0, 1, 0, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(81, QuarticPolynomial.of(0, 1, 0, 0, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(243, QuarticPolynomial.of(1, 0, 0, 0, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(303, QuarticPolynomial.of(1, 1, -1, 1, -1).asFunctionMulX().applyAsDouble(3), 0);
     }
 
     @Test

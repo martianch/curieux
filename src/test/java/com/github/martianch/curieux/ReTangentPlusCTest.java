@@ -71,27 +71,27 @@ public class ReTangentPlusCTest {
     }
 
     @Test
-    public void xapplyTest() {
+    public void applyMulXTest() {
         {
             var f = ReTangentPlusC.of(2, 1);
-            assertEquals(Math.sqrt(3)/2, f.xapply(1./Math.sqrt(3)), 1e-9);
+            assertEquals(Math.sqrt(3)/2, f.applyMulX(1. / Math.sqrt(3)), 1e-9);
         }
         {
             var f = ReTangentPlusC.of(2 / 3., 1000000);
-            assertEquals(Math.sqrt(3)*1000000/2, f.xapply(1000000), 1e-9);
+            assertEquals(Math.sqrt(3)*1000000/2, f.applyMulX(1000000), 1e-9);
         }
         {
             var f = ReTangentPlusC.of(4 / 3., 1, Math.sqrt(3), 5);
-            assertEquals(7.25, f.xapply(1), 1e-9);
+            assertEquals(7.25, f.applyMulX(1), 1e-9);
         }
         {
             var f = ReTangentPlusC.of(4 / 3., 10, Math.sqrt(3), 5);
-            assertEquals(72.5, f.xapply(10), 1e-9);
+            assertEquals(72.5, f.applyMulX(10), 1e-9);
         }
         {
             var f = ReTangentPlusC.of(0.3, 10);
-            assertEquals(0., f.xapply(0), 0);
-            assertEquals(0.1, f.xapply(0.1), 1e-4);
+            assertEquals(0., f.applyMulX(0), 0);
+            assertEquals(0.1, f.applyMulX(0.1), 1e-4);
         }
     }
 
@@ -121,25 +121,25 @@ public class ReTangentPlusCTest {
     }
 
     @Test
-    public void asFunctionXTest() {
+    public void asFunctionMulXTest() {
         {
-            var f = ReTangentPlusC.of(2, 1).asFunctionX();
+            var f = ReTangentPlusC.of(2, 1).asFunctionMulX();
             assertEquals(Math.sqrt(3)/2, f.applyAsDouble(1./Math.sqrt(3)), 1e-9);
         }
         {
-            var f = ReTangentPlusC.of(2 / 3., 1000000).asFunctionX();
+            var f = ReTangentPlusC.of(2 / 3., 1000000).asFunctionMulX();
             assertEquals(Math.sqrt(3)*1000000/2, f.applyAsDouble(1000000), 1e-9);
         }
         {
-            var f = ReTangentPlusC.of(4 / 3., 1, Math.sqrt(3), 5).asFunctionX();
+            var f = ReTangentPlusC.of(4 / 3., 1, Math.sqrt(3), 5).asFunctionMulX();
             assertEquals(7.25, f.applyAsDouble(1), 1e-9);
         }
         {
-            var f = ReTangentPlusC.of(4 / 3., 10, Math.sqrt(3), 5).asFunctionX();
+            var f = ReTangentPlusC.of(4 / 3., 10, Math.sqrt(3), 5).asFunctionMulX();
             assertEquals(72.5, f.applyAsDouble(10), 1e-9);
         }
         {
-            var f = ReTangentPlusC.of(0.3, 10).asFunctionX();
+            var f = ReTangentPlusC.of(0.3, 10).asFunctionMulX();
             assertEquals(0., f.applyAsDouble(0), 0);
             assertEquals(0.1, f.applyAsDouble(0.1), 1e-4);
         }

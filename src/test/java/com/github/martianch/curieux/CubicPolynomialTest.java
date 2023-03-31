@@ -41,13 +41,13 @@ public class CubicPolynomialTest {
     }
 
     @Test
-    public void xapplyTest() {
+    public void applyMulXTest() {
         // int math should be ok with delta=0
-        assertEquals(3, CubicPolynomial.of(0, 0, 0, 1).xapply(3), 0);
-        assertEquals(9, CubicPolynomial.of(0, 0, 1, 0).xapply(3), 0);
-        assertEquals(27, CubicPolynomial.of(0, 1, 0, 0).xapply(3), 0);
-        assertEquals(81, CubicPolynomial.of(1, 0, 0, 0).xapply(3), 0);
-        assertEquals(60, CubicPolynomial.of(1, -1, 1, -1).xapply(3), 0);
+        assertEquals(3, CubicPolynomial.of(0, 0, 0, 1).applyMulX(3), 0);
+        assertEquals(9, CubicPolynomial.of(0, 0, 1, 0).applyMulX(3), 0);
+        assertEquals(27, CubicPolynomial.of(0, 1, 0, 0).applyMulX(3), 0);
+        assertEquals(81, CubicPolynomial.of(1, 0, 0, 0).applyMulX(3), 0);
+        assertEquals(60, CubicPolynomial.of(1, -1, 1, -1).applyMulX(3), 0);
     }
 
     @Test
@@ -66,14 +66,14 @@ public class CubicPolynomialTest {
     }
 
     @Test
-    public void asFunctionXTest() {
-        assertEquals(3, CubicPolynomial.of(0, 0, 0, 1).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(9, CubicPolynomial.of(0, 0, 1, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(27, CubicPolynomial.of(0, 1, 0, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(81, CubicPolynomial.of(1, 0, 0, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(60, CubicPolynomial.of(1, -1, 1, -1).asFunctionX().applyAsDouble(3), 0);
+    public void asFunctionMulXTest() {
+        assertEquals(3, CubicPolynomial.of(0, 0, 0, 1).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(9, CubicPolynomial.of(0, 0, 1, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(27, CubicPolynomial.of(0, 1, 0, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(81, CubicPolynomial.of(1, 0, 0, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(60, CubicPolynomial.of(1, -1, 1, -1).asFunctionMulX().applyAsDouble(3), 0);
         {
-            var f = CubicPolynomial.of(1, 2, 3, 4).asFunctionX();
+            var f = CubicPolynomial.of(1, 2, 3, 4).asFunctionMulX();
             assertEquals(0, f.applyAsDouble(0), 0);
             assertEquals(10, f.applyAsDouble(1), 0);
             assertEquals(52, f.applyAsDouble(2), 0);

@@ -47,11 +47,11 @@ public class LinearPolynomialTest {
     }
 
     @Test
-    public void xapplyTest() {
+    public void applyMulXTest() {
         // int math should be ok with delta=0
-        assertEquals(3, LinearPolynomial.of(0, 1).xapply(3), 0);
-        assertEquals(9, LinearPolynomial.of(1, 0).xapply(3), 0);
-        assertEquals(6, LinearPolynomial.of(1, -1).xapply(3), 0);
+        assertEquals(3, LinearPolynomial.of(0, 1).applyMulX(3), 0);
+        assertEquals(9, LinearPolynomial.of(1, 0).applyMulX(3), 0);
+        assertEquals(6, LinearPolynomial.of(1, -1).applyMulX(3), 0);
     }
 
     @Test
@@ -62,10 +62,10 @@ public class LinearPolynomialTest {
     }
 
     @Test
-    public void asFunctionXTest() {
-        assertEquals(3, LinearPolynomial.of(0, 1).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(9, LinearPolynomial.of(1, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(6, LinearPolynomial.of(1, -1).asFunctionX().applyAsDouble(3), 0);
+    public void asFunctionMulXTest() {
+        assertEquals(3, LinearPolynomial.of(0, 1).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(9, LinearPolynomial.of(1, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(6, LinearPolynomial.of(1, -1).asFunctionMulX().applyAsDouble(3), 0);
     }
 
     @Test

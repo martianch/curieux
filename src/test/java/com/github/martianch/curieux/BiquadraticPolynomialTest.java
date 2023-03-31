@@ -76,12 +76,12 @@ public class BiquadraticPolynomialTest {
     }
 
     @Test
-    public void xapplyTest() {
+    public void applyMulXTest() {
         // int math should be ok with delta=0
-        assertEquals(3, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).xapply(3), 0);
-        assertEquals(27, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).xapply(3), 0);
-        assertEquals(243, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).xapply(3), 0);
-        assertEquals(219, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).xapply(3), 0);
+        assertEquals(3, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).applyMulX(3), 0);
+        assertEquals(27, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).applyMulX(3), 0);
+        assertEquals(243, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).applyMulX(3), 0);
+        assertEquals(219, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).applyMulX(3), 0);
     }
 
     @Test
@@ -100,14 +100,14 @@ public class BiquadraticPolynomialTest {
     }
 
     @Test
-    public void asFunctionXTest() {
+    public void asFunctionMulXTest() {
         // int math should be ok with delta=0
-        assertEquals(3, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(27, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(243, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(219, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(3, OfXSquared.of(QuadraticPolynomial.of(0, 0, 1)).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(27, OfXSquared.of(QuadraticPolynomial.of(0, 1, 0)).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(243, OfXSquared.of(QuadraticPolynomial.of(1, 0, 0)).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(219, OfXSquared.of(QuadraticPolynomial.of(1, -1, 1)).asFunctionMulX().applyAsDouble(3), 0);
         {
-            var f = OfXSquared.of(QuadraticPolynomial.of(1, 2, 3)).asFunctionX();
+            var f = OfXSquared.of(QuadraticPolynomial.of(1, 2, 3)).asFunctionMulX();
             assertEquals(0, f.applyAsDouble(0), 0);
             assertEquals(6, f.applyAsDouble(1), 0);
             assertEquals(11*Math.sqrt(2), f.applyAsDouble(Math.sqrt(2)), 1e-14);

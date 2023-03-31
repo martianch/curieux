@@ -41,12 +41,12 @@ public class QuadraticPolynomialTest {
     }
 
     @Test
-    public void xapplyTest() {
+    public void applyMulXTest() {
         // int math should be ok with delta=0
-        assertEquals(3, QuadraticPolynomial.of(0, 0, 1).xapply(3), 0);
-        assertEquals(9, QuadraticPolynomial.of(0, 1, 0).xapply(3), 0);
-        assertEquals(27, QuadraticPolynomial.of(1, 0, 0).xapply(3), 0);
-        assertEquals(21, QuadraticPolynomial.of(1, -1, 1).xapply(3), 0);
+        assertEquals(3, QuadraticPolynomial.of(0, 0, 1).applyMulX(3), 0);
+        assertEquals(9, QuadraticPolynomial.of(0, 1, 0).applyMulX(3), 0);
+        assertEquals(27, QuadraticPolynomial.of(1, 0, 0).applyMulX(3), 0);
+        assertEquals(21, QuadraticPolynomial.of(1, -1, 1).applyMulX(3), 0);
     }
 
     @Test
@@ -65,14 +65,14 @@ public class QuadraticPolynomialTest {
     }
 
     @Test
-    public void asFunctionXTest() {
+    public void asFunctionMulXTest() {
         // int math should be ok with delta=0
-        assertEquals(3, QuadraticPolynomial.of(0, 0, 1).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(9, QuadraticPolynomial.of(0, 1, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(27, QuadraticPolynomial.of(1, 0, 0).asFunctionX().applyAsDouble(3), 0);
-        assertEquals(21, QuadraticPolynomial.of(1, -1, 1).asFunctionX().applyAsDouble(3), 0);
+        assertEquals(3, QuadraticPolynomial.of(0, 0, 1).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(9, QuadraticPolynomial.of(0, 1, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(27, QuadraticPolynomial.of(1, 0, 0).asFunctionMulX().applyAsDouble(3), 0);
+        assertEquals(21, QuadraticPolynomial.of(1, -1, 1).asFunctionMulX().applyAsDouble(3), 0);
         {
-            var f = QuadraticPolynomial.of(1, 2, 3).asFunctionX();
+            var f = QuadraticPolynomial.of(1, 2, 3).asFunctionMulX();
             assertEquals(0, f.applyAsDouble(0), 0);
             assertEquals(6, f.applyAsDouble(1), 0);
             assertEquals(22, f.applyAsDouble(2), 0);
