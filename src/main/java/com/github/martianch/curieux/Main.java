@@ -6002,7 +6002,7 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         int WIDTH = fc.distortionCenterLocation.getWidthAfter(width, height, k);
         int HEIGHT = fc.distortionCenterLocation.getHeightAfter(width, height, k);
 
-        DoubleUnaryOperator f = fc.func.asFunction();
+        DoubleUnaryOperator xf = fc.func.asFunctionX();
 
         int xc = fc.distortionCenterLocation.getPoleXBefore(width, height);
         int yc = fc.distortionCenterLocation.getPoleYBefore(width, height);
@@ -6022,7 +6022,7 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
                     Math.hypot(xc, yc)
             ));
             double NR = HumanVisibleMathFunctionBase.findRootWhenSafe(
-                    R -> R * f.applyAsDouble(R) - nr,
+                    R -> xf.applyAsDouble(R) - nr,
                     0,
                     k * rFar
             );
@@ -6035,7 +6035,7 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
             for (int i = 0; i < WIDTH; i++) {
                 double R = Math.hypot(i - XC, j - YC);
                 double theta = Math.atan2(j - YC, i - XC);
-                double r = R * f.applyAsDouble(R);
+                double r = xf.applyAsDouble(R);
                 double xx = r * Math.cos(theta);
                 double yy = r * Math.sin(theta);
                 if (Double.isFinite(xx) && Double.isFinite(yy)) { // false if NaN
@@ -9158,7 +9158,8 @@ interface HumanVisibleMathFunction {
                 CubicPolynomial::fromParamString,
                 QuadraticPolynomial::fromParamString,
                 LinearPolynomial::fromParamString,
-                ConstantPolynomial::fromParamString
+                ConstantPolynomial::fromParamString,
+                ReTangentPlusC::fromParamString
         );
         for (var p : parsers) {
             var res = p.apply(params);
@@ -9249,7 +9250,7 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
      * if the fuction changes sign, find roots between them. */
     @Override
     public double[] findRootsIn(double x1, double x2) {
-        double[] points = pointsAndLimits(derivative().findRootsIn(x1, x2), x1, x2);
+        double[] points = pointsAroundIntervalsOfMonotonicity(x1, x2);
         var roots = new double[points.length-1];
         int o = 0;
         for (int i=1; i<points.length; i++) {
@@ -9260,7 +9261,9 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
         Arrays.sort(roots,0,o);
         return removeDuplicatesInSorted(roots, o); // TODO: delta
     }
-
+    protected double[] pointsAroundIntervalsOfMonotonicity(double x1, double x2) {
+        return pointsAndLimits(derivative().findRootsIn(x1, x2), x1, x2);
+    }
     /** Implementation of findRootsIn() that works if findRoots() can find all roots using
      * an analytic formula */
     public double[] findRootsIn_via_findRoots(double x1, double x2) {
@@ -9310,74 +9313,152 @@ abstract class HumanVisibleMathFunctionBase implements HumanVisibleMathFunction 
         }
     }
 } // HumanVisibleMathFunctionBase
-class AtanKTan extends HumanVisibleMathFunctionBase {
-    // b*tan(k*arctan(x/b))
-    final double k, q, a, c, aq;
 
-    private AtanKTan(double k, double q, double a, double c) {
+/**
+ * "Re-tangent": retan(k,q,x) = (q/k)*tan(k*arctan(x/q))
+ * In fact, here we use a*retan(k,q,x)+c = (a*q/k)*tan(k*arctan(x/q))+c,
+ * and now we are interested only in k<1.
+ */
+class ReTangentPlusC extends HumanVisibleMathFunctionBase {
+    final double k, q, a, c, aqk, dx0;
+
+    private ReTangentPlusC(double k, double q, double a, double c) {
         this.k = k;
         this.q = q;
         this.a = a;
         this.c = c;
-        this.aq = a * q;
+        this.aqk = a * q / k;
+        // this should depend on k and q, but I do not want to split hairs
+        this.dx0 = Math.nextUp(1.) - 1.;
     }
 
-    public static AtanKTan of(double k, double q, double a, double c) {
-        return new AtanKTan(k, q, a, c);
+    /**
+     * Optimization for the case of c==0.
+     * The functions defined here will be used in a big long loop.
+     */
+    static class ReTangentPlusC0 extends ReTangentPlusC {
+        private ReTangentPlusC0(double k, double q, double a) {
+            super(k, q, a, 0.);
+        }
+        @Override
+        public double apply(double x) {
+            return Math.abs(x) > dx0 ? aqk * Math.tan(k * Math.atan(x / q)) / x : a;
+        }
+        @Override
+        public double xapply(double x) {
+            return aqk * Math.tan(k * Math.atan(x / q));
+        }
     }
-    public static AtanKTan of(double k, double q) {
+    public static ReTangentPlusC of(double k, double q, double a, double c) {
+        if (c == 0.) {
+            return new ReTangentPlusC0(k, q, a);
+        } else {
+            return new ReTangentPlusC(k, q, a, c);
+        }
+    }
+    public static ReTangentPlusC of(double k, double q) {
         return of(k, q, 1., 0.);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return doFromParamString(
+                s,
+                "RETAN",
+                i -> {
+                    var a = Double.parseDouble(i.next());
+                    var b = Double.parseDouble(i.next());
+                    var c = Double.parseDouble(i.next());
+                    var d = Double.parseDouble(i.next());
+                    HumanVisibleMathFunction p = ReTangentPlusC.of(a, b, c, d);
+                    return p;
+                });
     }
     @Override
     public double apply(double x) {
-        return aq * Math.tan(k * Math.atan(x / q)) + c;
+        return (Math.abs(x) > dx0 ? aqk * Math.tan(k * Math.atan(x / q)) / x : a) + c;
+    }
+    @Override
+    public double xapply(double x) {
+        return aqk * Math.tan(k * Math.atan(x / q)) + c * x;
     }
     @Override
     public String asString() {
-        return String.format(DOUBLE_FMT + "*tan("+ DOUBLE_FMT + "*atan(x/"+ DOUBLE_FMT+")) + " + DOUBLE_FMT,
-                             k,                    q,                       k,                   c);
+        return String.format("(" + DOUBLE_FMT + "*" + DOUBLE_FMT + "/" + DOUBLE_FMT + ")*tan("+ DOUBLE_FMT + "*atan(x/"+ DOUBLE_FMT+")) + " + DOUBLE_FMT,
+                                   a,                 q,                 k,                     k,                       q,                   c);
     }
-
     @Override
     public String parameterString() {
-        return "ATAN_K_TAN " + k + " " + q + " " + c;
+        return "RETAN " + k + " " + q + " " + a + " " + c;
     }
-
     @Override
     public double maxInRange(double x1, double x2) {
-        throw new UnsupportedOperationException();
+        if (k < 1.) {
+            if (x1 <= 0. && 0 <= x2) {
+                return Math.max(Math.max(apply(0), apply(x1)), apply(x2));
+            } else {
+                return Math.max(apply(x1), apply(x2));
+            }
+        } else if (k == 1.) {
+            return apply(0);
+        } else {
+            throw new UnsupportedOperationException("not going to use k>1");
+        }
     }
-
     @Override
     public double minInRange(double x1, double x2) {
-        throw new UnsupportedOperationException();
+        if (Math.abs(k) < 1.) {
+            if (x1 <= 0. && 0 <= x2) {
+                return Math.min(Math.min(apply(0), apply(x1)), apply(x2));
+            } else {
+                return Math.min(apply(x1), apply(x2));
+            }
+        } else if (Math.abs(k) == 1.) {
+            return apply(0.);
+        } else {
+            throw new UnsupportedOperationException("not going to use k>1");
+        }
     }
-
     @Override
-    public HumanVisibleMathFunction mul(double kk) {
+    protected double[] pointsAroundIntervalsOfMonotonicity(double x1, double x2) {
+        if (Math.abs(k) < 1.) {
+            if (x1 <= 0. && 0 <= x2) {
+                return pointsAndLimits(new double[] {0}, x1, x2);
+            } else {
+                return pointsAndLimits(new double[] {}, x1, x2);
+            }
+        } else if (Math.abs(k) == 1.) {
+            return pointsAndLimits(new double[] {}, x1, x2);
+        } else {
+            throw new UnsupportedOperationException("not going to use k>1");
+        }
+    }
+    @Override
+    public ReTangentPlusC mul(double kk) {
         return of(k, q, a*kk, c*kk);
     }
-
     @Override
-    public HumanVisibleMathFunction sub(double m) {
+    public ReTangentPlusC sub(double m) {
         return of(k, q, a, c-m);
     }
-
+    @Override
+    public ReTangentPlusC add(double m) {
+        return (ReTangentPlusC) super.add(m);
+    }
     @Override
     public HumanVisibleMathFunction derivative() {
         throw new UnsupportedOperationException();
     }
-
-//    @Override
-//    public double[] findRoots() {
-//        return new double[0];
-//    }
-
-//    @Override
-//    public double[] findEqualIn(double y, double x1, double x2) {
-//        return new double[0];
-//    }
-}
+    @Override
+    public String toString() {
+        return "CubicPolynomial{" +
+               "k=" + k +
+               ", q=" + q +
+               ", a=" + a +
+               ", c=" + c +
+               ", a*q/k=" + aqk +
+               ", " + asString() +
+               '}';
+    }
+} // ReTangentPlusC
 class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends HumanVisibleMathFunctionBase {
     final T f;
     final double c;

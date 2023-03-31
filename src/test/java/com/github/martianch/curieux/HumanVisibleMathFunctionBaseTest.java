@@ -123,6 +123,12 @@ public class HumanVisibleMathFunctionBaseTest {
     }
 
     @Test
+    public void pointsAroundIntervalsOfMonotonicityTest() {
+        var q = QuadraticPolynomial.of(1, -2, 1); // (x-1)^2
+        assertArrayEquals(new double[]{-100, 1, 100}, q.pointsAroundIntervalsOfMonotonicity(-100, 100), 0);
+    }
+
+    @Test
     public void findRootsIn_via_findRootsTest() {
         var r = TestPolynomial.of(Double.NaN, Double.NaN).findRootsIn(20, 50);
         assertArrayEquals(new double[]{20, 30, 50}, r, 0);
