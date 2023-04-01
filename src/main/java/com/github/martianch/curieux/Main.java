@@ -9449,7 +9449,7 @@ class ReTangentPlusC extends HumanVisibleMathFunctionBase {
     }
     @Override
     public String toString() {
-        return "CubicPolynomial{" +
+        return "ReTangentPlusC{" +
                "k=" + k +
                ", q=" + q +
                ", a=" + a +

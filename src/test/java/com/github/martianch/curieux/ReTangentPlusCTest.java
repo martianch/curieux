@@ -279,7 +279,7 @@ public class ReTangentPlusCTest {
     @Test
     public void toStringTest() {
         assertEquals(
-                "CubicPolynomial{k=0.9, q=10.0, a=20.0, c=5.0, a*q/k=222.22222222222223, "
+                "ReTangentPlusC{k=0.9, q=10.0, a=20.0, c=5.0, a*q/k=222.22222222222223, "
                 + "(20.00*10.00/0.9000)*tan(0.9000*atan(x/10.00)) + 5.000}"
                 , ReTangentPlusC.of(0.9, 10, 20, 5).toString()
         );
