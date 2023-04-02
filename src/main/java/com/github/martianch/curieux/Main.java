@@ -50,6 +50,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
 import java.awt.image.RenderedImage;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -101,6 +102,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
@@ -5890,7 +5892,7 @@ class FisheyeCorrection {
             var pp = p[3].split("\\s*:\\s*", 2);
             var f1 = HumanVisibleMathFunction.fromParameterString(pp[0]).get();
             var ppp = pp[1].split("\\s*#\\s*", 2);
-            var sizeChange1 = Double.parseDouble(ppp[0]);
+            var sizeChange1 = DoubleCalculator.parseDouble(ppp[0]);
             //String descr1 = ppp[1];
             return FisheyeCorrection.of(algo1, f1, center1, sizeChange1);
         } catch (Exception e) {
@@ -9364,10 +9366,10 @@ class ReTangentPlusC extends HumanVisibleMathFunctionBase {
                 s,
                 "RETAN",
                 i -> {
-                    var a = Double.parseDouble(i.next());
-                    var b = Double.parseDouble(i.next());
-                    var c = Double.parseDouble(i.next());
-                    var d = Double.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next());
+                    var b = DoubleCalculator.parseDouble(i.next());
+                    var c = DoubleCalculator.parseDouble(i.next());
+                    var d = DoubleCalculator.parseDouble(i.next());
                     HumanVisibleMathFunction p = ReTangentPlusC.of(a, b, c, d);
                     return p;
                 });
@@ -9478,7 +9480,7 @@ class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends Hum
         return ifParamStringPrefix("C+1/", s, rest -> {
             try {
                 var ss = rest.split("\\s+", 2);
-                var c = Double.parseDouble(ss[0]);
+                var c = DoubleCalculator.parseDouble(ss[0]);
                 var fo = HumanVisibleMathFunction.fromParameterString(ss[1]);
                 return fo.map(f -> of(f, c));
             } catch (Exception e) {
@@ -9709,11 +9711,11 @@ class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVis
                 s,
                 "P4",
                 i -> {
-                    var a = Double.parseDouble(i.next());
-                    var b = Double.parseDouble(i.next());
-                    var c = Double.parseDouble(i.next());
-                    var d = Double.parseDouble(i.next());
-                    var e = Double.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next());
+                    var b = DoubleCalculator.parseDouble(i.next());
+                    var c = DoubleCalculator.parseDouble(i.next());
+                    var d = DoubleCalculator.parseDouble(i.next());
+                    var e = DoubleCalculator.parseDouble(i.next());
                     HumanVisibleMathFunction p = QuarticPolynomial.of(a, b, c, d, e);
                     return p;
                 });
@@ -9791,10 +9793,10 @@ class CubicPolynomial extends HumanVisibleMathFunctionBase implements HumanVisib
                 s,
                 "P3",
                 i -> {
-                    var a = Double.parseDouble(i.next());
-                    var b = Double.parseDouble(i.next());
-                    var c = Double.parseDouble(i.next());
-                    var d = Double.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next());
+                    var b = DoubleCalculator.parseDouble(i.next());
+                    var c = DoubleCalculator.parseDouble(i.next());
+                    var d = DoubleCalculator.parseDouble(i.next());
                     HumanVisibleMathFunction p = CubicPolynomial.of(a, b, c, d);
                     return p;
                 });
@@ -9882,9 +9884,9 @@ class QuadraticPolynomial extends HumanVisibleMathFunctionBase implements HumanV
                 s,
                 "P2",
                 i -> {
-                    var a = Double.parseDouble(i.next());
-                    var b = Double.parseDouble(i.next());
-                    var c = Double.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next());
+                    var b = DoubleCalculator.parseDouble(i.next());
+                    var c = DoubleCalculator.parseDouble(i.next());
                     HumanVisibleMathFunction p = QuadraticPolynomial.of(a, b, c);
                     return p;
                 });
@@ -9998,8 +10000,8 @@ class LinearPolynomial extends HumanVisibleMathFunctionBase implements HumanVisi
                 s,
                 "P1",
                 i -> {
-                    var a = Double.parseDouble(i.next());
-                    var b = Double.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next());
+                    var b = DoubleCalculator.parseDouble(i.next());
                     HumanVisibleMathFunction p = LinearPolynomial.of(a, b);
                     return p;
                 });
@@ -10076,7 +10078,7 @@ class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVi
                 s,
                 "P0",
                 i -> {
-                    var a = Double.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next());
                     HumanVisibleMathFunction p = ConstantPolynomial.of(a);
                     return p;
                 });
@@ -11166,5 +11168,99 @@ class ComboBoxWithTooltips<T> extends JComboBox<T> {
         public void setTooltips(List<String> tooltips) {
             this.tooltips = tooltips;
         }
+    }
+}
+class DoubleCalculator {
+    final Scanner s;
+    String s_last;
+    final String PAREN1 = "\\G\\(";
+    final String PAREN2 = "\\G\\)";
+    final String OPER = "\\G[+\\-*/^]";
+    final String DOUBLE = "\\G[-+]?([0-9]+\\.?[0-9]*|[0-9]*\\.?[0-9]+)([eE][-+]?[0-9]+)?";
+    final Map<String, Integer> prio = new HashMap<>();
+    {
+        prio.put("+", 1);
+        prio.put("-", 1);
+        prio.put("*", 2);
+        prio.put("/", 2);
+        prio.put("^", 3);
+    }
+    final Map<String, DoubleBinaryOperator> func = new HashMap<>();
+    {
+        func.put("+", Double::sum);
+        func.put("-", (a,b)->a-b);
+        func.put("*", (a,b)->a*b);
+        func.put("/", (a,b)->a/b);
+        func.put("^", Math::pow);
+    }
+    public static double parseDouble(String expr) {
+        return new DoubleCalculator(expr).evaluate();
+    }
+    public DoubleCalculator(String exprStr) {
+        s = new Scanner(new ByteArrayInputStream(exprStr.getBytes(StandardCharsets.UTF_8)));
+    }
+    public double evaluate() {
+        double a = getNumber();
+        var op1 = get(OPER);
+        if (op1 == null) {
+            return a;
+        }
+        return evaluateRest(a, op1, false);
+    }
+    double evaluateRest(double a, String op1, boolean nestedCall) {
+        double b = getNumber();
+        var op2 = get(OPER);
+        do {
+            if (op2 == null) {
+                return apply(op1, a, b);
+            } else  if (prio(op2) > prio(op1)) {
+                b = evaluateRest(b, op2, true);
+                op2 = getLast(OPER);
+            } else {
+                a = apply(op1, a, b);
+                if (nestedCall && prio(op1) > prio(op2)) {
+                    return a;
+                }
+                op1 = op2;
+                b = getNumber();
+                op2 = get(OPER);
+            }
+        } while (true);
+    }
+    private double getNumber() {
+        double res;
+        var paren1 = get(PAREN1);
+        if (paren1 == null) {
+            res = Double.parseDouble(get(DOUBLE));
+        } else {
+            res = evaluate();
+            expect(PAREN2);
+        }
+        return res;
+    }
+    String get(String regex) {
+        s_last = s.findWithinHorizon(regex, 0);
+//        System.out.println("==["+s_last+"] "+regex);
+        return s_last;
+    }
+    String getLast(String regex) {
+        var last = s_last;
+        if (last != null && last.matches(regex)) {
+            return last;
+        } else {
+            return null;
+        }
+    }
+    void expect(String regex) {
+        var token = get(regex);
+        if (token == null) {
+            throw new IllegalArgumentException("syntax error, expected but not found: "+regex);
+        }
+    }
+    int prio(String op) {
+        return prio.get(op);
+    }
+    double apply(String op, double a, double b) {
+        return func.get(op).applyAsDouble(a,b);
     }
 }
