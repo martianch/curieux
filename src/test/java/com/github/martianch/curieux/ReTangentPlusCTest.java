@@ -154,41 +154,12 @@ public class ReTangentPlusCTest {
         assertEquals(
                 "(-0.3000*0.2000/0.06000)*tan(0.06000*atan(r/0.2000)) + 0.4000",
                 ReTangentPlusC.of(.06, .2, -.3, .4).asString("r")
-        );    }
+        );
+    }
 
     @Test
     public void parameterStringTest() {
         assertEquals("RETAN 0.06 0.2 -0.3 0.4", ReTangentPlusC.of(.06, .2, -.3, .4).parameterString());
-    }
-
-    @Test
-    public void mulTest() {
-        var q = ReTangentPlusC.of(2, 3, 4, 5);
-        var p = q.mul(-5);
-        assertOf(q, 2, 3, 4, 5);
-        assertOf(p, 2, 3, -20, -25);
-    }
-
-    @Test
-    public void subTest() {
-        var q = ReTangentPlusC.of(2, 3, 4, 5);
-        var p = q.sub(-5);
-        assertOf(q, 2, 3, 4, 5);
-        assertOf(p, 2, 3, 4, 10);
-    }
-
-    @Test
-    public void addTest() {
-        var q = ReTangentPlusC.of(2, 3, 4, 5);
-        var p = q.add(5);
-        assertOf(q, 2, 3, 4, 5);
-        assertOf(p, 2, 3, 4, 10);
-    }
-
-
-    @Test
-    public void derivativeTest() {
-        // TODO
     }
 
     @Test
@@ -242,6 +213,42 @@ public class ReTangentPlusCTest {
     }
 
     @Test
+    public void pointsAroundIntervalsOfMonotonicityTest() {
+        var q = ReTangentPlusC.of(0.9, 10, 20, -17); // roots: +-10.533
+        assertArrayEquals(new double[]{-100, 0, 100}, q.pointsAroundIntervalsOfMonotonicity(-100, 100), 0.01);
+        // TODO other values of k
+    }
+
+    @Test
+    public void mulTest() {
+        var q = ReTangentPlusC.of(2, 3, 4, 5);
+        var p = q.mul(-5);
+        assertOf(q, 2, 3, 4, 5);
+        assertOf(p, 2, 3, -20, -25);
+    }
+
+    @Test
+    public void subTest() {
+        var q = ReTangentPlusC.of(2, 3, 4, 5);
+        var p = q.sub(-5);
+        assertOf(q, 2, 3, 4, 5);
+        assertOf(p, 2, 3, 4, 10);
+    }
+
+    @Test
+    public void addTest() {
+        var q = ReTangentPlusC.of(2, 3, 4, 5);
+        var p = q.add(5);
+        assertOf(q, 2, 3, 4, 5);
+        assertOf(p, 2, 3, 4, 10);
+    }
+
+    @Test
+    public void derivativeTest() {
+        // TODO
+    }
+
+    @Test
     public void findRootsInTest() {
         var q = ReTangentPlusC.of(0.9, 10, 18, -17); // roots: +-10.533
         assertEquals(0, q.apply(10.533), 1e-3);
@@ -255,13 +262,6 @@ public class ReTangentPlusCTest {
         assertArrayEquals(new double[]{10.533}, q.findRootsIn(0, 15), 0.01);
         assertArrayEquals(new double[]{10.533}, q.findRootsIn(2, 15), 0.01);
         // TODO: there are problems when root==limit, an FP number may be included or not included in the result list
-    }
-
-    @Test
-    public void pointsAroundIntervalsOfMonotonicityTest() {
-        var q = ReTangentPlusC.of(0.9, 10, 20, -17); // roots: +-10.533
-        assertArrayEquals(new double[]{-100, 0, 100}, q.pointsAroundIntervalsOfMonotonicity(-100, 100), 0.01);
-        // TODO other values of k
     }
 
     @Test
