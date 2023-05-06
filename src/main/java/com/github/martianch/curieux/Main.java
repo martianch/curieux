@@ -9461,6 +9461,161 @@ class ReTangentPlusC extends HumanVisibleMathFunctionBase {
                '}';
     }
 } // ReTangentPlusC
+/**
+ * "Re-tangent with function": retanf(k,q,f, x) = (q/k)*tan(k*f(arctan(x/q)))
+ * In fact, here we use a*retanf(k,q,f,x)+c = (a*q/k)*tan(k*f(arctan(x/q)))+c,
+ * and now we are interested only in k<1.
+ */
+class RetangentWithFuncOfAnglePlusC<T extends HumanVisibleMathFunction> extends HumanVisibleMathFunctionBase {
+    final double k, q, a, c, aqk, dx0, adfdx;
+    final T f;
+
+    private RetangentWithFuncOfAnglePlusC(double k, double q, double a, double c, T f) {
+        this.k = k;
+        this.q = q;
+        this.a = a;
+        this.c = c;
+        this.f = f;
+        this.aqk = a * q / k;
+        // this should depend on k and q, but I do not want to split hairs
+        this.dx0 = Math.nextUp(1.) - 1.;
+        this.adfdx = a*f.derivative().apply(0);
+    }
+    @Override
+    public double apply(double x) {
+        return (Math.abs(x) > dx0 ? aqk * Math.tan(k * f.apply(Math.atan(x / q))) / x : adfdx) + c;
+    }
+    @Override
+    public double applyMulX(double x) {
+        return aqk * Math.tan(k * f.apply(Math.atan(x / q))) + c * x;
+    }
+    /**
+     * Optimization for the case of c==0.
+     * The functions defined here will be used in a big long loop.
+     */
+    static class RetangentWithFuncOfAnglePlusC0<TT extends HumanVisibleMathFunction> extends RetangentWithFuncOfAnglePlusC<TT> {
+        private RetangentWithFuncOfAnglePlusC0(double k, double q, double a, TT ff) {
+            super(k, q, a, 0., ff);
+        }
+        @Override
+        public double apply(double x) {
+            return Math.abs(x) > dx0 ? aqk * Math.tan(k * f.apply(Math.atan(x / q))) / x : adfdx;
+        }
+        @Override
+        public double applyMulX(double x) {
+            return aqk * Math.tan(k * f.apply(Math.atan(x / q)));
+        }
+    }
+    public static<HVMF extends HumanVisibleMathFunction> RetangentWithFuncOfAnglePlusC<HVMF> of(double k, double q, double a, double c, HVMF ff) {
+        if (c == 0.) {
+            return new RetangentWithFuncOfAnglePlusC0<>(k, q, a, ff);
+        } else {
+            return new RetangentWithFuncOfAnglePlusC<>(k, q, a, c, ff);
+        }
+    }
+    public static<HVMF extends HumanVisibleMathFunction> RetangentWithFuncOfAnglePlusC<HVMF> of(double k, double q, HVMF ff) {
+        return of(k, q, 1., 0., ff);
+    }
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+        return ifParamStringPrefix("RETANF", s, rest -> {
+            try {
+                var ss = rest.split("\\s+", 5);
+                double k = DoubleCalculator.parseDouble(ss[0]);
+                double q = DoubleCalculator.parseDouble(ss[1]);
+                double a = DoubleCalculator.parseDouble(ss[2]);
+                double c = DoubleCalculator.parseDouble(ss[3]);
+                var fo = HumanVisibleMathFunction.fromParameterString(ss[4]);
+                return fo.map(f -> of(k, q, a, c, f));
+            } catch (Exception e) {
+                return Optional.empty();
+            }
+        });
+    }
+    @Override
+    public String asString() {
+        return String.format("(" + DOUBLE_FMT + "*" + DOUBLE_FMT + "/" + DOUBLE_FMT + ")*tan("+ DOUBLE_FMT + "*f(atan(x/"+ DOUBLE_FMT+"))) + " + DOUBLE_FMT,
+                a,                 q,                 k,                     k,                       q,                   c)
+                + ", where f(y) = " + f.asString("y");
+    }
+    @Override
+    public String parameterString() {
+        return "RETANF " + k + " " + q + " " + a + " " + c + " " + f.parameterString();
+    }
+    @Override
+    public double maxInRange(double x1, double x2) {
+        // TODO: this is wrong as it completely ignores f(alpha)
+        if (k < 1.) {
+            if (x1 <= 0. && 0 <= x2) {
+                return Math.max(Math.max(apply(0), apply(x1)), apply(x2));
+            } else {
+                return Math.max(apply(x1), apply(x2));
+            }
+        } else if (k == 1.) {
+            return apply(0);
+        } else {
+            throw new UnsupportedOperationException("not going to use k>1");
+        }
+    }
+    @Override
+    public double minInRange(double x1, double x2) {
+        // TODO: this is wrong as it completely ignores f(alpha)
+        if (Math.abs(k) < 1.) {
+            if (x1 <= 0. && 0 <= x2) {
+                return Math.min(Math.min(apply(0), apply(x1)), apply(x2));
+            } else {
+                return Math.min(apply(x1), apply(x2));
+            }
+        } else if (Math.abs(k) == 1.) {
+            return apply(0.);
+        } else {
+            throw new UnsupportedOperationException("not going to use k>1");
+        }
+    }
+    @Override
+    protected double[] pointsAroundIntervalsOfMonotonicity(double x1, double x2) {
+        // TODO: this is wrong as it completely ignores f(alpha)
+        if (Math.abs(k) < 1.) {
+            if (x1 <= 0. && 0 <= x2) {
+                return pointsAndLimits(new double[] {0}, x1, x2);
+            } else {
+                return pointsAndLimits(new double[] {}, x1, x2);
+            }
+        } else if (Math.abs(k) == 1.) {
+            return pointsAndLimits(new double[] {}, x1, x2);
+        } else {
+            throw new UnsupportedOperationException("not going to use k>1");
+        }
+    }
+    @Override
+    public RetangentWithFuncOfAnglePlusC<T> mul(double kk) {
+        return of(k, q, a*kk, c*kk, f);
+    }
+    @Override
+    public RetangentWithFuncOfAnglePlusC<T> sub(double m) {
+        return of(k, q, a, c-m, f);
+    }
+    @Override
+    public RetangentWithFuncOfAnglePlusC<T> add(double m) {
+        return (RetangentWithFuncOfAnglePlusC) super.add(m);
+    }
+    @Override
+    public HumanVisibleMathFunction derivative() {
+        throw new UnsupportedOperationException();
+    }
+    @Override
+    public String toString() {
+        return "RetangentWithFuncOfAnglePlusC{" +
+                "k=" + k +
+                ", q=" + q +
+                ", a=" + a +
+                ", c=" + c +
+                ", a*q/k=" + aqk +
+                ", f=" + f +
+                ", a*df/dx=" + adfdx +
+                ", " + asString() +
+                '}';
+    }
+} // RetangentWithFuncOfAnglePlusC
 class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends HumanVisibleMathFunctionBase {
     final T f;
     final double c;
