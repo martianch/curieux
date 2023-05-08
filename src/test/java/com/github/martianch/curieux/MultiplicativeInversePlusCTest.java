@@ -3,10 +3,13 @@ package com.github.martianch.curieux;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
 public class MultiplicativeInversePlusCTest {
+    Map<String, Double> vars = new HashMap<>();
 
     @Test
     public void ofTest() {
@@ -53,7 +56,7 @@ public class MultiplicativeInversePlusCTest {
         var q = MultiplicativeInversePlusC.of(QuadraticPolynomial.of(10, 20, 30), 14);
         String params = q.parameterString();
         System.out.println(params);
-        var p = MultiplicativeInversePlusC.fromParamString(params);
+        var p = MultiplicativeInversePlusC.fromParamString(params, vars);
         assertOf(q.f, 10, 20, 30);
         System.out.println("p="+p);
         assertTrue(p.get() instanceof MultiplicativeInversePlusC);
@@ -67,7 +70,7 @@ public class MultiplicativeInversePlusCTest {
         var q = MultiplicativeInversePlusC.of(QuadraticPolynomial.of(10, 20, 30), 14);
         String params = q.parameterString();
         System.out.println(params);
-        var p = HumanVisibleMathFunction.fromParameterString(params);
+        var p = HumanVisibleMathFunction.fromParameterString(params, vars);
         assertOf(q.f, 10, 20, 30);
         System.out.println("p="+p);
         assertTrue(p.get() instanceof MultiplicativeInversePlusC);

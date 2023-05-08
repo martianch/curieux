@@ -2,9 +2,14 @@ package com.github.martianch.curieux;
 
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.junit.Assert.*;
 
 public class OfXSquaredTest {
+    Map<String, Double> vars = new HashMap<>();
+
     @Test
     public void ofTest() {
         var q = OfXSquared.of(QuadraticPolynomial.of(10, 20, 30));
@@ -23,7 +28,7 @@ public class OfXSquaredTest {
     public void fromParamStringTest() {
         var q = OfXSquared.of(QuadraticPolynomial.of(10, 20, 30));
         String params = q.parameterString();
-        var p = OfXSquared.fromParamString(params);
+        var p = OfXSquared.fromParamString(params, vars);
         assertOf(q, 10, 20, 30);
         assertOf((OfXSquared)p.get(), 10, 20, 30);
     }
@@ -32,7 +37,7 @@ public class OfXSquaredTest {
     public void fromParameterStringTest() {
         var q = OfXSquared.of(QuadraticPolynomial.of(10, 20, 30));
         String params = q.parameterString();
-        var p = HumanVisibleMathFunction.fromParameterString(params);
+        var p = HumanVisibleMathFunction.fromParameterString(params, vars);
         assertOf(q, 10, 20, 30);
         assertOf((OfXSquared)p.get(), 10, 20, 30);
     }

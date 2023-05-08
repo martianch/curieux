@@ -3,10 +3,13 @@ package com.github.martianch.curieux;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
 public class BiquadraticPolynomialTest {
+    Map<String, Double> vars = new HashMap<>();
 
     @Test
     public void from3PointsTest() {
@@ -50,7 +53,7 @@ public class BiquadraticPolynomialTest {
         var q = BiquadraticPolynomial.of(QuadraticPolynomial.of(10, 20, 30));
         String params = q.parameterString();
         System.out.println(params);
-        var p = BiquadraticPolynomial.fromParamString(params);
+        var p = BiquadraticPolynomial.fromParamString(params, vars);
         assertOf(q, 10, 20, 30);
         System.out.println("p="+p);
         assertTrue(p.get() instanceof BiquadraticPolynomial);
@@ -61,7 +64,7 @@ public class BiquadraticPolynomialTest {
     public void fromParameterStringTest() {
         var q = BiquadraticPolynomial.of(QuadraticPolynomial.of(10, 20, 30));
         String params = q.parameterString();
-        var p = HumanVisibleMathFunction.fromParameterString(params);
+        var p = HumanVisibleMathFunction.fromParameterString(params, vars);
         assertOf(q, 10, 20, 30);
         assertOf((BiquadraticPolynomial)p.get(), 10, 20, 30);
     }

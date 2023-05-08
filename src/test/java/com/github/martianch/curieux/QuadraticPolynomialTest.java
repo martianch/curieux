@@ -3,10 +3,14 @@ package com.github.martianch.curieux;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
 public class QuadraticPolynomialTest {
+    Map<String, Double> vars = new HashMap<>();
+
     @Test
     public void ofTest() {
         var q = QuadraticPolynomial.of(10, 20, 30);
@@ -17,7 +21,7 @@ public class QuadraticPolynomialTest {
     public void fromParamStringTest() {
         var q = QuadraticPolynomial.of(10, 20, 30);
         String params = q.parameterString();
-        var p = QuadraticPolynomial.fromParamString(params);
+        var p = QuadraticPolynomial.fromParamString(params, vars);
         assertOf(q, 10, 20, 30);
         assertOf((QuadraticPolynomial)p.get(), 10, 20, 30);
     }
@@ -26,7 +30,7 @@ public class QuadraticPolynomialTest {
     public void fromParameterStringTest() {
         var q = QuadraticPolynomial.of(10, 20, 30);
         String params = q.parameterString();
-        var p = HumanVisibleMathFunction.fromParameterString(params);
+        var p = HumanVisibleMathFunction.fromParameterString(params, vars);
         assertOf(q, 10, 20, 30);
         assertOf((QuadraticPolynomial)p.get(), 10, 20, 30);
     }

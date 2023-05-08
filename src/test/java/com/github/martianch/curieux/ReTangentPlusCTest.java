@@ -2,9 +2,13 @@ package com.github.martianch.curieux;
 
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.junit.Assert.*;
 
 public class ReTangentPlusCTest {
+    Map<String, Double> vars = new HashMap<>();
 
     @Test
     public void ofTest() {
@@ -31,7 +35,7 @@ public class ReTangentPlusCTest {
     public void fromParamStringTest() {
         var q = ReTangentPlusC.of(10, 20, 30, 40);
         String params = q.parameterString();
-        var p = ReTangentPlusC.fromParamString(params);
+        var p = ReTangentPlusC.fromParamString(params, vars);
         assertOf(q, 10, 20, 30, 40);
         assertOf((ReTangentPlusC)p.get(), 10, 20, 30, 40);
     }
@@ -40,7 +44,7 @@ public class ReTangentPlusCTest {
     public void fromParameterStringTest() {
         var q = ReTangentPlusC.of(10, 20, 30, 40);
         String params = q.parameterString();
-        var p = HumanVisibleMathFunction.fromParameterString(params);
+        var p = HumanVisibleMathFunction.fromParameterString(params, vars);
         assertOf(q, 10, 20, 30, 40);
         assertOf((ReTangentPlusC)p.get(), 10, 20, 30, 40);
     }

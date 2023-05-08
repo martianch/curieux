@@ -2,9 +2,14 @@ package com.github.martianch.curieux;
 
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.junit.Assert.*;
 
 public class FisheyeCorrectionTest {
+    Map<String, Double> vars = new HashMap<>();
+
     static final DistortionCenterLocation CENTER_HV = DistortionCenterLocation.of(DistortionCenterStationing.CENTER, DistortionCenterStationing.TOP_EDGE);
 
     @Test
@@ -66,7 +71,7 @@ public class FisheyeCorrectionTest {
     public void fromParameterStringTest() {
         {
             String s = "UNFISH1 CENTER TOP_EDGE P2 5.886203652143178E-7 -0.0014907041790304925 1.4752316265370897 : 4.0 # ";
-            var fc = FisheyeCorrection.fromParameterString(s);
+            var fc = FisheyeCorrection.fromParameterString(s, vars);
             assertNotNull(fc);
             assertEquals(s, fc.parametersToString());
         }

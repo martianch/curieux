@@ -101,6 +101,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
@@ -5882,7 +5883,7 @@ class FisheyeCorrection {
              + " " + func.parameterString()
              + " : " + sizeChange + " # "; // + descr
     }
-    static FisheyeCorrection fromParameterString(String s) {
+    static FisheyeCorrection fromParameterString(String s, Map<String, Double> vars) {
         try {
             var p = s.trim().split("\\s+", 4);
             var algo1 = FisheyeCorrectionAlgo.valueOf(p[0]);
@@ -5890,9 +5891,9 @@ class FisheyeCorrection {
             var center1y = DistortionCenterStationing.valueOf(p[2]);
             var center1 = DistortionCenterLocation.of(center1x, center1y);
             var pp = p[3].split("\\s*:\\s*", 2);
-            var f1 = HumanVisibleMathFunction.fromParameterString(pp[0]).get();
+            var f1 = HumanVisibleMathFunction.fromParameterString(pp[0], vars).get();
             var ppp = pp[1].split("\\s*#\\s*", 2);
-            var sizeChange1 = DoubleCalculator.parseDouble(ppp[0]);
+            var sizeChange1 = DoubleCalculator.parseDouble(ppp[0], vars);
             //String descr1 = ppp[1];
             return FisheyeCorrection.of(algo1, f1, center1, sizeChange1);
         } catch (Exception e) {
@@ -9057,7 +9058,11 @@ class FisheyeCorrectionPane extends JPanel {
         setFisheyeCorrectionAndUpdateUi(isRight, fcNew);
     }
     boolean doSetFcFromText(boolean isRight, String s) {
-        var newFisheyeCorrection = FisheyeCorrection.fromParameterString(s);
+        Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
+        Map<String, Double> vars = new HashMap<>();
+        vars.put("W", (double) imageDim.width);
+        vars.put("H", (double) imageDim.height);
+        var newFisheyeCorrection = FisheyeCorrection.fromParameterString(s, vars);
         if (newFisheyeCorrection != null) {
             setFisheyeCorrectionAndUpdateUi(isRight, newFisheyeCorrection);
             return true;
@@ -9143,7 +9148,7 @@ interface HumanVisibleMathFunction {
 
     HumanVisibleMathFunction NO_FUNCTION = QuadraticPolynomial.of(Double.NaN, Double.NaN, Double.NaN);
 
-    static Optional<HumanVisibleMathFunction> fromParameterString(String params) {
+    static Optional<HumanVisibleMathFunction> fromParameterString(String params, Map<String, Double> vars) {
         // It is bad, that the interface knows its implementations, but...
         // There is a side effect that all these classes are loaded and are
         // available via the UI, even if not referenced from the code.
@@ -9151,7 +9156,7 @@ interface HumanVisibleMathFunction {
         //   static { declareParser(Xyz::fromParamString); }
         // but it does not guarantee loading of all these classes.
         // Static referencing a subclass from a superclass opens a possibility for a class loader deadlock.
-        List<Function<String, Optional<HumanVisibleMathFunction>>> parsers =
+        List<BiFunction<String, Map<String, Double>, Optional<HumanVisibleMathFunction>>> parsers =
         Arrays.asList(
                 MultiplicativeInversePlusC::fromParamString,
                 OfXSquared::fromParamString,
@@ -9164,7 +9169,7 @@ interface HumanVisibleMathFunction {
                 ReTangentPlusC::fromParamString
         );
         for (var p : parsers) {
-            var res = p.apply(params);
+            var res = p.apply(params, vars);
             if (res.isPresent()) {
                 return res;
             }
@@ -9361,15 +9366,15 @@ class ReTangentPlusC extends HumanVisibleMathFunctionBase {
     public static ReTangentPlusC of(double k, double q) {
         return of(k, q, 1., 0.);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return doFromParamString(
                 s,
                 "RETAN",
                 i -> {
-                    var a = DoubleCalculator.parseDouble(i.next());
-                    var b = DoubleCalculator.parseDouble(i.next());
-                    var c = DoubleCalculator.parseDouble(i.next());
-                    var d = DoubleCalculator.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next(), vars);
+                    var b = DoubleCalculator.parseDouble(i.next(), vars);
+                    var c = DoubleCalculator.parseDouble(i.next(), vars);
+                    var d = DoubleCalculator.parseDouble(i.next(), vars);
                     HumanVisibleMathFunction p = ReTangentPlusC.of(a, b, c, d);
                     return p;
                 });
@@ -9516,15 +9521,15 @@ class RetangentWithFuncOfAnglePlusC<T extends HumanVisibleMathFunction> extends 
     public static<HVMF extends HumanVisibleMathFunction> RetangentWithFuncOfAnglePlusC<HVMF> of(double k, double q, HVMF ff) {
         return of(k, q, 1., 0., ff);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return ifParamStringPrefix("RETANF", s, rest -> {
             try {
                 var ss = rest.split("\\s+", 5);
-                double k = DoubleCalculator.parseDouble(ss[0]);
-                double q = DoubleCalculator.parseDouble(ss[1]);
-                double a = DoubleCalculator.parseDouble(ss[2]);
-                double c = DoubleCalculator.parseDouble(ss[3]);
-                var fo = HumanVisibleMathFunction.fromParameterString(ss[4]);
+                double k = DoubleCalculator.parseDouble(ss[0], vars);
+                double q = DoubleCalculator.parseDouble(ss[1], vars);
+                double a = DoubleCalculator.parseDouble(ss[2], vars);
+                double c = DoubleCalculator.parseDouble(ss[3], vars);
+                var fo = HumanVisibleMathFunction.fromParameterString(ss[4], vars);
                 return fo.map(f -> of(k, q, a, c, f));
             } catch (Exception e) {
                 return Optional.empty();
@@ -9631,12 +9636,12 @@ class MultiplicativeInversePlusC<T extends HumanVisibleMathFunction> extends Hum
         HVMF q = from3points.apply(x1,1/y1, x2,1/y2, x3,1/y3);
         return of(q, 0);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return ifParamStringPrefix("C+1/", s, rest -> {
             try {
                 var ss = rest.split("\\s+", 2);
-                var c = DoubleCalculator.parseDouble(ss[0]);
-                var fo = HumanVisibleMathFunction.fromParameterString(ss[1]);
+                var c = DoubleCalculator.parseDouble(ss[0], vars);
+                var fo = HumanVisibleMathFunction.fromParameterString(ss[1], vars);
                 return fo.map(f -> of(f, c));
             } catch (Exception e) {
                 return Optional.empty();
@@ -9721,9 +9726,9 @@ class OfXSquared<T extends HumanVisibleMathFunction> extends HumanVisibleMathFun
     public OfXSquared<T> v_of(T f) {
         return of(f);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return ifParamStringPrefix("OFSQR", s, restOfS ->
-                HumanVisibleMathFunction.fromParameterString(restOfS).map(OfXSquared::of)
+                HumanVisibleMathFunction.fromParameterString(restOfS, vars).map(OfXSquared::of)
         );
     }
     @Override
@@ -9814,10 +9819,10 @@ class BiquadraticPolynomial extends OfXSquared<QuadraticPolynomial> {
         QuadraticPolynomial q = QuadraticPolynomial.from3Points(x1*x1,y1, x2*x2,y2,x3*x3,y3);
         return of(q);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         var ss = s.split("\\s+", 2);
         if (ss.length == 2 && "BIQUADR".equals(ss[0])) {
-            return HumanVisibleMathFunction.fromParameterString(ss[1]).map(p -> of((QuadraticPolynomial)p));
+            return HumanVisibleMathFunction.fromParameterString(ss[1], vars).map(p -> of((QuadraticPolynomial)p));
         } else {
             return Optional.empty();
         }
@@ -9861,16 +9866,16 @@ class QuarticPolynomial extends HumanVisibleMathFunctionBase implements HumanVis
     public static QuarticPolynomial of(double a, double b, double c, double d, double e) {
         return new QuarticPolynomial(a, b, c, d, e);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return doFromParamString(
                 s,
                 "P4",
                 i -> {
-                    var a = DoubleCalculator.parseDouble(i.next());
-                    var b = DoubleCalculator.parseDouble(i.next());
-                    var c = DoubleCalculator.parseDouble(i.next());
-                    var d = DoubleCalculator.parseDouble(i.next());
-                    var e = DoubleCalculator.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next(), vars);
+                    var b = DoubleCalculator.parseDouble(i.next(), vars);
+                    var c = DoubleCalculator.parseDouble(i.next(), vars);
+                    var d = DoubleCalculator.parseDouble(i.next(), vars);
+                    var e = DoubleCalculator.parseDouble(i.next(), vars);
                     HumanVisibleMathFunction p = QuarticPolynomial.of(a, b, c, d, e);
                     return p;
                 });
@@ -9943,15 +9948,15 @@ class CubicPolynomial extends HumanVisibleMathFunctionBase implements HumanVisib
     public static CubicPolynomial of(double a, double b, double c, double d) {
         return new CubicPolynomial(a, b, c, d);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return doFromParamString(
                 s,
                 "P3",
                 i -> {
-                    var a = DoubleCalculator.parseDouble(i.next());
-                    var b = DoubleCalculator.parseDouble(i.next());
-                    var c = DoubleCalculator.parseDouble(i.next());
-                    var d = DoubleCalculator.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next(), vars);
+                    var b = DoubleCalculator.parseDouble(i.next(), vars);
+                    var c = DoubleCalculator.parseDouble(i.next(), vars);
+                    var d = DoubleCalculator.parseDouble(i.next(), vars);
                     HumanVisibleMathFunction p = CubicPolynomial.of(a, b, c, d);
                     return p;
                 });
@@ -10034,14 +10039,14 @@ class QuadraticPolynomial extends HumanVisibleMathFunctionBase implements HumanV
             YX1*x2*x3 + YX2*x1*x3 + YX3*x1*x2 // *1
         );
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return doFromParamString(
                 s,
                 "P2",
                 i -> {
-                    var a = DoubleCalculator.parseDouble(i.next());
-                    var b = DoubleCalculator.parseDouble(i.next());
-                    var c = DoubleCalculator.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next(), vars);
+                    var b = DoubleCalculator.parseDouble(i.next(), vars);
+                    var c = DoubleCalculator.parseDouble(i.next(), vars);
                     HumanVisibleMathFunction p = QuadraticPolynomial.of(a, b, c);
                     return p;
                 });
@@ -10150,13 +10155,13 @@ class LinearPolynomial extends HumanVisibleMathFunctionBase implements HumanVisi
         double b = y1 - a*x1;
         return of(a, b);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return doFromParamString(
                 s,
                 "P1",
                 i -> {
-                    var a = DoubleCalculator.parseDouble(i.next());
-                    var b = DoubleCalculator.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next(), vars);
+                    var b = DoubleCalculator.parseDouble(i.next(), vars);
                     HumanVisibleMathFunction p = LinearPolynomial.of(a, b);
                     return p;
                 });
@@ -10228,12 +10233,12 @@ class ConstantPolynomial extends HumanVisibleMathFunctionBase implements HumanVi
     public static ConstantPolynomial from1Points(double x1, double y1) {
         return of(y1);
     }
-    public static Optional<HumanVisibleMathFunction> fromParamString(String s) {
+    public static Optional<HumanVisibleMathFunction> fromParamString(String s, Map<String, Double> vars) {
         return doFromParamString(
                 s,
                 "P0",
                 i -> {
-                    var a = DoubleCalculator.parseDouble(i.next());
+                    var a = DoubleCalculator.parseDouble(i.next(), vars);
                     HumanVisibleMathFunction p = ConstantPolynomial.of(a);
                     return p;
                 });
@@ -11328,10 +11333,12 @@ class ComboBoxWithTooltips<T> extends JComboBox<T> {
 class DoubleCalculator {
     final Scanner s;
     String s_last;
+    // \G 	The end of the previous match
     final String PAREN1 = "\\G\\(";
     final String PAREN2 = "\\G\\)";
     final String OPER = "\\G[+\\-*/^]";
     final String DOUBLE = "\\G[-+]?([0-9]+\\.?[0-9]*|[0-9]*\\.?[0-9]+)([eE][-+]?[0-9]+)?";
+    final String VAR = "\\G[HW]";
     final Map<String, Integer> prio = new HashMap<>();
     {
         prio.put("+", 1);
@@ -11348,11 +11355,13 @@ class DoubleCalculator {
         func.put("/", (a,b)->a/b);
         func.put("^", Math::pow);
     }
-    public static double parseDouble(String expr) {
-        return new DoubleCalculator(expr).evaluate();
+    final Map<String, Double> vars;
+    public static double parseDouble(String expr, Map<String, Double> vars) {
+        return new DoubleCalculator(expr, vars).evaluate();
     }
-    public DoubleCalculator(String exprStr) {
+    public DoubleCalculator(String exprStr, Map<String, Double> vars) {
         s = new Scanner(new ByteArrayInputStream(exprStr.getBytes(StandardCharsets.UTF_8)));
+        this.vars = vars;
     }
     public double evaluate() {
         double a = getNumber();
@@ -11384,12 +11393,14 @@ class DoubleCalculator {
     }
     private double getNumber() {
         double res;
-        var paren1 = get(PAREN1);
-        if (paren1 == null) {
-            res = Double.parseDouble(get(DOUBLE));
-        } else {
+        String found;
+        if (get(PAREN1) != null) {
             res = evaluate();
             expect(PAREN2);
+        } else if ((found = get(DOUBLE)) != null) {
+            res = Double.parseDouble(found);
+        } else {
+            res = vars.get(get(VAR)); // identifier not found => NPE
         }
         return res;
     }
@@ -11418,4 +11429,4 @@ class DoubleCalculator {
     double apply(String op, double a, double b) {
         return func.get(op).applyAsDouble(a,b);
     }
-}
+} //DoubleCalculator

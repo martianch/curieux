@@ -2,13 +2,15 @@ package com.github.martianch.curieux;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.DoubleUnaryOperator;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RetangentWithFuncOfAnglePlusCTest {
-
+    Map<String, Double> vars = new HashMap<>();
     @Test
     void ofTest() {
         var p = RetangentWithFuncOfAnglePlusC.of(1, 2, 3, 4, LinearPolynomial.of(5, 6));
@@ -27,15 +29,15 @@ class RetangentWithFuncOfAnglePlusCTest {
     @Test
     void fromParamStringTest() {
         {
-            var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 1.0 2.0 3.0 4.0 P1 5.0 6.0");
+            var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 1.0 2.0 3.0 4.0 P1 5.0 6.0", vars);
             assertOf((RetangentWithFuncOfAnglePlusC) p.get(), 1, 2, 3, 4, LinearPolynomial.of(5, 6));
         }
         {
-            var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 1.0 2.0 3.0 0 P1 5.0 6.0");
+            var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 1.0 2.0 3.0 0 P1 5.0 6.0", vars);
             assertOf((RetangentWithFuncOfAnglePlusC) p.get(), 1, 2, 3, 0, LinearPolynomial.of(5, 6));
         }
         {
-            var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 1+2 2*3 3/2 4^3 P1 1+2*5^2 6.0");
+            var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 1+2 2*3 3/2 4^3 P1 1+2*5^2 6.0", vars);
             assertOf((RetangentWithFuncOfAnglePlusC) p.get(), 3, 6, 1.5, 64, LinearPolynomial.of(51, 6));
         }
     }

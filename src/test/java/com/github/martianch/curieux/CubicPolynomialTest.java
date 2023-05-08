@@ -2,9 +2,13 @@ package com.github.martianch.curieux;
 
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.junit.Assert.*;
 
 public class CubicPolynomialTest {
+    Map<String, Double> vars = new HashMap<>();
 
     @Test
     public void ofTest() {
@@ -16,7 +20,7 @@ public class CubicPolynomialTest {
     public void fromParamStringTest() {
         var q = CubicPolynomial.of(10, 20, 30, 40);
         String params = q.parameterString();
-        var p = CubicPolynomial.fromParamString(params);
+        var p = CubicPolynomial.fromParamString(params, vars);
         assertOf(q, 10, 20, 30, 40);
         assertOf((CubicPolynomial)p.get(), 10, 20, 30, 40);
     }
@@ -25,7 +29,7 @@ public class CubicPolynomialTest {
     public void fromParameterStringTest() {
         var q = CubicPolynomial.of(10, 20, 30, 40);
         String params = q.parameterString();
-        var p = HumanVisibleMathFunction.fromParameterString(params);
+        var p = HumanVisibleMathFunction.fromParameterString(params, vars);
         assertOf(q, 10, 20, 30, 40);
         assertOf((CubicPolynomial)p.get(), 10, 20, 30, 40);
     }
