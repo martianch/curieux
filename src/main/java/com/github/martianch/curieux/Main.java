@@ -2707,6 +2707,8 @@ class X3DViewer {
                         "<br><br>Build Version: " + BuildVersion.getBuildVersion() +
                             "; Java " + BuildVersion.getJavaVersion() +
                             " (" + BuildVersion.getVmVersion() + ")" +
+                            "; max memory " + (Runtime.getRuntime().maxMemory()>>20) + "MiB" +
+                            " (" + Runtime.getRuntime().maxMemory() + ")" +
 //                            ", OS: " + BuildVersion.getOsVersion() +
                         "");
                 {
@@ -3034,6 +3036,7 @@ class X3DViewer {
         int yToDrawFrom = Math.max(0, mult(offY, zoomLevel));
 //        int otherXToDrawFrom = mult(-offX, zoomLevel);
 //        int otherYToDrawFrom = mult(-offY, zoomLevel);
+        System.out.println("zoom resizedImage width*height: " + canvasWidth + "x" + canvasHeight);
         BufferedImage resizedImage = new BufferedImage(canvasWidth, canvasHeight, originalImage.getType());
         Graphics2D g = resizedImage.createGraphics();
 //        if (zoomLevel > 1.5) {
