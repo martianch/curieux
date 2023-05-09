@@ -38,6 +38,7 @@ dependencies {
 application {
     // Define the main class for the application.
     mainClassName = 'com.github.martianch.curieux.Main'
+    applicationDefaultJvmArgs = ['-Xmx8589934592']
 }
 
 sourceCompatibility = 13 // for the IDE support
