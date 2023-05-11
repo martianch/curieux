@@ -2591,12 +2591,21 @@ class X3DViewer {
             }
             {
                 JButton colorButton = new JButton();
-                DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","color");
+                DigitalZoomControl.loadIcon(colorButton,"icons/colors24.png","C");
                 colorButton.setToolTipText("Color correction...");
                 colorButton.addActionListener(e -> {
                     colorCorrectionPane.showDialogIn(frame);
                 });
                 statusPanel2.add(colorButton);
+            }
+            {
+                JButton fisheyeButton = new JButton();
+                DigitalZoomControl.loadIcon(fisheyeButton,"icons/fisheyeCorr12.png","F");
+                fisheyeButton.setToolTipText("Fish-eye correction...");
+                fisheyeButton.addActionListener(e -> {
+                    fisheyeCorrectionPane.showDialogIn(frame);
+                });
+                statusPanel2.add(fisheyeButton);
             }
 
             statusPanel.add(dcZoom = new  DigitalZoomControl<Double, ZoomFactorWrapper>().init("zoom:",4, new ZoomFactorWrapper(), d -> uiEventListener.zoomChanged(d)));
