@@ -8290,7 +8290,13 @@ class FisheyeCorrectionPane extends JPanel {
             chooserAlgo.setValue(fisheyeCorrection.algo);
             chooserCenterH.setValue(fisheyeCorrection.distortionCenterLocation.getH());
             chooserCenterV.setValue(fisheyeCorrection.distortionCenterLocation.getV());
-            etxFunction.setText(fisheyeCorrection.parametersToString());
+            {
+                String fcNewText = fisheyeCorrection.parametersToString();
+                var fcOld = parentPane.makeFisheyeCorrection(isRight, etxFunction.getText());
+                if (fcOld == null || !fcNewText.equals(fcOld.parametersToString())) {
+                    etxFunction.setText(fcNewText);
+                }
+            }
             Dimension dim = parentPane.uiEventListener.getRawImageDimensions(isRight);
             var threePoints = fisheyeCorrection.algo.get3Points(dim.width, dim.height, fisheyeCorrection.distortionCenterLocation, getPMS());
             var threeColors = new int[] {0x0000FF, 0x00FFFF, 0xFF00FF};
@@ -9061,17 +9067,25 @@ class FisheyeCorrectionPane extends JPanel {
         setFisheyeCorrectionAndUpdateUi(isRight, fcNew);
     }
     boolean doSetFcFromText(boolean isRight, String s) {
-        Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
-        Map<String, Double> vars = new HashMap<>();
-        vars.put("W", (double) imageDim.width);
-        vars.put("H", (double) imageDim.height);
-        var newFisheyeCorrection = FisheyeCorrection.fromParameterString(s, vars);
+        FisheyeCorrection newFisheyeCorrection = makeFisheyeCorrection(isRight, s);
         if (newFisheyeCorrection != null) {
             setFisheyeCorrectionAndUpdateUi(isRight, newFisheyeCorrection);
             return true;
         } else {
             return false;
         }
+    }
+    FisheyeCorrection makeFisheyeCorrection(boolean isRight, String s) {
+        Map<String, Double> vars = getVarsMap(isRight);
+        var newFisheyeCorrection = FisheyeCorrection.fromParameterString(s, vars);
+        return newFisheyeCorrection;
+    }
+    Map<String, Double> getVarsMap(boolean isRight) {
+        Dimension imageDim = uiEventListener.getRawImageDimensions(isRight);
+        Map<String, Double> vars = new HashMap<>();
+        vars.put("W", (double) imageDim.width);
+        vars.put("H", (double) imageDim.height);
+        return vars;
     }
     void doCalculate(boolean isRight) {
         System.out.println("doCalculate isRight="+isRight);
