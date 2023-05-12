@@ -40,6 +40,18 @@ class RetangentWithFuncOfAnglePlusCTest {
             var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 1+2 2*3 3/2 4^3 P1 1+2*5^2 6.0", vars);
             assertOf((RetangentWithFuncOfAnglePlusC) p.get(), 3, 6, 1.5, 64, LinearPolynomial.of(51, 6));
         }
+        {
+            var p = RetangentWithFuncOfAnglePlusC.fromParamString("RETANF 0.25216189048400495 746.0482148306378 1.0 0.0 P2 -0.0001 1.0 0.0", vars);
+            assertOf((RetangentWithFuncOfAnglePlusC) p.get(), 0.25216189048400495, 746.0482148306378 , 1, 0, QuadraticPolynomial.of(-0.0001, 1, 0));
+        }
+    }
+
+    @Test
+    void fromParameterStringTest() {
+        {
+            var p = HumanVisibleMathFunction.fromParameterString("RETANF 0.25216189048400495 746.0482148306378 1.0 0.0 P2 -0.0001 1.0 0.0", vars);
+            assertOf((RetangentWithFuncOfAnglePlusC) p.get(), 0.25216189048400495, 746.0482148306378 , 1, 0, QuadraticPolynomial.of(-0.0001, 1, 0));
+        }
     }
 
     @Test

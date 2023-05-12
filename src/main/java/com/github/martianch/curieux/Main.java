@@ -3202,7 +3202,7 @@ enum DebayerMode implements ImageEffect {
 class DebayerModeChooser extends ComboBoxWithTooltips<DebayerMode> {
     static DebayerMode[] modes = DebayerMode.values();
     public DebayerModeChooser(Consumer<DebayerMode> valueListener) {
-        super(modes, ImageEffect::effectName);
+        super(modes, ImageEffect::uiEffectName);
         setValue(DebayerMode.getUiDefault());
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
@@ -5889,7 +5889,7 @@ class FisheyeCorrection {
         return algo.doFisheyeCorrection(orig, this);
     }
     String parametersToString() {
-        return "" + algo
+        return "" + algo.name()
              + " " + distortionCenterLocation.getH()
              + " " + distortionCenterLocation.getV()
              + " " + func.parameterString()
@@ -5917,7 +5917,7 @@ class FisheyeCorrection {
     @Override
     public String toString() {
         return "FisheyeCorrection{" +
-                "algo=" + algo +
+                "algo=" + algo.name() +
                 ", distortionCenterLocation=" + distortionCenterLocation +
                 ", func=" + func +
                 ", sizeChange=" + sizeChange +
@@ -5940,12 +5940,9 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         }
         @Override public String effectShortName() { return ""; }
         @Override public boolean notNothing() { return false; }
+        @Override public String uiEffectName() { return effectName(); }
     },
     UNFISH1 {
-        @Override
-        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            return doFisheyeCorrectionNearestNeighbor(orig, fc);
-        }
         @Override
         HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
             return QuadraticPolynomial.from3Points(x1, y1, x2, y2, x3, y3);
@@ -5954,20 +5951,12 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
     },
     UNFISH2 {
         @Override
-        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            return doFisheyeCorrectionNearestNeighbor(orig, fc);
-        }
-        @Override
         HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
             return BiquadraticPolynomial.from3Points(x1, y1, x2, y2, x3, y3);
         }
         @Override public String effectName() { return "Unfish, biquadratic"; }
     },
     UNFISH3 {
-        @Override
-        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            return doFisheyeCorrectionNearestNeighbor(orig, fc);
-        }
         @Override
         HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
             return MultiplicativeInversePlusC.from3Points(x1, y1, x2, y2, x3, y3, QuadraticPolynomial::from3Points);
@@ -5976,20 +5965,12 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
     },
     UNFISH4 {
         @Override
-        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            return doFisheyeCorrectionNearestNeighbor(orig, fc);
-        }
-        @Override
         HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
             return MultiplicativeInversePlusC.from3Points(x1, y1, x2, y2, x3, y3, BiquadraticPolynomial::from3Points);
         }
         @Override public String effectName() { return "Unfish, inverse biquadratic"; }
     },
     UNFISH5 {
-        @Override
-        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            return doFisheyeCorrectionNearestNeighbor(orig, fc);
-        }
         @Override
         HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
             return LinearPolynomial.from2Points(x1, y1, x3, y3);
@@ -6067,7 +6048,9 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
     private static boolean between(int value, int lower, int upper) {
         return lower <= value && value < upper;
     }
-    abstract BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc);
+    BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
+        return doFisheyeCorrectionNearestNeighbor(orig, fc);
+    }
 
     <T>T doWith3Points(int width, int height,
                        DistortionCenterLocation dcl, PanelMeasurementStatus pms,
@@ -6120,11 +6103,24 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
     }
     @Override public boolean notNothing() { return true; }
     @Override public boolean notNothingFor(String path) { return notNothing(); }
+    public boolean isPredefined() { return false; }
+    public boolean isPreliminary() { return false; }
+    @Override public String toString() {
+        return (!notNothing()?"":isPreliminary()?"?":isPredefined()?"≡":"\u202Fƒ\u202F") // nnbsp, narrow no-break space
+             + super.toString();
+    }
+    @Override public String uiEffectName() {
+        if (isPredefined()) {
+            return effectName() + ", predefined, editable";
+        } else {
+            return effectName() + ", to be calculated from 3 points";
+        }
+    }
 }
 class FisheyeCorrectionAlgoChooser extends ComboBoxWithTooltips<FisheyeCorrectionAlgo> {
     static FisheyeCorrectionAlgo[] modes = FisheyeCorrectionAlgo.values();
     public FisheyeCorrectionAlgoChooser(Consumer<FisheyeCorrectionAlgo> valueListener) {
-        super(modes, ImageEffect::effectName);
+        super(modes, ImageEffect::uiEffectName);
         setValue(FisheyeCorrectionAlgo.NONE);
         addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
@@ -6184,7 +6180,7 @@ interface DistortionCenterStationingAux {
 enum DistortionCenterStationing implements DistortionCenterStationingAux {
     CENTER(0, 0, 0.5, HORIZ+VERT, "Distortion center in the image center"),
     INSIDE_1to2(0, 0, 1./3, VERT, "Distortion center inside image, 1/3 above, 2/3 below"),
-    INSIDE_2to1(0, 0, 1./3, VERT, "Distortion center inside image, 2/3 above, 1/3 below"),
+    INSIDE_2to1(0, 0, 2./3, VERT, "Distortion center inside image, 2/3 above, 1/3 below"),
     LEFT_EDGE(8, 8, 0.0, HORIZ, "Distortion center on the left edge of the image"),
     RIGHT_EDGE(8, 8, 1.0, HORIZ, "Distortion center on the right edge of the image"),
     LEFT_EDGE_OVER(8, 0, -1.0, HORIZ, "Distortion center on the left edge of the next image"),
@@ -6438,6 +6434,7 @@ interface ImageEffect {
     String effectShortName();
     default boolean notNothing() { return true; }
     default boolean notNothingFor(String path) { return notNothing(); }
+    default String uiEffectName() { return effectName(); };
 }
 enum ColorCorrectionAlgo implements ImageEffect {
     DO_NOTHING("as is", "") { @Override public boolean notNothing() { return false; } },
@@ -9192,7 +9189,8 @@ interface HumanVisibleMathFunction {
                 QuadraticPolynomial::fromParamString,
                 LinearPolynomial::fromParamString,
                 ConstantPolynomial::fromParamString,
-                ReTangentPlusC::fromParamString
+                ReTangentPlusC::fromParamString,
+                RetangentWithFuncOfAnglePlusC::fromParamString
         );
         for (var p : parsers) {
             var res = p.apply(params, vars);

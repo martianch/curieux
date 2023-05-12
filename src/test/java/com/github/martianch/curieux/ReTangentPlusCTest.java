@@ -302,4 +302,9 @@ public class ReTangentPlusCTest {
         TestCoverage.check(ReTangentPlusC.class, getClass());
         TestCoverage.checkNames(getClass(), "toString");
     }
+
+    @Test
+    public void atanTest() {
+        assertEquals(Math.atan(1.), Math.PI/4, 0);
+    }
 }
