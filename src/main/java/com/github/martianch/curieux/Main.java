@@ -5979,14 +5979,115 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
     },
     UNFISH6 {
         @Override
-        BufferedImage doFisheyeCorrection(BufferedImage orig, FisheyeCorrection fc) {
-            return doFisheyeCorrectionNearestNeighbor(orig, fc);
-        }
-        @Override
         HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
             return MultiplicativeInversePlusC.from3Points(x1, y1, x2, y2, x3, y3, UNFISH5::calculateFunctionFrom3Points);
         }
         @Override public String effectName() { return "Unfish, inverse linear"; }
+    },
+    P_NAV_RETAN {
+        @Override
+        HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+            System.out.println("calculateFunction(width="+width+", height="+height+", dcl="+dcl+", pms="+pms+")");
+            // (q/k)*tan(k*arctan(x/q))
+            double mF = 19.1e-3; // F, in metres
+            double mL = 32.77e-3; // width of optical frame (32.77mm*24.58mm), in metres
+            double mPx = 6.4e-6; // pixel pitch, in metres
+            double radHorizFOV = Math.toRadians(96.);
+            return ReTangentPlusC.of(
+                    Math.atan((width/2.) * mPx / mF) / (radHorizFOV/2),
+                    width * mF / mL
+            );
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            throw new UnsupportedOperationException("calculateFunctionFrom3Points() not supported for "+this);
+        }
+        @Override public String effectName() { return "Perseverance NAVCAM preset"; }
+        @Override public boolean isPredefined() { return true; }
+    },
+    P_NAV_RETANF {
+        @Override
+        HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+            System.out.println("calculateFunction(width="+width+", height="+height+", dcl="+dcl+", pms="+pms+")");
+            // (q/k)*tan(k*f(arctan(x/q)))
+            // (q/k)*tan(k*arctan(x/q)) when f(x)=x (default)
+            double mF = 19.1e-3; // F, in metres
+            double mL = 32.77e-3; // width of optical frame (32.77mm*24.58mm), in metres
+            double mPx = 6.4e-6; // pixel pitch, in metres
+            double radHorizFOV = Math.toRadians(96.);
+            return RetangentWithFuncOfAnglePlusC.of(
+                    Math.atan((width/2.) * mPx / mF) / (radHorizFOV/2),
+                    width * mF / mL,
+                    QuadraticPolynomial.of(0,1,0)
+            );
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            throw new UnsupportedOperationException("calculateFunctionFrom3Points() not supported for "+this);
+        }
+        @Override public String effectName() { return "Perseverance NAVCAM preset"; }
+        @Override public boolean isPredefined() { return true; }
+        @Override
+        public String uiEffectName() {
+            return effectName() + ", f(angle) to be edited, with the default f(angle)=angle it is the same as RETAN";
+        }
+    },
+    P_HAZ_RETANF {
+        @Override
+        HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+            System.out.println("calculateFunction(width="+width+", height="+height+", dcl="+dcl+", pms="+pms+")");
+            // (q/k)*tan(k*f(arctan(x/q)))
+            // (q/k)*tan(k*arctan(x/q)) when f(x)=x (default)
+            double mF = 14.0e-3; // F, in metres
+            double mL = 32.77e-3; // width of optical frame (32.77mm*24.58mm), in metres
+            double mPx = 6.4e-6; // pixel pitch, in metres
+            double radHorizFOV = Math.toRadians(136.);
+            return RetangentWithFuncOfAnglePlusC.of(
+                    Math.atan((width/2.) * mPx / mF) / (radHorizFOV/2),
+                    width * mF / mL,
+                    QuadraticPolynomial.of(0,1,0)
+            );
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            throw new UnsupportedOperationException("calculateFunctionFrom3Points() not supported for "+this);
+        }
+        @Override public String effectName() { return "Perseverance HAZCAM preset"; }
+        @Override public boolean isPredefined() { return true; }
+        @Override public boolean isPreliminary() { return true; }
+        @Override
+        public String uiEffectName() {
+            return "[Preliminary] (has problems) "
+                    + effectName() + ", to be edited, with the default f(angle)=angle";
+        }
+    },
+    C_HAZ_RETANF {
+        @Override
+        HumanVisibleMathFunction calculateFunction(int width, int height, DistortionCenterLocation dcl, PanelMeasurementStatus pms) {
+            System.out.println("calculateFunction(width="+width+", height="+height+", dcl="+dcl+", pms="+pms+")");
+            // (q/k)*tan(k*arctan(x/q))
+            double mF = 5.58e-3; // F, in metres
+            double mL = 12.3e-3; // width of optical frame (12.3mm*12.3mm), in metres
+            double mPx = 12e-6; // pixel pitch, in metres
+            double radHorizFOV = Math.toRadians(124.);
+            return RetangentWithFuncOfAnglePlusC.of(
+                    Math.atan((width/2.) * mPx / mF) / (radHorizFOV/2),
+                    width * mF / mL,
+                    QuadraticPolynomial.of(0,1,0)
+            );
+        }
+        @Override
+        HumanVisibleMathFunction calculateFunctionFrom3Points(double x1, double y1, double x2, double y2, double x3, double y3) {
+            throw new UnsupportedOperationException("calculateFunctionFrom3Points() not supported for "+this);
+        }
+        @Override public String effectName() { return "Curiosity HAZCAM preset"; }
+        @Override public boolean isPredefined() { return true; }
+        @Override public boolean isPreliminary() { return true; }
+        @Override
+        public String uiEffectName() {
+            return "[Preliminary] (has problems) "
+                    + effectName() + ", to be edited, with the default f(angle)=angle";
+        }
     },
     ;
 
