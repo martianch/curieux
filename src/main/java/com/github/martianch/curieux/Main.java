@@ -8437,10 +8437,14 @@ class FisheyeCorrectionPane extends JPanel {
             String info =
                     "<html>"
                     + "g(r) = " + g.asString("r") + "<br>"
-                    + "r ∈ [" + (int) Math.round(rMin) + ", " + (int) Math.round(rMax) + "]<br>"
+                    + "r ∈ [" + (int) Math.round(rMin) + ", " + (int) Math.round(rMax) + "],<br>"
                     + "g(r) ∈ [" + fmtD(g.minInRange(rMin, rMax)) + ", " + fmtD(g.maxInRange(rMin, rMax)) + "]<br>"
                     + "&nbsp "
                     + "</html>";
+            for (int i=0; i<2 && info.contains(", where"); i++) {
+                info = info.replace(", where", ",<br>where");
+                info = replaceLast(info, "<br>", " ");
+            }
             halfPane.lblFunctionInfo.setText(info);
             halfPane.lblImageInfo.setText(
                 String.format(IMAGE_INFO_FORMAT,
@@ -8456,7 +8460,14 @@ class FisheyeCorrectionPane extends JPanel {
         static String fmtD(double x) {
             return String.format("%.4g",x);
         }
-
+        static String replaceLast(String string, String substring, String replacement) {
+            int index = string.lastIndexOf(substring);
+            if (index == -1) {
+                return string;
+            }
+            return string.substring(0, index) + replacement
+                    + string.substring(index + substring.length());
+        }
         /** The purpose of this highlighting is to inform the user what to do in this dialog */
         void updateHilighting() {
             int phase1; // 0: nothing 1:got correction method 2:got marks 3:calculated 4:after apply
