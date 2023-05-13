@@ -11071,7 +11071,9 @@ class ImageMerger
         System.out.println(smallImageNameList);
         var idl = filterOutUniqueSizes(getSmallImages(smallImageNameList, imageReader));
         final int rowSize = idl.size() == 4 ? 2
-                          : idl.size() == 9 ? 3 : 4;
+                          : idl.size() <= 9 ? 3 : 4;
+
+        System.out.println("number of images: " + idl.size() + ", row size: " + rowSize);
 
         var seq = findSequence(idl, rowSize);
 
