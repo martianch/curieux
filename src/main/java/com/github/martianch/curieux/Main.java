@@ -8476,7 +8476,7 @@ class FisheyeCorrectionPane extends JPanel {
 
             if (fc.algo == FisheyeCorrectionAlgo.NONE) {
                 phase1 = 0;
-            } else if (digitalZoomControls.stream().anyMatch(c -> c.getSafeValue()<0)) {
+            } else if (!fc.algo.isPredefined() && digitalZoomControls.stream().anyMatch(c -> c.getSafeValue()<0)) {
                 phase1 = 1;
             } else if (!Double.isFinite(fc.func.apply(1))) {
                 phase1 = 2;
