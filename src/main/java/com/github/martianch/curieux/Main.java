@@ -3711,6 +3711,12 @@ abstract class FileLocations {
                 return Arrays.asList("curious:r:"+path0, path0);
             }
         }
+        if (isCuriousMUrn(path0)) {
+            return twoPaths(uncuriousUri(path0))
+                    .stream()
+                    .map(FileLocations::curiousMUri)
+                    .collect(Collectors.toList());
+        }
         if (isUrl(path0)) {
             try {
                 URL url = new URL(path0);
@@ -3861,11 +3867,14 @@ abstract class FileLocations {
             return path;
         }
     }
+    private static String curiousMUri(String path) {
+        return "curious:m:" + path;
+    }
     static String setUriCuriousM(String path, boolean enable) {
         if (enable) {
             return isCuriousMUrn(path)
                  ? path
-                 : "curious:m:" + path;
+                 : curiousMUri(path);
         } else {
             return isCuriousMUrn(path)
                  ? uncuriousUri(path)

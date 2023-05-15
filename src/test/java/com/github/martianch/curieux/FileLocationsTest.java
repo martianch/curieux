@@ -266,6 +266,16 @@ public class FileLocationsTest {
             assertThat(r.get(1), is("curious:l:https://mars.jpl.nasa.gov/msl-raw-images/msss/02693/mcam/2693MR0140890070604865C00_DXXX.jpg"));
         }
     }
+    @Test
+    public void testTwoPaths2() {
+        // expected order: R L
+        {
+            List<String> r = FileLocations.twoPaths("curious:m:https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00788/ids/edr/browse/ncam/NLF_0788_0736894163_756ECM_N0390926NCAM00709_04_085J01.png");
+            assertThat(r.size(), is(2));
+            assertThat(r.get(0), is("curious:m:https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00788/ids/edr/browse/ncam/NRF_0788_0736894163_756ECM_N0390926NCAM00709_04_085J01.png"));
+            assertThat(r.get(1), is("curious:m:https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00788/ids/edr/browse/ncam/NLF_0788_0736894163_756ECM_N0390926NCAM00709_04_085J01.png"));
+        }
+    }
 
     @Test
     public void test_twoPaths() {
