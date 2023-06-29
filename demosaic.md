@@ -46,7 +46,8 @@ to each pixel, that is, to somehow guess each color's brightness looking at the 
 
 ![Fig.1a,1b,1c Bayer grid](https://marsgazer.github.io/curious-help/images/fig1abc.jpg)
 
-<figcaption>**Fig.1:** The Bayer mosaic. **1a** — colors not decoded; **1b** — colors decoded, but not interpolated, too much green; **1c** — a bit less green, but it did not help much: the image is dark, too much dots.</figcaption>
+<figcaption><b>Fig.1:</b> The Bayer mosaic. <b>1a</b> — colors not decoded; <b>1b</b> — colors decoded, but not interpolated, too much green; <b>1c</b> — a bit less green, but it did not help much: the image is dark, too much dots.
+</figcaption>
 
 ## Cubic Interpolation
 
@@ -219,7 +220,7 @@ This algorithm produces less demosaicking artefacts than the Malvar [1] algorith
 
 ![Fig.2,3,4](https://marsgazer.github.io/curious-help/images/fig2ab3ab4.jpg)
 
-<figcaption>**Fig.2** — an image decoded by NASA, **2a** — without color correction, **2b** — after applying color correction; **Fig.3** — the same image decoded by x3dview, with the algorighm proposed in this paper, **3a** — without color correction, **3b** — after applying color correction; **Fig.4** — the same object photographed at a different time with a different camera with a better resolution.</figcaption>
+<figcaption><b>Fig.2</b> — an image decoded by NASA, <b>2a</b> — without color correction, <b>2b</b> — after applying color correction; <b>Fig.3</b> — the same image decoded by x3dview, with the algorighm proposed in this paper, <b>3a</b> — without color correction, <b>3b</b> — after applying color correction; <b>Fig.4</b> — the same object photographed at a different time with a different camera with a better resolution.</figcaption>
 
 ## References
 
