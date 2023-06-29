@@ -44,6 +44,10 @@ To decode the colors (de-Bayer, demosaic, demosaick), one needs to assign all th
 to each pixel, that is, to somehow guess each color's brightness looking at the neighboring pixels.
 
 
+![Fig.1a,1b,1c Bayer grid](https://marsgazer.github.io/curious-help/images/fig1abc.jpg)
+
+(Fig.1: The Bayer mosaic. 1a — colors not decoded; 1b — colors decoded, but not interpolated, too much green; 1c — a bit less green, the image is dark, too much dots.)
+
 ## Cubic Interpolation
 
 According to https://www.paulinternet.nl/?page=bicubic
@@ -211,7 +215,11 @@ technically possible.
 So one of the design goals was to minimize the spot within which the neighboring pixels
 affect the estimated color intensity.
 
-This algorithm produces less demosaicking artefacts than the Malvar [1] algorithm currently used [2] by NASA. 
+This algorithm produces less demosaicking artefacts than the Malvar [1] algorithm currently used [2] by NASA.
+
+![Fig.2,3,4](https://marsgazer.github.io/curious-help/images/fig2ab3ab4.jpg)
+
+(Fig.2 — an image decoded by NASA, a — without color correction, b — after applying color correction; Fig.3 — the same image decoded by x3dview, with the algorighm proposed in this paper, a — without color correction, b — after applying color correction; Fig.4 — the same object photographed at a different time with a different camera with a better resolution.)
 
 ## References
 
