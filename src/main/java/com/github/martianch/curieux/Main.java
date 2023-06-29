@@ -219,6 +219,8 @@ interface UiEventListener {
     void markShapeChanged(MeasurementPointMark v);
     void measurementShownChanged(boolean newIsShown);
     void adjustOffsets(int pointId);
+    void adjustAngle(boolean isRight);
+    void adjustZoom(boolean isRight);
     void escapePressed();
     Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
@@ -1624,6 +1626,44 @@ class UiController implements UiEventListener {
         }
     }
 
+    public void adjustAngle(boolean isRight) {
+        var angleL = Math.toDegrees(Math.atan2(
+                measurementStatus.left.y1 - measurementStatus.left.y2,
+                measurementStatus.left.x1 - measurementStatus.left.x2
+        ));
+        var angleR = Math.toDegrees(Math.atan2(
+                measurementStatus.right.y1 - measurementStatus.right.y2,
+                measurementStatus.right.x1 - measurementStatus.right.x2
+        ));
+        if (Double.isFinite(angleL) && Double.isFinite(angleR)) {
+            if (isRight) {
+                rAngleChanged(angleL-angleR+displayParameters.angleL);
+            } else {
+                lAngleChanged(angleR-angleL+displayParameters.angleR);
+            }
+            x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+        }
+    }
+
+    public void adjustZoom(boolean isRight) {
+        var diagL = Math.hypot(
+                measurementStatus.left.x1 - measurementStatus.left.x2,
+                measurementStatus.left.y1 - measurementStatus.left.y2
+        );
+        var diagR = Math.hypot(
+                measurementStatus.right.x1 - measurementStatus.right.x2,
+                measurementStatus.right.y1 - measurementStatus.right.y2
+        );
+        if (Double.isFinite(diagL) && Double.isFinite(diagR) && diagL > 2 && diagR > 2) {
+            if (isRight) {
+                rZoomChanged(diagL/diagR*displayParameters.zoomL);
+            } else {
+                lZoomChanged(diagR/diagL*displayParameters.zoomR);
+            }
+            x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+        }
+    }
+
     @Override
     public void escapePressed() {
         if (measurementStatus.isWaitingForPoint()) {
@@ -2180,6 +2220,20 @@ class X3DViewer {
                 menuLR.add(miAdjustOffsets);
                 miAdjustOffsets.addActionListener(e ->
                         uiEventListener.adjustOffsets(2)
+                );
+            }
+            {
+                JMenuItem miAdjustZoom = new JMenuItem("Adjust Zoom Level Using Red and Green Marks");
+                menuLR.add(miAdjustZoom);
+                miAdjustZoom.addActionListener(e ->
+                        uiEventListener.adjustZoom(isFromComponentsMenu(e, lblR))
+                );
+            }
+            {
+                JMenuItem miAdjustAngle = new JMenuItem("Adjust Angle Using Red and Green Marks");
+                menuLR.add(miAdjustAngle);
+                miAdjustAngle.addActionListener(e ->
+                        uiEventListener.adjustAngle(isFromComponentsMenu(e, lblR))
                 );
             }
             {
