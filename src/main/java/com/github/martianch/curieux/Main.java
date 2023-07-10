@@ -2083,7 +2083,7 @@ class X3DViewer {
             try {
                 var mainIcon = ImageIO.read(ClassLoader.getSystemResource("icons/main64.png"));
                 frame.setIconImage(mainIcon);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // do nothing, it was just an icon
             }
         }
