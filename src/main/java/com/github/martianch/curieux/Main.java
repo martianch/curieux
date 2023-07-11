@@ -7473,17 +7473,15 @@ class CyanRedColorFilter {
     }
     public static BufferedImage filterRed(BufferedImage src) {
         return filterColor(src,
-                color -> {
-                    int r = 0xff & (color >> 16);
-                    return (r << 16) | (r << 8) | (r);
-                });
+                color ->
+                        (color & 0xff0000) | (color>>8 & 0x00ff00) | (color>>16 & 0x0000ff)
+                );
     }
     public static BufferedImage filterBlue(BufferedImage src) {
         return filterColor(src,
-                color -> {
-                    int b = 0xff & (color);
-                    return (b << 16) | (b << 8) | (b);
-                });
+                color ->
+                        (color<<16 & 0xff0000) | (color<<8 & 0x00ff00) | (color & 0x0000ff)
+                );
     }
     public static BufferedImage filterRedColor(BufferedImage src) {
         return filterColor(src,
