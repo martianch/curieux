@@ -200,6 +200,7 @@ interface UiEventListener {
     void copyUrls();
     void loadMatchOfOther(boolean isRight);
     void loadCopyOfOther(boolean isRight);
+    void convertToX3d(boolean isRight, StereoEncoding kind);
     void loadBigImage(boolean isRight);
     void reload(boolean isRight);
     void saveProcessedImage(boolean isRight);
@@ -1224,6 +1225,49 @@ class UiController implements UiEventListener {
         changeRawData(new RawData(other, other));
         lrNavigator.left = otherNavigator;
         lrNavigator.right = FileNavigator.copy(otherNavigator);
+    }
+
+    public void convertToX3d(boolean isRight, StereoEncoding kind) {
+        System.out.println("convertToX3d("+isRight+", "+kind+")");
+        DisplayParameters newDp = displayParameters;
+        switch (kind) {
+            case RED_CYAN_ANAGLYPH_GRAY:
+                newDp = displayParameters.withColorCorrection(
+                        new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_BLUE),
+                                CustomStretchRgbParameters.newFullRange()
+                        ),
+                        new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_RED),
+                                CustomStretchRgbParameters.newFullRange()
+                        )
+                );
+                newDp.offsetY = newDp.offsetX = 0;
+                break;
+            case RED_CYAN_ANAGLYPH_COLOR:
+                newDp = displayParameters.withColorCorrection(
+                        new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_BLUE_GREEN_COLOR),
+                                CustomStretchRgbParameters.newFullRange()
+                        ),
+                        new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_RED_COLOR),
+                                CustomStretchRgbParameters.newFullRange()
+                        )
+                );
+                newDp.offsetY = newDp.offsetX = 0;
+                break;
+            case LR_STEREO_PAIR:
+                newDp = displayParameters.withColorCorrection(
+                        new ColorCorrection(Collections.EMPTY_LIST,
+                                CustomStretchRgbParameters.newFullRange()
+                        ),
+                        new ColorCorrection(Collections.EMPTY_LIST,
+                                CustomStretchRgbParameters.newFullRange()
+                        )
+                );
+                newDp.offsetY = 0;
+                newDp.offsetX = - (isRight?rawData.right:rawData.left).image.getWidth() / 2;
+                break;
+        }
+        x3dViewer.updateControls(displayParameters = newDp, measurementStatus, behavioralOptions);
+        loadCopyOfOther(!isRight);
     }
 
     @Override
@@ -2416,6 +2460,41 @@ class X3DViewer {
                         uiEventListener.loadBigImage(
                                 isFromComponentsMenu(e, lblR)
                         ));
+            }
+            {
+                String menuTitle = "View as X3D This Non-X3D...";
+                JMenu mMeasure = new JMenu(menuTitle);
+                menuLR.add(mMeasure);
+                {
+                    String title = "Red-Cyan Anaglyph 3D, Black & White";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.convertToX3d(
+                                    isFromComponentsSubmenu(e, lblR),
+                                    StereoEncoding.RED_CYAN_ANAGLYPH_GRAY
+                    ));
+                }
+                {
+                    String title = "Red-Cyan Anaglyph 3D, Color";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.convertToX3d(
+                                    isFromComponentsSubmenu(e, lblR),
+                                    StereoEncoding.RED_CYAN_ANAGLYPH_COLOR
+                            ));
+                }
+                {
+                    String title = "LR Stereo Pair";
+                    JMenuItem mi = new JMenuItem(title);
+                    mMeasure.add(mi);
+                    mi.addActionListener(e ->
+                            uiEventListener.convertToX3d(
+                                    isFromComponentsSubmenu(e, lblR),
+                                    StereoEncoding.LR_STEREO_PAIR
+                            ));
+                }
             }
             {
                 JMenuItem miPrevImage = new JMenuItem("Go To Previous");
@@ -6591,6 +6670,12 @@ class ColorCorrection {
                 case FILTER_BLUE:
                     res = CyanRedColorFilter.filterBlue(res);
                     break ;
+                case FILTER_RED_COLOR:
+                    res = CyanRedColorFilter.filterRedColor(res);
+                    break ;
+                case FILTER_BLUE_GREEN_COLOR:
+                    res = CyanRedColorFilter.filterBlueGreenColor(res);
+                    break ;
                 case UNGLARE1:
                     res = BilinearDeglareWhite.unglare(res);
             }
@@ -6632,8 +6717,10 @@ enum ColorCorrectionAlgo implements ImageEffect {
     GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6", "ge16"),
     GAMMA_ENCODE_1_4("gamma encode, γ=1/1.4", "ge14"),
     GAMMA_ENCODE_1_2("gamma encode, γ=1/1.2", "ge12"),
-    FILTER_RED("use red component", "fromRed"),
-    FILTER_BLUE("use blue component", "fromBlue"),
+    FILTER_RED("use red component as white", "grayFromRed"),
+    FILTER_BLUE("use blue component as white", "grayFromBlue"),
+    FILTER_RED_COLOR("use red component as color", "onlyR"),
+    FILTER_BLUE_GREEN_COLOR("use blue&green components as color", "onlyGB"),
     UNGLARE1("unglare, bilinear","ugb");
 
     final String name;
@@ -7397,6 +7484,16 @@ class CyanRedColorFilter {
                     int b = 0xff & (color);
                     return (b << 16) | (b << 8) | (b);
                 });
+    }
+    public static BufferedImage filterRedColor(BufferedImage src) {
+        return filterColor(src,
+                color -> color & 0xff0000
+                );
+    }
+    public static BufferedImage filterBlueGreenColor(BufferedImage src) {
+        return filterColor(src,
+                color -> color & 0x00ffff
+                );
     }
 }
 
@@ -11676,3 +11773,7 @@ class DoubleCalculator {
         return func.get(op).applyAsDouble(a,b);
     }
 } //DoubleCalculator
+
+enum StereoEncoding {
+    RED_CYAN_ANAGLYPH_GRAY, RED_CYAN_ANAGLYPH_COLOR, LR_STEREO_PAIR
+}
