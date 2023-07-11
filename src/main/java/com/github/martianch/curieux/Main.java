@@ -6585,6 +6585,12 @@ class ColorCorrection {
                 case GAMMA_ENCODE_1_2:
                     res = GammaColorBalancer.balanceColors(res, 1 / 1.2);
                     break;
+                case FILTER_RED:
+                    res = CyanRedColorFilter.filterRed(res);
+                    break ;
+                case FILTER_BLUE:
+                    res = CyanRedColorFilter.filterBlue(res);
+                    break ;
                 case UNGLARE1:
                     res = BilinearDeglareWhite.unglare(res);
             }
@@ -6626,6 +6632,8 @@ enum ColorCorrectionAlgo implements ImageEffect {
     GAMMA_ENCODE_1_6("gamma encode, γ=1/1.6", "ge16"),
     GAMMA_ENCODE_1_4("gamma encode, γ=1/1.4", "ge14"),
     GAMMA_ENCODE_1_2("gamma encode, γ=1/1.2", "ge12"),
+    FILTER_RED("use red component", "fromRed"),
+    FILTER_BLUE("use blue component", "fromBlue"),
     UNGLARE1("unglare, bilinear","ugb");
 
     final String name;
@@ -7352,6 +7360,43 @@ class GammaColorBalancer {
     static int gamma(double gamma, int colorValue) {
         double res = Math.pow((colorValue / 255.), gamma) * 255.;
         return (int) Math.round(res);
+    }
+}
+
+class CyanRedColorFilter {
+    static BufferedImage filterColor(BufferedImage src, IntUnaryOperator changeColor) {
+        if (ImageAndPath.isDummyImage(src)) {
+            return src;
+        }
+        try {
+            int width = src.getWidth();
+            int height = src.getHeight();
+            var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int j = 0; j < height; j++) {
+                for (int i = 0; i < width; i++) {
+                    int color = src.getRGB(i, j);
+                    res.setRGB(i, j, changeColor.applyAsInt(color));
+                }
+            }
+            return res;
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
+        }
+    }
+    public static BufferedImage filterRed(BufferedImage src) {
+        return filterColor(src,
+                color -> {
+                    int r = 0xff & (color >> 16);
+                    return (r << 16) | (r << 8) | (r);
+                });
+    }
+    public static BufferedImage filterBlue(BufferedImage src) {
+        return filterColor(src,
+                color -> {
+                    int b = 0xff & (color);
+                    return (b << 16) | (b << 8) | (b);
+                });
     }
 }
 
