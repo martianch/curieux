@@ -1680,10 +1680,18 @@ class UiController implements UiEventListener {
                 measurementStatus.right.x1 - measurementStatus.right.x2
         ));
         if (Double.isFinite(angleL) && Double.isFinite(angleR)) {
-            if (isRight) {
-                rAngleChanged(angleL-angleR+displayParameters.angleL);
+            if (measurementStatus.isSubpixelPrecision) {
+                if (isRight) {
+                    rAngleChanged(angleL - angleR + displayParameters.angleR);
+                } else {
+                    lAngleChanged(angleR - angleL + displayParameters.angleL);
+                }
             } else {
-                lAngleChanged(angleR-angleL+displayParameters.angleR);
+                if (isRight) {
+                    rAngleChanged(angleL - angleR + displayParameters.angleL);
+                } else {
+                    lAngleChanged(angleR - angleL + displayParameters.angleR);
+                }
             }
             x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
         }
