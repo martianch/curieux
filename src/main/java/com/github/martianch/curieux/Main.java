@@ -1577,6 +1577,7 @@ class UiController implements UiEventListener {
     public void setSubpixelPrecisionMarks(boolean precise) {
         measurementStatus.isSubpixelPrecision = precise;
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
     @Override
     public void stereoCameraChanged(StereoPairParameters v) {
@@ -1961,6 +1962,7 @@ class X3DViewer {
     MeasurementPanel measurementPanel;
     SettingsPanel settingsPanel;
     JCheckBoxMenuItem showMeasurementCbMenuItem;
+    JCheckBoxMenuItem subpixelPrecisionCbMenuItem;
     JFrame frame;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
@@ -1992,6 +1994,7 @@ class X3DViewer {
         colorCorrectionPane.setImageResamplingModeValue(false, dp.imageResamplingModeL);
         colorCorrectionPane.setImageResamplingModeValue(true, dp.imageResamplingModeR);
         showMeasurementCbMenuItem.setState(ms.measurementShown);
+        subpixelPrecisionCbMenuItem.setState(ms.isSubpixelPrecision);
         measurementPanel.setControls(ms);
         settingsPanel.setControls(bo);
     }
@@ -2289,7 +2292,7 @@ class X3DViewer {
                 );
             }
             {
-                String menuTitle = "Measurement...";
+                String menuTitle = "Measurement and Marks...";
                 JMenu mMeasure = new JMenu(menuTitle);
                 menuLR.add(mMeasure);
                 {
@@ -2298,6 +2301,14 @@ class X3DViewer {
                     mMeasure.add(showMeasurementCbMenuItem);
                     showMeasurementCbMenuItem.addActionListener(e ->
                             uiEventListener.measurementShownChanged(showMeasurementCbMenuItem.getState())
+                    );
+                }
+                {
+                    String title = "Subpixel Precision"; // TODO: rename
+                    subpixelPrecisionCbMenuItem = new JCheckBoxMenuItem(title, ms.isSubpixelPrecision);
+                    mMeasure.add(subpixelPrecisionCbMenuItem);
+                    subpixelPrecisionCbMenuItem.addActionListener(e ->
+                            uiEventListener.setSubpixelPrecisionMarks(subpixelPrecisionCbMenuItem.getState())
                     );
                 }
                 {
@@ -7880,6 +7891,7 @@ class MeasurementPanel extends JPanel {
     final JScrollPane textAreaScroll;
     final StereoCamChooser stereoCamChooser;
     final MeasurementPointMarkChooser measurementPointMarkChooser;
+    final JCheckBox subpixelPrecisionMarksCheckbox;
 
     public MeasurementPanel(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
@@ -8037,7 +8049,7 @@ class MeasurementPanel extends JPanel {
             {
                 var row = new JPanel();
                 {
-                    var subpixelPrecisionMarksCheckbox = new JCheckBox("Position Marks with Subpixel Precision (1/N px for zoom factor N) — slow but more precise");
+                    subpixelPrecisionMarksCheckbox = new JCheckBox("Position Marks with Subpixel Precision (1/N px for zoom factor N) — slow but more precise");
                     subpixelPrecisionMarksCheckbox.addActionListener(
                             e -> uiEventListener.setSubpixelPrecisionMarks(
                                     subpixelPrecisionMarksCheckbox.isSelected()
@@ -8357,6 +8369,7 @@ class MeasurementPanel extends JPanel {
         dcRY4.setValueAndText(ms.right.y4);
         dcRX5.setValueAndText(ms.right.x5);
         dcRY5.setValueAndText(ms.right.y5);
+        subpixelPrecisionMarksCheckbox.setSelected(ms.isSubpixelPrecision);
         return this;
     }
 } // MeasurementPanel
