@@ -2304,7 +2304,7 @@ class X3DViewer {
                     );
                 }
                 {
-                    String title = "Subpixel Precision"; // TODO: rename
+                    String title = "Apply Marks After Rotate & Zoom";
                     subpixelPrecisionCbMenuItem = new JCheckBoxMenuItem(title, ms.isSubpixelPrecision);
                     mMeasure.add(subpixelPrecisionCbMenuItem);
                     subpixelPrecisionCbMenuItem.addActionListener(e ->
@@ -8049,7 +8049,7 @@ class MeasurementPanel extends JPanel {
             {
                 var row = new JPanel();
                 {
-                    subpixelPrecisionMarksCheckbox = new JCheckBox("Position Marks with Subpixel Precision (1/N px for zoom factor N) — slow but more precise");
+                    subpixelPrecisionMarksCheckbox = new JCheckBox("Apply Marks after Rotate & Zoom (Subpixel Precision 1/N px for zoom factor N)");
                     subpixelPrecisionMarksCheckbox.addActionListener(
                             e -> uiEventListener.setSubpixelPrecisionMarks(
                                     subpixelPrecisionMarksCheckbox.isSelected()
