@@ -45,6 +45,8 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
 import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
@@ -869,6 +871,7 @@ class PanelMeasurementStatus {
     double ifov;
     String descr;
     int centeringDX=0, centeringDY=0;
+    AffineTransform transform = null;
     final APoint first = new APoint() {
         @Override public double getAx() { return getAngle(x1, w); }
         @Override public double getAy() { return -getAngle(y1, h); }
@@ -1502,14 +1505,25 @@ class UiController implements UiEventListener {
             marginX = Math.max(0, (source.getWidth() - icon.getIconWidth()) / 2);
             marginY = Math.max(0, (source.getHeight() - icon.getIconHeight()) / 2);
         }
-        var res = new Point(
-            (int) ((e.getX() - marginX) / zoom
-                    - Math.max(0, offX - otherMStatus.centeringDX + panelMStatus.centeringDX)
-            ),
-            (int) ((e.getY() - marginY) / zoom
-                    - Math.max(0, offY - otherMStatus.centeringDY + panelMStatus.centeringDY)
-            )
-        );
+        double x = (e.getX() - marginX) / zoom
+                 - Math.max(0, offX - otherMStatus.centeringDX + panelMStatus.centeringDX);
+        double y = (e.getY() - marginY) / zoom
+                 - Math.max(0, offY - otherMStatus.centeringDY + panelMStatus.centeringDY);
+        if (panelMStatus.transform != null && !measurementStatus.isSubpixelPrecision) {
+            try {
+                Point2D.Double rotatedBack = (Point2D.Double) panelMStatus.transform.inverseTransform(
+                                        new Point2D.Double(x,y),
+                                        new Point2D.Double(0,0)
+                );
+                x = rotatedBack.x;
+                y = rotatedBack.y;
+            } catch (NoninvertibleTransformException ex) {
+                // do nothing
+            }
+        }
+
+        var res = new Point((int) x, (int) y);
+
         System.out.println(""+measurementStatus);
         System.out.println("zoom="+zoom+" marginX="+marginX+" marginY="+marginY+" offX="+offX+" offY="+offY);
         System.out.println("res="+res);
@@ -1627,48 +1641,57 @@ class UiController implements UiEventListener {
         x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
     static void doAdjustOffsets(int pointId, DisplayParameters displayParameters, MeasurementStatus measurementStatus) {
+        double lx, rx, ly, ry;
         switch (pointId) {
+            default:
+                return;
             case 1: {
-                displayParameters.offsetX =
-                        calculateOffset(
-                                measurementStatus.left.x1,
-                                measurementStatus.right.x1,
-                                measurementStatus.left.centeringDX,
-                                measurementStatus.right.centeringDX,
-                                displayParameters.zoomL,
-                                displayParameters.zoomR
-                        );
-                displayParameters.offsetY =
-                        calculateOffset(
-                                measurementStatus.left.y1,
-                                measurementStatus.right.y1,
-                                measurementStatus.left.centeringDY,
-                                measurementStatus.right.centeringDY,
-                                displayParameters.zoomL,
-                                displayParameters.zoomR
-                        );
+                lx = measurementStatus.left.x1;
+                rx = measurementStatus.right.x1;
+                ly = measurementStatus.left.y1;
+                ry = measurementStatus.right.y1;
             } break;
             case 2: {
-                displayParameters.offsetX =
-                        calculateOffset(
-                                measurementStatus.left.x2,
-                                measurementStatus.right.x2,
-                                measurementStatus.left.centeringDX,
-                                measurementStatus.right.centeringDX,
-                                displayParameters.zoomL,
-                                displayParameters.zoomR
-                        );
-                displayParameters.offsetY =
-                        calculateOffset(
-                                measurementStatus.left.y2,
-                                measurementStatus.right.y2,
-                                measurementStatus.left.centeringDY,
-                                measurementStatus.right.centeringDY,
-                                displayParameters.zoomL,
-                                displayParameters.zoomR
-                        );
+                lx = measurementStatus.left.x2;
+                rx = measurementStatus.right.x2;
+                ly = measurementStatus.left.y2;
+                ry = measurementStatus.right.y2;
             } break;
         }
+        if (measurementStatus.left.transform != null && !measurementStatus.isSubpixelPrecision) {
+            Point2D.Double lRotated = (Point2D.Double) measurementStatus.left.transform.transform(
+                    new Point2D.Double(lx, ly),
+                    new Point2D.Double(0,0)
+            );
+            lx = lRotated.x;
+            ly = lRotated.y;
+        }
+        if (measurementStatus.right.transform != null && !measurementStatus.isSubpixelPrecision) {
+            Point2D.Double rRotated = (Point2D.Double) measurementStatus.right.transform.transform(
+                    new Point2D.Double(rx, ry),
+                    new Point2D.Double(0,0)
+            );
+            rx = rRotated.x;
+            ry = rRotated.y;
+        }
+        displayParameters.offsetX =
+                calculateOffset(
+                        lx,
+                        rx,
+                        measurementStatus.left.centeringDX,
+                        measurementStatus.right.centeringDX,
+                        displayParameters.zoomL,
+                        displayParameters.zoomR
+                );
+        displayParameters.offsetY =
+                calculateOffset(
+                        ly,
+                        ry,
+                        measurementStatus.left.centeringDY,
+                        measurementStatus.right.centeringDY,
+                        displayParameters.zoomL,
+                        displayParameters.zoomR
+                );
     }
 
     public void adjustAngle(boolean isRight) {
@@ -2058,8 +2081,10 @@ class X3DViewer {
         int dhL = (int) (dh1/dp.zoomL);
         ms.left.centeringDX = max0(dwL);
         ms.left.centeringDY = max0(dhL);
+        ms.left.transform = transformL;
         ms.right.centeringDX = max0(-dwR);
         ms.right.centeringDY = max0(-dhR);
+        ms.right.transform = transformR;
         double zL = dp.zoom * dp.zoomL;
         double zR = dp.zoom * dp.zoomR;
         int offXL = dp.offsetX + ms.left.centeringDX - ms.right.centeringDX;
