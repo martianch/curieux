@@ -9,7 +9,8 @@ button from the raw images index on the NASA site.
 
 Direct link to Curiosity raw images: https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl
 
-**UPDATE** [A site with documentation (or rather tutorial)](https://marsgazer.github.io/curious-help/) about this program.
+**UPDATE** [A site with documentation (or rather tutorial)](https://marsgazer.github.io/curious-help/) for this program,
+showing how to use it.
 
 ## What is X3D Stereo and How To View It
 
