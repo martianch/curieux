@@ -2317,6 +2317,17 @@ class X3DViewer {
                 );
             }
             {
+                JMenuItem miAdjustAngle = new JMenuItem("Adjust All Using Red and Green Marks (Make Hyperstereo)");
+                menuLR.add(miAdjustAngle);
+                miAdjustAngle.addActionListener(e ->
+                        {
+                            boolean isRight = isFromComponentsMenu(e, lblR);
+                            uiEventListener.adjustZoom(isRight);
+                            uiEventListener.adjustAngle(isRight);
+                            uiEventListener.adjustOffsets(1);
+                        }
+                );
+            }            {
                 String menuTitle = "Measurement and Marks...";
                 JMenu mMeasure = new JMenu(menuTitle);
                 menuLR.add(mMeasure);
