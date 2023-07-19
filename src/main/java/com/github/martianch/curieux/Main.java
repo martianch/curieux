@@ -224,6 +224,7 @@ interface UiEventListener {
     void adjustOffsets(int pointId);
     void adjustAngle(boolean isRight);
     void adjustZoom(boolean isRight);
+    void adjustZoomAngleOffsets(boolean isRight, int pointId);
     void escapePressed();
     Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
@@ -1057,13 +1058,19 @@ class UiController implements UiEventListener {
     }
     @Override
     public void lZoomChanged(double newZoom) {
-        displayParameters.zoomL = newZoom;
+        lZoomChangedModel(newZoom);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+    }
+    private void lZoomChangedModel(double newZoom) {
+        displayParameters.zoomL = newZoom;
     }
     @Override
     public void rZoomChanged(double newZoom) {
-        displayParameters.zoomR = newZoom;
+        rZoomChangedModel(newZoom);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+    }
+    private void rZoomChangedModel(double newZoom) {
+        displayParameters.zoomR = newZoom;
     }
     @Override
     public void angleChanged(double newAngle) {
@@ -1072,13 +1079,19 @@ class UiController implements UiEventListener {
     }
     @Override
     public void lAngleChanged(double newLAngle) {
-        displayParameters.angleL = newLAngle;
+        lAngleChangedModel(newLAngle);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+    }
+    private void lAngleChangedModel(double newLAngle) {
+        displayParameters.angleL = newLAngle;
     }
     @Override
     public void rAngleChanged(double newRAngle) {
-        displayParameters.angleR = newRAngle;
+        rAngleChangedModel(newRAngle);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+    }
+    private void rAngleChangedModel(double newRAngle) {
+        displayParameters.angleR = newRAngle;
     }
     @Override
     public void lDebayerModeChanged(DebayerMode newLDebayerMode) {
@@ -1636,9 +1649,12 @@ class UiController implements UiEventListener {
     }
     @Override
     public void adjustOffsets(int pointId) {
-        doAdjustOffsets(pointId, displayParameters, measurementStatus);
+        adjustOffsetsModel(pointId);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
         x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+    }
+    private void adjustOffsetsModel(int pointId) {
+        doAdjustOffsets(pointId, displayParameters, measurementStatus);
     }
     static void doAdjustOffsets(int pointId, DisplayParameters displayParameters, MeasurementStatus measurementStatus) {
         double lx, rx, ly, ry;
@@ -1693,8 +1709,15 @@ class UiController implements UiEventListener {
                         displayParameters.zoomR
                 );
     }
-
+    @Override
     public void adjustAngle(boolean isRight) {
+        boolean needUiUpdate = adjustAngleModel(isRight);
+        if (needUiUpdate) {
+            x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+            x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+        }
+    }
+    private boolean adjustAngleModel(boolean isRight) {
         var angleL = Math.toDegrees(Math.atan2(
                 measurementStatus.left.y1 - measurementStatus.left.y2,
                 measurementStatus.left.x1 - measurementStatus.left.x2
@@ -1706,22 +1729,30 @@ class UiController implements UiEventListener {
         if (Double.isFinite(angleL) && Double.isFinite(angleR)) {
             if (measurementStatus.isSubpixelPrecision) {
                 if (isRight) {
-                    rAngleChanged(angleL - angleR + displayParameters.angleR);
+                    rAngleChangedModel(angleL - angleR + displayParameters.angleR);
                 } else {
-                    lAngleChanged(angleR - angleL + displayParameters.angleL);
+                    lAngleChangedModel(angleR - angleL + displayParameters.angleL);
                 }
             } else {
                 if (isRight) {
-                    rAngleChanged(angleL - angleR + displayParameters.angleL);
+                    rAngleChangedModel(angleL - angleR + displayParameters.angleL);
                 } else {
-                    lAngleChanged(angleR - angleL + displayParameters.angleR);
+                    lAngleChangedModel(angleR - angleL + displayParameters.angleR);
                 }
             }
+            return true;
+        }
+        return false;
+    }
+    @Override
+    public void adjustZoom(boolean isRight) {
+        boolean needUiUpdate = adjustZoomModel(isRight);
+        if (needUiUpdate) {
+            x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
             x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
         }
     }
-
-    public void adjustZoom(boolean isRight) {
+    private boolean adjustZoomModel(boolean isRight) {
         var diagL = Math.hypot(
                 measurementStatus.left.x1 - measurementStatus.left.x2,
                 measurementStatus.left.y1 - measurementStatus.left.y2
@@ -1732,14 +1763,23 @@ class UiController implements UiEventListener {
         );
         if (Double.isFinite(diagL) && Double.isFinite(diagR) && diagL > 2 && diagR > 2) {
             if (isRight) {
-                rZoomChanged(diagL/diagR*displayParameters.zoomL);
+                rZoomChangedModel(diagL/diagR*displayParameters.zoomL);
             } else {
-                lZoomChanged(diagR/diagL*displayParameters.zoomR);
+                lZoomChangedModel(diagR/diagL*displayParameters.zoomR);
             }
-            x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+            return true;
         }
+        return false;
     }
-
+    @Override
+    public void adjustZoomAngleOffsets(boolean isRight, int pointId) {
+        adjustZoomModel(isRight);
+        adjustAngleModel(isRight);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+        adjustOffsetsModel(1);
+        x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+    }
     @Override
     public void escapePressed() {
         if (measurementStatus.isWaitingForPoint()) {
@@ -2320,14 +2360,11 @@ class X3DViewer {
                 JMenuItem miAdjustAngle = new JMenuItem("Adjust All Using Red and Green Marks (Make Hyperstereo)");
                 menuLR.add(miAdjustAngle);
                 miAdjustAngle.addActionListener(e ->
-                        {
-                            boolean isRight = isFromComponentsMenu(e, lblR);
-                            uiEventListener.adjustZoom(isRight);
-                            uiEventListener.adjustAngle(isRight);
-                            uiEventListener.adjustOffsets(1);
-                        }
+                        // 1:red mark
+                        uiEventListener.adjustZoomAngleOffsets(isFromComponentsMenu(e, lblR), 1)
                 );
-            }            {
+            }
+            {
                 String menuTitle = "Measurement and Marks...";
                 JMenu mMeasure = new JMenu(menuTitle);
                 menuLR.add(mMeasure);
