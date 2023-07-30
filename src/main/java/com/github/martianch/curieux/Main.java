@@ -3867,11 +3867,20 @@ abstract class FileLocations {
         return true;
     }
     static String replaceSuffix(String oldSuffix, String newSuffix, String orig) {
-        if (orig==null || !orig.endsWith(oldSuffix)) {
+        if (orig==null || !endsWithIgnoreCase(orig, oldSuffix)) {
             return orig;
         }
         String base = orig.substring(0, orig.length()-oldSuffix.length());
         return base + newSuffix;
+    }
+//    static boolean startsWithIgnoreCase(String str, String prefix)
+//    {
+//        return str.regionMatches(true, 0, prefix, 0, prefix.length());
+//    }
+    static boolean endsWithIgnoreCase(String str, String suffix)
+    {
+        int suffixLength = suffix.length();
+        return str.regionMatches(true, str.length() - suffixLength, suffix, 0, suffixLength);
     }
     static String getFileName(String urnOrUrlOrPath) {
         String urlOrPath = uncuriousUri(urnOrUrlOrPath);
@@ -3975,6 +3984,15 @@ abstract class FileLocations {
                 fullPath1 = otherFullPath;
                 fullPath2 = path0;
             }
+        } else if (isMerMarkedRL(file)) {
+            String otherFullPath = Paths.get(dir.toString(), merToggleRL(file)).toString();
+            if (isMerMarkedR(file)) {
+                fullPath1 = path0;
+                fullPath2 = otherFullPath;
+            } else {
+                fullPath1 = otherFullPath;
+                fullPath2 = path0;
+            }
         } else if (isChemcamMarkedRL(file)) {
             if (isChemcamMarkedR(file)) {
                 fullPath1 = path0;
@@ -3999,6 +4017,7 @@ abstract class FileLocations {
         if( (isMarkedL(file1) && isMarkedR(file2))
          || (isMrlMarkedL(urlOrPath1, file1) && isMrlMarkedR(urlOrPath2, file2))
          || (isChemcamMarkedL(file1) && isChemcamMarkedR(file2))
+         || (isMerMarkedL(file1) && isMerMarkedR(file2))
           ) {
             return Arrays.asList(urlOrPath2, urlOrPath1);
         }
@@ -4042,6 +4061,11 @@ abstract class FileLocations {
         sb.setCharAt(1, (char) (sb.charAt(1)^('R'^'L')));
         return sb.toString();
     }
+    static String merToggleRL(String file) {
+        StringBuilder sb = new StringBuilder(file);
+        sb.setCharAt(23, (char) (sb.charAt(23)^('R'^'L')));
+        return sb.toString();
+    }
     static boolean isMrlMarkedR(String path, String fname) {
         return isCuriousLRUrn(path) ? isCuriousRUrn(path) : isMr(fname);
     }
@@ -4070,6 +4094,18 @@ abstract class FileLocations {
                 .replace("PRC_F", "EDR_F")
                 .replace("L1.PNG", "M_.JPG");
         return res;
+    }
+    // MER: Opportunity, Spirit
+    static boolean isMerMarkedRL(String fname) {
+        return fname.length() >= 31
+           && fname.matches("[12][ABDEFMNPRT]\\d{9}.{3}.{2}.{2}[CDEFGKMNPRSTWXYZ]\\d{4}[LR]..[1-9A-Z_].*");
+           // Note: A instead of R/L is anaglyph (red/cyan stereo pair)
+    }
+    static boolean isMerMarkedR(String fname) {
+        return isMerMarkedRL(fname) && fname.charAt(23) == 'R';
+    }
+    static boolean isMerMarkedL(String fname) {
+        return isMerMarkedRL(fname) && fname.charAt(23) == 'L';
     }
     static boolean isCuriousLRUrn(String path) {
         return isCuriousLUrn(path) || isCuriousRUrn(path);

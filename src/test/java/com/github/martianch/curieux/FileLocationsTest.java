@@ -234,6 +234,18 @@ public class FileLocationsTest {
             assertThat(r.get(0), is("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/00002/opgs/edr/ncam/NRA_397681339EDR_F0020000AUT_04096M_.JPG"));
             assertThat(r.get(1), is("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/00002/opgs/edr/ncam/NLA_397681339EDR_F0020000AUT_04096M_.JPG"));
         }
+        {
+            List<String> r = FileLocations.twoPaths("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685R0M1.JPG");
+            assertThat(r.size(), is(2));
+            assertThat(r.get(0), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685R0M1.JPG"));
+            assertThat(r.get(1), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685L0M1.JPG"));
+        }
+        {
+            List<String> r = FileLocations.twoPaths("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685L0M1.JPG");
+            assertThat(r.size(), is(2));
+            assertThat(r.get(0), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685R0M1.JPG"));
+            assertThat(r.get(1), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685L0M1.JPG"));
+        }
 
         {
             List<String> r = FileLocations.twoPaths("/my/folder/RLB_635598676EDR_F0790000RHAZ00337M_.JPG");
