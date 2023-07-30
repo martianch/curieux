@@ -129,7 +129,10 @@ public class Main {
         "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl";
     public static final String PERSEVERANCE_RAW_IMAGES_URL =
         "https://mars.nasa.gov/mars2020/multimedia/raw-images/";
-
+    public static final String OPPORTUNITY_RAW_IMAGES_URL =
+            "https://mars.nasa.gov/mer/gallery/all/opportunity.html";
+    public static final String SPIRIT_RAW_IMAGES_URL =
+            "https://mars.nasa.gov/mer/gallery/all/spirit.html";
     public static final String[] PREFERRED_FONTS = {
             "Verdana"
             //,"Ubuntu"
@@ -2869,9 +2872,17 @@ class X3DViewer {
                         "<a href=\""+ Main.CURIOSITY_RAW_IMAGES_URL +"\">"+
                                 "Curiosity" +
                         "</a>" +
-                        " or " +
+                        ", " +
                         "<a href=\""+ Main.PERSEVERANCE_RAW_IMAGES_URL +"\">"+
                         "Perseverance" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\""+ Main.OPPORTUNITY_RAW_IMAGES_URL +"\">"+
+                        "Opportunity" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\""+ Main.SPIRIT_RAW_IMAGES_URL +"\">"+
+                        "Spirit" +
                         "</a>" +
                         " pages.<br>" +
                         "<br>" +
@@ -2923,6 +2934,10 @@ class X3DViewer {
                         ", " +
                         "<a href=\"https://github.com/martianch/curieux/releases\">"+
                         "download page" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\"https://marsgazer.github.io/curious-help/\">"+
+                        "<b>documentation & tutorial</b> site" +
                         "</a>" +
                         "." +
                         "<br>"+
