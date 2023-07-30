@@ -119,6 +119,7 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
+import static com.github.martianch.curieux.MyStrings.endsWithIgnoreCase;
 import static java.awt.Image.SCALE_SMOOTH;
 
 /** The app runner class */
@@ -3873,15 +3874,6 @@ abstract class FileLocations {
         String base = orig.substring(0, orig.length()-oldSuffix.length());
         return base + newSuffix;
     }
-//    static boolean startsWithIgnoreCase(String str, String prefix)
-//    {
-//        return str.regionMatches(true, 0, prefix, 0, prefix.length());
-//    }
-    static boolean endsWithIgnoreCase(String str, String suffix)
-    {
-        int suffixLength = suffix.length();
-        return str.regionMatches(true, str.length() - suffixLength, suffix, 0, suffixLength);
-    }
     static String getFileName(String urnOrUrlOrPath) {
         String urlOrPath = uncuriousUri(urnOrUrlOrPath);
         String fullPath = urlOrPath;
@@ -4096,10 +4088,14 @@ abstract class FileLocations {
         return res;
     }
     // MER: Opportunity, Spirit
+    static boolean isMerAny(String fname) {
+        return fname.length() >= 31
+               && fname.matches("[12][ABDEFMNPRT]\\d{9}.{3}.{2}.{2}[CDEFGKMNPRSTWXYZ]\\d{4}[LRAM]..[1-9A-Z_].*");
+        // Note: A instead of R/L is anaglyph (red/cyan stereo pair), M is mono, N is not image
+    }
     static boolean isMerMarkedRL(String fname) {
         return fname.length() >= 31
            && fname.matches("[12][ABDEFMNPRT]\\d{9}.{3}.{2}.{2}[CDEFGKMNPRSTWXYZ]\\d{4}[LR]..[1-9A-Z_].*");
-           // Note: A instead of R/L is anaglyph (red/cyan stereo pair)
     }
     static boolean isMerMarkedR(String fname) {
         return isMerMarkedRL(fname) && fname.charAt(23) == 'R';
@@ -4275,14 +4271,22 @@ class HttpLocations {
             return scanner.hasNext() ? scanner.next() : "";
         }
     }
-
+    static boolean isMerHtml(String url) {
+        return endsWithIgnoreCase(url, ".HTML")
+            && FileLocations.isMerAny(FileLocations.getFileName(url));
+    }
     static String unPage(String url) {
         if (!FileLocations.isUrl(url)) {
             return url;
         }
-        String endOfUrl = url.substring(Math.max(0,url.length()-8)).toLowerCase();
-        if (endOfUrl.endsWith(".jpg") || endOfUrl.endsWith(".jpeg") || endOfUrl.endsWith(".png")) {
+        if (endsWithIgnoreCase(url, ".jpg")
+         || endsWithIgnoreCase(url, ".jpeg")
+         || endsWithIgnoreCase(url, ".png")
+        ) {
             return url;
+        }
+        if (isMerHtml(url)) {
+            return FileLocations.replaceSuffix(".html", ".JPG", url);
         }
         try {
             String type = getContentType(url);
@@ -4879,14 +4883,6 @@ class HyperTextPane extends JTextPane {
 }
 
 abstract class SaverBase {
-    static boolean endsWithIgnoreCase(String text, String suffix) {
-        if (text.length() < suffix.length()) {
-            return false;
-        }
-        String textSuffix = text.substring(text.length() - suffix.length());
-        return textSuffix.equalsIgnoreCase(suffix);
-    }
-
     static boolean checkAskOverwrite(JFrame frame, File file) {
         return !file.exists()
             || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + file + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION);
@@ -11904,4 +11900,16 @@ class DoubleCalculator {
 
 enum StereoEncoding {
     RED_CYAN_ANAGLYPH_GRAY, RED_CYAN_ANAGLYPH_COLOR, LR_STEREO_PAIR
+}
+
+class MyStrings {
+//    static boolean startsWithIgnoreCase(String str, String prefix)
+//    {
+//        return str.regionMatches(true, 0, prefix, 0, prefix.length());
+//    }
+    static boolean endsWithIgnoreCase(String str, String suffix)
+    {
+        int suffixLength = suffix.length();
+        return str.regionMatches(true, str.length() - suffixLength, suffix, 0, suffixLength);
+    }
 }
