@@ -86,6 +86,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +97,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.PriorityQueue;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -120,6 +122,7 @@ import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
 import static com.github.martianch.curieux.MyStrings.endsWithIgnoreCase;
+import static com.github.martianch.curieux.MyStrings.safeSubstring;
 import static java.awt.Image.SCALE_SMOOTH;
 
 /** The app runner class */
@@ -5091,7 +5094,7 @@ class ScreenshotSaver extends SaverBase {
 
 class JsonDiy {
     public static final boolean IGNORE_NULL_IN_MAPS = true;
-    static Object get(Object root, String... indexes) {
+    public static Object get(Object root, String... indexes) {
         Object obj = root;
         for (String index : indexes) {
             if (obj instanceof Map) {
@@ -5103,17 +5106,20 @@ class JsonDiy {
                     List list = (List) obj;
                     obj = list.get(i);
                 } catch (Throwable t) {
-                    t.printStackTrace();
-                    return null;
+                    obj = null;
+                    break;
                 }
+            } else { // null, or (not a List or Map, but indexed)
+                obj = null;
+                break;
             }
-            if (null == obj) {
-                return null;
-            }
+        }
+        if (null == obj) {
+            System.out.println("not found in json: " + String.join(".", indexes) + " not in " + JsonDiy.toString(root));
         }
         return obj;
     }
-    static int getInt(Object root, String... indexes) {
+    public static int getInt(Object root, String... indexes) {
         return Integer.parseInt(Objects.toString(get(root, indexes)));
     }
     public static Object jsonToDataStructure(String jsonString) {
@@ -5121,6 +5127,48 @@ class JsonDiy {
         Object res = getElement(input, '\0');
         input.skipWhitespace().errorIfNotAtEnd();
         return res;
+    }
+    static<T> T deleteAllKeysBut(T root, String... keys) {
+        return deleteAllKeysBut(root, new HashSet<>(Arrays.asList(keys)));
+    }
+    static<TT> TT deleteAllKeysBut(TT root, Collection<String> keys) {
+        if (root instanceof Map) {
+            Map<String, ?> map = (Map) root;
+            return (TT) map.entrySet().stream()
+                    .filter(e -> keys.contains(e.getKey()))
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            e -> deleteAllKeysBut(e.getValue(), keys)
+                    ));
+        } else if (root instanceof List) {
+            List<?> list = (List<?>) root;
+            return (TT) list.stream()
+                    .map(obj -> deleteAllKeysBut(obj, keys))
+                    .collect(Collectors.toList());
+        } else {
+            return root;
+        }
+    }
+    public static String toString(Object root) {
+        if (root instanceof Map) {
+            Map<String, ?> map = new TreeMap((Map) root);
+            return "{"
+                   + map.entrySet().stream()
+                     .map(e -> '"' + e.getKey() + '"' + ":" + toString(e.getValue()))
+                     .collect(Collectors.joining(", "))
+                   + "}";
+        } else if (root instanceof List) {
+            List<?> list = (List<?>) root;
+            return "["
+                   + list.stream()
+                     .map(obj -> toString(obj))
+                     .collect(Collectors.joining(", "))
+                   + "]";
+        } else if (root instanceof String) {
+            return '"' + (String) root + '"';
+        } else {
+            return Objects.toString(root);
+        }
     }
     static String getKey(InputState is, char... delimiters) {
         char c = is.skipWhitespace().get();
@@ -5507,7 +5555,7 @@ interface FileNavigator<T> {
     T getCurrentValue();
     String getCurrentKey();
     FileNavigator<T> setCurrentKey(String key);
-    String toKey(T obj);
+    String jsonObjToKey(T obj);
     String getPath(T t);
     FileNavigator<T> copy();
     static<T> FileNavigator<T> copy(FileNavigator<T> orig) {
@@ -5519,6 +5567,23 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     protected NavigableMap<String, Map<String, Object>> nmap = new TreeMap<>();
     protected String currentKey;
     int nToLoad=25;
+    static final Set<String> ALL_USED_KEYS =
+        Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "date_taken",
+            "date_taken_mars",
+            "full_res",
+            "https_url",
+            "image_files",
+            "imageid",
+            "images",
+            "items",
+            "latest_sol",
+            "page",
+            "per_page",
+            "total",
+            "total_results",
+            "url"
+    )));
     public static FileNavigatorBase makeNew(String path) {
         var needRemote = FileLocations.isUrl(path);
         // TODO: move this check to FileLocations or HttpLocations or sth like that
@@ -5535,12 +5600,17 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         currentKey = other.currentKey;
         nToLoad = other.nToLoad;
     }
-    protected void moveWindow(boolean forwardInTime) {
+    protected void moveWindow(boolean forwardInTime, Runnable currentKeyUpdate) {
         if (forwardInTime && Objects.equals(currentKey, nmap.lastKey())) {
-            _loadHigher(); _cleanupLower();
-        }
-        if (!forwardInTime && Objects.equals(currentKey, nmap.firstKey())) {
-            _loadLower(); _cleanupHigher();
+            _loadHigher();
+            currentKeyUpdate.run();
+            _cleanupLower();
+        } else if (!forwardInTime && Objects.equals(currentKey, nmap.firstKey())) {
+            _loadLower();
+            currentKeyUpdate.run();
+            _cleanupHigher();
+        } else {
+            currentKeyUpdate.run();
         }
     }
     protected abstract void _loadInitial(String whereFrom);
@@ -5554,22 +5624,24 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
 
     @Override
     public FileNavigator<Map<String, Object>> toNext() {
-        moveWindow(true);
-        if (currentKey == null) {
-            currentKey = nmap.firstKey();
-        } else {
-            currentKey = nmap.higherKey(currentKey);
-        }
+        moveWindow(
+            true,
+            () -> currentKey =
+                    currentKey == null
+                    ? nmap.firstKey()
+                    : nmap.higherKey(currentKey)
+        );
         return this;
     }
     @Override
     public FileNavigator<Map<String, Object>> toPrev() {
-        moveWindow(false);
-        if (currentKey == null) {
-            currentKey = nmap.lastKey();
-        } else {
-            currentKey = nmap.lowerKey(currentKey);
-        }
+        moveWindow(
+            false,
+            () -> currentKey =
+                    currentKey == null
+                    ? nmap.lastKey()
+                    : nmap.lowerKey(currentKey)
+        );
         return this;
     }
     @Override
@@ -5597,11 +5669,23 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         return this;
     }
     @Override
-    public String toKey(Map<String, Object> obj) {
+    public String jsonObjToKey(Map<String, Object> obj) {
         if (obj == null) {
             return null;
         }
         return obj.get("date_taken")+"^"+obj.get("imageid");
+    }
+    void _loadFromJsonReply(Object jsonObject, String index) {
+        try {
+            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, index);
+            list.stream()
+                .filter(o -> o instanceof Map)
+                .map(o -> (Map<String, Object>)o)
+                .forEach( o -> nmap.put(jsonObjToKey(o), o));
+        } catch (Throwable t) {
+            System.out.println("_loadFromJsonReply() crashed:");
+            t.printStackTrace();
+        }
     }
 }
 class LocalFileNavigator extends FileNavigatorBase {
@@ -5880,15 +5964,8 @@ class NasaReaderV2 extends NasaReaderBase {
 class RemoteFileNavigatorV2 extends FileNavigatorBase {
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
-        String res =
-                Optional
-                .ofNullable(stringObjectMap)
-                .map(map -> map.get("image_files"))
-                .filter(o -> o instanceof Map)
-                .map(map -> ((Map) map).get("full_res"))
-                .map(Object::toString)
-                .orElse(null);
-        return res;
+        var res = JsonDiy.get(stringObjectMap, "image_files", "full_res");
+        return (String) res;
     }
     @Override
     public FileNavigator<Map<String, Object>> copy() {
@@ -5898,33 +5975,34 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
     }
 
     void loadFromDataStructure(Object jsonObject) {
-        try {
-            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, "images");
-            list.stream().forEach( o -> {
-                if (o instanceof Map) {
-                    Map m = (Map) o;
-                    String date = m.get("date_taken_mars").toString();
-                    String id = m.get("imageid").toString();
-                    // TODO: sol^mars_date^id
-                    String key = date + "^" + id;
-                    nmap.put(key, m);
-                }
-            });
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        _loadFromJsonReply(jsonObject, "images");
     }
-    void loadBySol(Object sol) throws IOException {
+    @Override
+    public String jsonObjToKey(Map<String, Object> m) {
+        String date = m.get("date_taken_mars").toString(); //"Sol-00876M12:24:05.299"
+        String id = m.get("imageid").toString(); //"ZL5_0876_0744706532_443E…430000ZCAM03014_048085J"
+        return date + "^" + id;
+    }
+
+    /**
+     * @param sol Perseverance Sol # to load
+     * @return total_results
+     * @throws IOException
+     */
+    int loadBySol(Object sol) throws IOException {
         int page=0;
         do {
             String params = "page=" + page + "&=,,,,&order=sol%20desc&condition_2=" + sol + ":sol:gte&condition_3=" + sol + ":sol:lte&extended=sample_type::full,";
-            Object jsonObject = NasaReaderV2.dataStructureFromRequest(params);
+            Object jsonObject = JsonDiy.deleteAllKeysBut(
+                    NasaReaderV2.dataStructureFromRequest(params),
+                    ALL_USED_KEYS
+            );
             loadFromDataStructure(jsonObject);
             int per_page = JsonDiy.getInt(jsonObject,"per_page");
             int res_page = JsonDiy.getInt(jsonObject,"page");
             int total_results = JsonDiy.getInt(jsonObject,"total_results");
             if (total_results <= per_page * (1+res_page)) {
-                break;
+                return total_results;
             }
             page++;
         } while (true);
@@ -5937,7 +6015,7 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
     protected void _loadInitial(String whereFrom) {
         try {
             String fname = FileLocations.getFileNameNoExt(whereFrom);
-            String imageId = fname.substring(0, 1+fname.lastIndexOf("J"));
+            String imageId = safeSubstring(fname, 0, 52);
             Object sol = solFromPerseveranceImageId(imageId);
             loadBySol(sol);
             currentKey = nmap.keySet().stream()
@@ -5980,33 +6058,41 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
         return key.substring(0, 9);
     }
 
-    // TODO: remove unused keys from nmap
+    static int solFromPrefix(String prefixOrKey) {
+        return Integer.parseInt(prefixOrKey.substring(4,9));
+    }
+
+    static String solPrefixFromInt(int sol) {
+        return String.format("Sol-%05d", sol);
+    }
+
     @Override
     protected void _cleanupHigher() {
-        String lastSolPrefix = getSolPrefix(nmap.lastKey());
-        String currentSolPrefix = getSolPrefix(currentKey);
-        if (lastSolPrefix.compareTo(currentSolPrefix) > 0) {
-            var higherAll = nmap.tailMap(currentSolPrefix, false);
-            if(nmap.size() - higherAll.size() > 5) {
+        int lastSol = solFromPrefix(nmap.lastKey());
+        int currentSol = solFromPrefix(currentKey);
+        if (lastSol > currentSol) {
+            var higherAll = nmap.tailMap(solPrefixFromInt(currentSol+1), false);
+            if(haveToClear(higherAll)) {
                 higherAll.clear();
             }
         }
     }
 
-    // TODO: remove unused keys from nmap
     @Override
     protected void _cleanupLower() {
-        //NOTE: the current logic is that when we come to the last
-        //image from Sol N, this code removes images from Sol N-1
-        String firstSolPrefix = getSolPrefix(nmap.firstKey());
-        String currentSolPrefix = getSolPrefix(currentKey);
-        if (firstSolPrefix.compareTo(currentSolPrefix) < 0) {
-            var lowerAll = nmap.headMap(currentSolPrefix, false);
-            if(nmap.size() - lowerAll.size() > 5) {
+        int firstSol = solFromPrefix(nmap.firstKey());
+        int currentSol = solFromPrefix(currentKey);
+        if (firstSol < currentSol) {
+            var lowerAll = nmap.headMap(solPrefixFromInt(currentSol), false);
+            if(haveToClear(lowerAll)) {
                 lowerAll.clear();
             }
         }
     }
+    private boolean haveToClear(NavigableMap<String, Map<String, Object>> submap) {
+        return nmap.size() - submap.size() > 5;
+    }
+
     static Integer solFromPerseveranceImageId(String imageId) {
         return Integer.valueOf(imageId.substring(4,8));
     }
@@ -6024,19 +6110,7 @@ class RemoteFileNavigator extends FileNavigatorBase {
     }
 
     void loadFromDataStructure(Object jsonObject) {
-        try {
-            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, "items");
-            list.stream().forEach( o -> {
-                if (o instanceof Map) {
-                    Map m = (Map) o;
-                    String date = m.get("date_taken").toString();
-                    String id = m.get("imageid").toString();
-                    nmap.put(date+"^"+id, m);
-                }
-            });
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        _loadFromJsonReply(jsonObject, "items");
     }
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
@@ -11926,5 +12000,11 @@ class MyStrings {
     {
         int suffixLength = suffix.length();
         return str.regionMatches(true, str.length() - suffixLength, suffix, 0, suffixLength);
+    }
+    static String safeSubstring(String s, int from, int to) {
+        if (s==null) {
+            return null;
+        }
+        return s.substring(from, Math.min(s.length(), to));
     }
 }
