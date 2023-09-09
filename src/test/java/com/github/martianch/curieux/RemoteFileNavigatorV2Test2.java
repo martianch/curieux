@@ -125,35 +125,35 @@ class RemoteFileNavigatorV2Test2 {
             + "\"total_images\":525396"
             + "}";
     final List<String> listOfKeys890 = Arrays.asList(
-    "Sol-00890M13:00:43.664^NLG_0890_0745951641_412ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:01:07.249^NLG_0890_0745951665_646ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:01:31.581^NLG_0890_0745951690_646ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:01:55.912^NLG_0890_0745951715_646ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:02:20.243^NLG_0890_0745951740_646ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:02:44.575^NLG_0890_0745951765_646ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:03:08.906^NLG_0890_0745951790_646ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:03:33.237^NLG_0890_0745951815_646ECM_N0440000NCAM00518_00_2I3J",
-    "Sol-00890M13:04:01.843^NLG_0890_0745951845_037ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:06.692^NLG_0890_0745951850_020ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:11.404^NLG_0890_0745951854_862ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:15.330^NLG_0890_0745951858_895ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:19.236^NLG_0890_0745951862_909ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:24.056^NLG_0890_0745951867_862ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:27.967^NLG_0890_0745951871_880ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:31.971^NLG_0890_0745951875_994ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:36.709^NLG_0890_0745951880_862ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:40.634^NLG_0890_0745951884_895ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:44.556^NLG_0890_0745951888_925ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:48.464^NLG_0890_0745951892_941ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:52.388^NLG_0890_0745951896_972ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:04:57.147^NLG_0890_0745951901_862ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:05:01.072^NLG_0890_0745951905_895ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:05:05.906^NLG_0890_0745951910_862ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:05:10.591^NLG_0890_0745951915_675ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:05:14.779^NLG_0890_0745951919_979ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:05:21.408^NLG_0890_0745951926_790ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:05:25.371^NLG_0890_0745951930_862ECM_N0440000NCAM00526_00_2I4J",
-    "Sol-00890M13:05:29.386^NLG_0890_0745951934_987ECM_N0440000NCAM00526_00_2I4J"
+            "Sol-00890M13:00:43.664^NLG_0890_0745951641_412ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:01:07.249^NLG_0890_0745951665_646ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:01:31.581^NLG_0890_0745951690_646ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:01:55.912^NLG_0890_0745951715_646ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:02:20.243^NLG_0890_0745951740_646ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:02:44.575^NLG_0890_0745951765_646ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:03:08.906^NLG_0890_0745951790_646ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:03:33.237^NLG_0890_0745951815_646ECM_N0440000NCAM00518_00_2I3J",
+            "Sol-00890M13:04:01.843^NLG_0890_0745951845_037ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:06.692^NLG_0890_0745951850_020ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:11.404^NLG_0890_0745951854_862ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:15.330^NLG_0890_0745951858_895ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:19.236^NLG_0890_0745951862_909ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:24.056^NLG_0890_0745951867_862ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:27.967^NLG_0890_0745951871_880ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:31.971^NLG_0890_0745951875_994ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:36.709^NLG_0890_0745951880_862ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:40.634^NLG_0890_0745951884_895ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:44.556^NLG_0890_0745951888_925ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:48.464^NLG_0890_0745951892_941ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:52.388^NLG_0890_0745951896_972ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:04:57.147^NLG_0890_0745951901_862ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:05:01.072^NLG_0890_0745951905_895ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:05:05.906^NLG_0890_0745951910_862ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:05:10.591^NLG_0890_0745951915_675ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:05:14.779^NLG_0890_0745951919_979ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:05:21.408^NLG_0890_0745951926_790ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:05:25.371^NLG_0890_0745951930_862ECM_N0440000NCAM00526_00_2I4J",
+            "Sol-00890M13:05:29.386^NLG_0890_0745951934_987ECM_N0440000NCAM00526_00_2I4J"
     );
     private final String jsonReplyNoImages =
             "{\"images\":[],"
@@ -169,7 +169,7 @@ class RemoteFileNavigatorV2Test2 {
     @Test
     void getPathTest() {
         String full_res = "https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00876/ids/edr/browse/meda/WSM_0876_0744724217_000ECM_N0430000MEDA00000_0000LUJ01.png";
-        assertEquals(full_res, new RemoteFileNavigatorV2().getPath((Map)JsonDiy.jsonToDataStructure(jsonForSingleImage)));
+        assertEquals(full_res, newRfn().getPath((Map)JsonDiy.jsonToDataStructure(jsonForSingleImage)));
     }
 
 //    @Test
@@ -178,19 +178,13 @@ class RemoteFileNavigatorV2Test2 {
 
     @Test
     void loadFromDataStructureTest() {
-        var rfn = new RemoteFileNavigatorV2();
+        var rfn = newRfn();
         rfn.loadFromDataStructure(JsonDiy.jsonToDataStructure(jsonReply5images889));
 //        for (String s : rfn.nmap.keySet()) {
 //            System.out.println(s+",");
 //        }
         assertEquals(
-                Arrays.asList(
-                        "Sol-00889M09:06:16.594^NLF_0889_0745848413_190ECM_N0440000NCAM00501_01_295J",
-                        "Sol-00889M09:07:21.681^NLF_0889_0745848480_066ECM_N0440000NCAM00501_01_295J",
-                        "Sol-00889M09:08:23.333^NLF_0889_0745848543_413ECM_N0440000NCAM00501_01_295J",
-                        "Sol-00889M09:09:28.294^NLF_0889_0745848610_159ECM_N0440000NCAM00501_01_295J",
-                        "Sol-00889M09:10:49.956^NLF_0889_0745848694_066ECM_N0440000NCAM00501_01_295J"
-                ),
+                listOfKeys889,
                 new ArrayList<>(rfn.nmap.keySet())
         );
     }
@@ -198,23 +192,17 @@ class RemoteFileNavigatorV2Test2 {
     @Test
     void jsonObjToKeyTest() {
         String key = "Sol-00876M17:10:50.437^WSM_0876_0744724217_000ECM_N0430000MEDA00000_0000LUJ";
-        assertEquals(key, new RemoteFileNavigatorV2().jsonObjToKey((Map)JsonDiy.jsonToDataStructure(jsonForSingleImage)));
+        assertEquals(key, newRfn().jsonObjToKey((Map)JsonDiy.jsonToDataStructure(jsonForSingleImage)));
     }
 
     @Test
     void loadBySolTest() {
-        var rfn = new RemoteFileNavigatorV2();
+        var rfn = newRfn();
         try (MockedStatic<NasaReaderBase> theMock = Mockito.mockStatic(NasaReaderBase.class)) {
             theMock.when(() -> NasaReaderBase.readUrl(any(URL.class))).thenReturn(jsonReply5images889);
             rfn.loadBySol(889);
             assertEquals(
-                Arrays.asList(
-                    "Sol-00889M09:06:16.594^NLF_0889_0745848413_190ECM_N0440000NCAM00501_01_295J",
-                    "Sol-00889M09:07:21.681^NLF_0889_0745848480_066ECM_N0440000NCAM00501_01_295J",
-                    "Sol-00889M09:08:23.333^NLF_0889_0745848543_413ECM_N0440000NCAM00501_01_295J",
-                    "Sol-00889M09:09:28.294^NLF_0889_0745848610_159ECM_N0440000NCAM00501_01_295J",
-                    "Sol-00889M09:10:49.956^NLF_0889_0745848694_066ECM_N0440000NCAM00501_01_295J"
-                ),
+                listOfKeys889,
                 new ArrayList<>(rfn.nmap.keySet())
             );
 //            for (String s : rfn.nmap.keySet()) {
@@ -232,7 +220,7 @@ class RemoteFileNavigatorV2Test2 {
 
     @Test
     void _loadInitialTest() {
-        var rfn = new RemoteFileNavigatorV2();
+        var rfn = newRfn();
         try (MockedStatic<NasaReaderBase> theMock = Mockito.mockStatic(NasaReaderBase.class)) {
             theMock.when(() -> NasaReaderBase.readUrl(any(URL.class))).thenReturn(jsonReply5images889);
             //
@@ -298,7 +286,7 @@ class RemoteFileNavigatorV2Test2 {
 
     @Test
     void toNextTest() throws Exception {
-        var rfn = new RemoteFileNavigatorV2();
+        var rfn = newRfn();
         try (MockedStatic<NasaReaderBase> theMock = Mockito.mockStatic(NasaReaderBase.class)) {
             theMock.when(() -> NasaReaderBase.readUrl(any(URL.class))).thenReturn(jsonReply5images889, jsonReply29images890);
             //
@@ -345,7 +333,7 @@ class RemoteFileNavigatorV2Test2 {
 
     @Test
     void toPrevTest() throws Exception {
-        var rfn = new RemoteFileNavigatorV2();
+        var rfn = newRfn();
         try (MockedStatic<NasaReaderBase> theMock = Mockito.mockStatic(NasaReaderBase.class)) {
             theMock.when(() -> NasaReaderBase.readUrl(any(URL.class))).thenReturn(jsonReply5images889, jsonReply13images888);
             //
@@ -389,5 +377,9 @@ class RemoteFileNavigatorV2Test2 {
                 );
             }
         }
+    }
+
+    private RemoteFileNavigatorV2 newRfn() {
+        return new RemoteFileNavigatorV2();
     }
 }

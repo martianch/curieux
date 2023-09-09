@@ -121,6 +121,7 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
+import static com.github.martianch.curieux.MyOps.*;
 import static com.github.martianch.curieux.MyStrings.endsWithIgnoreCase;
 import static com.github.martianch.curieux.MyStrings.safeSubstring;
 import static java.awt.Image.SCALE_SMOOTH;
@@ -5097,30 +5098,43 @@ class JsonDiy {
     public static Object get(Object root, String... indexes) {
         Object obj = root;
         for (String index : indexes) {
-            if (obj instanceof Map) {
-                Map map = (Map)obj;
-                obj = map.get(index);
-            } else if (obj instanceof List) {
-                try {
-                    int i = Integer.parseInt(index);
-                    List list = (List) obj;
-                    obj = list.get(i);
-                } catch (Throwable t) {
-                    obj = null;
-                    break;
-                }
-            } else { // null, or (not a List or Map, but indexed)
-                obj = null;
-                break;
-            }
+            obj = _get(obj, index);
         }
         if (null == obj) {
             System.out.println("not found in json: " + String.join(".", indexes) + " not in " + JsonDiy.toString(root));
         }
         return obj;
     }
+    public static Object get(Object root, String index) {
+        Object obj = _get(root, index);
+        if (null == obj) {
+            System.out.println("not found in json: " + index + " not in " + JsonDiy.toString(root));
+        }
+        return obj;
+    }
+    private static Object _get(final Object obj, final String index) {
+        Object res;
+        if (obj instanceof Map) {
+            Map map = (Map)obj;
+            res = map.get(index);
+        } else if (obj instanceof List) {
+            try {
+                int i = Integer.parseInt(index);
+                List list = (List) obj;
+                res = list.get(i);
+            } catch (Throwable t) {
+                res = null;
+            }
+        } else { // null, or (not a List or Map, but indexed)
+            res = null;
+        }
+        return res;
+    }
     public static int getInt(Object root, String... indexes) {
         return Integer.parseInt(Objects.toString(get(root, indexes)));
+    }
+    public static int getInt(Object root, String index) {
+        return Integer.parseInt(Objects.toString(get(root, index)));
     }
     public static Object jsonToDataStructure(String jsonString) {
         var input = new InputState(jsonString);
@@ -5335,7 +5349,7 @@ class JsonDiy {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Symbol symbol = (Symbol) o;
-            return value != null ? value.equals(symbol.value) : symbol.value == null;
+            return Objects.equals(value, symbol.value);
         }
         @Override
         public int hashCode() {
@@ -5566,24 +5580,7 @@ interface FileNavigator<T> {
 abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     protected NavigableMap<String, Map<String, Object>> nmap = new TreeMap<>();
     protected String currentKey;
-    int nToLoad=25;
-    static final Set<String> ALL_USED_KEYS =
-        Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "date_taken",
-            "date_taken_mars",
-            "full_res",
-            "https_url",
-            "image_files",
-            "imageid",
-            "images",
-            "items",
-            "latest_sol",
-            "page",
-            "per_page",
-            "total",
-            "total_results",
-            "url"
-    )));
+
     public static FileNavigatorBase makeNew(String path) {
         var needRemote = FileLocations.isUrl(path);
         // TODO: move this check to FileLocations or HttpLocations or sth like that
@@ -5598,7 +5595,6 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         nmap.clear();
         nmap.putAll(other.nmap);
         currentKey = other.currentKey;
-        nToLoad = other.nToLoad;
     }
     protected void moveWindow(boolean forwardInTime, Runnable currentKeyUpdate) {
         if (forwardInTime && Objects.equals(currentKey, nmap.lastKey())) {
@@ -5619,8 +5615,6 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     protected abstract void _onLoadResult(NavigableMap<String, Map<String, Object>> newData);
     protected abstract void _cleanupHigher();
     protected abstract void _cleanupLower();
-    protected int _numHigherToLoad() { return nToLoad; }
-    protected int _numLowerToLoad() { return nToLoad; }
 
     @Override
     public FileNavigator<Map<String, Object>> toNext() {
@@ -5686,13 +5680,33 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
             System.out.println("_loadFromJsonReply() crashed:");
             t.printStackTrace();
         }
+//        System.out.println("_loadFromJsonReply():");
+//        System.out.println(this.toString());
+    }
+    public String toString() {
+        StringBuilder res = new StringBuilder();
+        res
+            .append("FileNavigator(")
+            .append(getCurrentKey())
+            .append(") ")
+            .append(getClass().getSimpleName())
+            .append(" {\n");
+        nmap.keySet().forEach(k ->
+                res
+                    .append(k.equals(getCurrentKey()) ? "=>" : "  ")
+                    .append(k)
+                    .append("\n")
+        );
+        res.append("}\n");
+        return res.toString();
     }
 }
 class LocalFileNavigator extends FileNavigatorBase {
     String currentDirectory = "";
 
-    protected void setFrom(LocalFileNavigator other) {
-        currentDirectory = other.currentDirectory;
+    @Override
+    protected void setFrom(FileNavigatorBase other) {
+        currentDirectory = ((LocalFileNavigator)other).currentDirectory;
         super.setFrom(other);
     }
     @Override
@@ -5753,6 +5767,23 @@ class LocalFileNavigator extends FileNavigatorBase {
 }
 
 class NasaReaderBase {
+    static final Set<String> ALL_USED_KEYS =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "date_taken",
+                    "date_taken_mars",
+                    "full_res",
+                    "https_url",
+                    "image_files",
+                    "imageid",
+                    "images",
+                    "items",
+                    "latest_sol",
+                    "page",
+                    "per_page",
+                    "total",
+                    "total_results",
+                    "url"
+            )));
     static final String USER_AGENT;
     static {
         //Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0
@@ -5817,12 +5848,17 @@ class NasaReader extends NasaReaderBase {
         String url = makeRequest(parameters);
         System.out.println("dataStructureFromRequest url = "+url);
         String json = readUrl(new URL(url));
-        Object res = JsonDiy.jsonToDataStructure(json);
+        Object res =
+                JsonDiy.deleteAllKeysBut(
+                        JsonDiy.jsonToDataStructure(json),
+                        ALL_USED_KEYS
+                );
         return res;
     }
     static Object dataStructureFromImageId(String imageId) throws IOException {
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+//                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=10" +
                         "&page=0" +
                         "&condition_1=" + imageId + ":imageid:eq" +
@@ -5836,7 +5872,7 @@ class NasaReader extends NasaReaderBase {
         sbPairId.setCharAt(5,(char)((int)'R'^(int)'L'^(int)sbPairId.charAt(5)));
         String pairId = sbPairId.toString();
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=10" +
                         "&page=0" +
                         "&condition_1=" + pairId + ":imageid:gt" +
@@ -5847,7 +5883,7 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromCuriositySolStarting(int curiositySol, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5858,7 +5894,8 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromCuriositySolLatest(int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
+//                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
+                "order=sol desc,date_taken desc,imageid desc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5868,7 +5905,7 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromDateStarting(String date, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5879,7 +5916,7 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromDateEnding(String date, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
+                "order=sol desc,date_taken desc,imageid desc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5949,7 +5986,11 @@ class NasaReaderV2 extends NasaReaderBase {
         String url = makeRequest(parameters);
         System.out.println("dataStructureFromRequest url = "+url);
         String json = readUrl(new URL(url));
-        Object res = JsonDiy.jsonToDataStructure(json);
+        Object res =
+                JsonDiy.deleteAllKeysBut(
+                        JsonDiy.jsonToDataStructure(json),
+                        ALL_USED_KEYS
+                );
         return res;
     }
     static Object dataStructureForLatestSol() throws IOException {
@@ -5993,10 +6034,7 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
         int page=0;
         do {
             String params = "page=" + page + "&=,,,,&order=sol%20desc&condition_2=" + sol + ":sol:gte&condition_3=" + sol + ":sol:lte&extended=sample_type::full,";
-            Object jsonObject = JsonDiy.deleteAllKeysBut(
-                    NasaReaderV2.dataStructureFromRequest(params),
-                    ALL_USED_KEYS
-            );
+            Object jsonObject = NasaReaderV2.dataStructureFromRequest(params);
             loadFromDataStructure(jsonObject);
             int per_page = JsonDiy.getInt(jsonObject,"per_page");
             int res_page = JsonDiy.getInt(jsonObject,"page");
@@ -6098,10 +6136,9 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
     }
 }
 class RemoteFileNavigator extends FileNavigatorBase {
-//    protected void setFrom(LocalFileNavigator other) {
-////        xxx = other.xxx;
-//        super.setFrom(other);
-//    }
+    int nToLoad=25;
+    int nToKeep=5;
+
     @Override
     public FileNavigator<Map<String, Object>> copy() {
         RemoteFileNavigator res = new RemoteFileNavigator();
@@ -6109,19 +6146,26 @@ class RemoteFileNavigator extends FileNavigatorBase {
         return res;
     }
 
+    @Override
+    protected void setFrom(FileNavigatorBase other) {
+        final RemoteFileNavigator otherRfn = (RemoteFileNavigator) other;
+        nToLoad = otherRfn.nToLoad;
+        nToKeep = otherRfn.nToKeep;
+        super.setFrom(other);
+    }
+
     void loadFromDataStructure(Object jsonObject) {
         _loadFromJsonReply(jsonObject, "items");
     }
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
-        if (stringObjectMap == null) {
-            return null;
-        }
-        var res = stringObjectMap.get("https_url");
-        if (res == null) {
-            res = stringObjectMap.get("url");
-        }
-        return res == null ? null : res.toString();
+        return oApply(Object::toString,
+                      oAnd(stringObjectMap, ()->
+                           oOr(stringObjectMap.get("https_url"), ()->
+                               stringObjectMap.get("url")
+                              )
+                          )
+                     );
     }
     @Override
     protected void _loadInitial(String whereFrom) {
@@ -6159,26 +6203,24 @@ class RemoteFileNavigator extends FileNavigatorBase {
 
     @Override
     protected void _cleanupHigher() {
-        var higherAll = nmap.tailMap(currentKey, false);
-        if (higherAll.size() > nToLoad) {
-            String key = currentKey;
-            for (int i=0; i<nToLoad; i++) {
-                key = higherAll.higherKey(key);
-            }
-            var toDelete = higherAll.tailMap(key, false);
+        String key = currentKey;
+        for (int i=0; i<nToKeep && key != null; i++) {
+            key = nmap.higherKey(key);
+        }
+        if (key != null) {
+            var toDelete = nmap.tailMap(key, false);
             toDelete.clear();
         }
     }
 
     @Override
     protected void _cleanupLower() {
-        var lowerAll = nmap.headMap(currentKey, false);
-        if (lowerAll.size() > nToLoad) {
-            String key = currentKey;
-            for (int i=0; i<nToLoad; i++) {
-                key = lowerAll.lowerKey(key);
-            }
-            var toDelete = lowerAll.headMap(key, false);
+        String key = currentKey;
+        for (int i=0; i<nToKeep && key != null; i++) {
+            key = nmap.lowerKey(key);
+        }
+        if (key != null) {
+            var toDelete = nmap.headMap(key, false);
             toDelete.clear();
         }
     }
@@ -12008,3 +12050,24 @@ class MyStrings {
         return s.substring(from, Math.min(s.length(), to));
     }
 }
+class MyOps {
+    public static<T,TT> TT oAnd (T first, Supplier<TT> second) {
+        if (first == null) {
+            return null;
+        }
+        return second.get();
+    }
+    public static<T> T oOr(T first, Supplier<T> second) {
+        if (first != null) {
+            return first;
+        }
+        return second.get();
+    }
+    public static<T,R> R oApply(Function<T,R> func, T arg) {
+        if (arg == null) {
+            return null;
+        }
+        return func.apply(arg);
+    }
+}
+

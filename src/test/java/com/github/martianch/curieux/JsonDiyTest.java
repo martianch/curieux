@@ -190,6 +190,8 @@ public class JsonDiyTest {
             assertEquals(new JsonDiy.Symbol("0"), JsonDiy.get(obj,"page"));
             assertEquals(new JsonDiy.Symbol("374484"), JsonDiy.get(obj,"items","0","id"));
             assertEquals("2016-10-13T23:20:28.000Z", JsonDiy.get(obj,"items","0","date_taken"));
+            assertEquals("2016-10-13T23:20:28.000Z", JsonDiy.get(JsonDiy.get(obj,"items","0"),"date_taken"));
+            assertEquals("2016-10-13T23:20:28.000Z", JsonDiy.get(JsonDiy.get(JsonDiy.get(obj,"items"),"0"),"date_taken"));
             assertEquals(null, JsonDiy.get(obj,"items","2","date_taken"));
             assertEquals(null, JsonDiy.get(obj,"iitems","0","date_taken"));
             assertEquals(null, JsonDiy.get(obj,"items","0","date_takenn"));
