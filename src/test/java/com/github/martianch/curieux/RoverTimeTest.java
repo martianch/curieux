@@ -28,5 +28,10 @@ public class RoverTimeTest {
         assertThat(RoverTime.earthDateForFile("NRB_-63656EDR1234.JPG"), is(""));
         assertThat(RoverTime.earthDateForFile("RRR_0000_0666952977_663ECM_N0010044AUT_04096_00_2I3J02.png"), is("2021-02-18T20:44:29"));
         assertThat(RoverTime.earthDateForFile("NRF_0670_0726428840_635ECM_N0320672NCAM12670_04_195J01.png"), is("2023-01-08T05:56:41"));
+
+        // January 25, 2004 (GMT) (January 24, 2004, PST) landing
+        //https://mars.nasa.gov/mer/gallery/all/1/p/003/1P128449364EFF0200P2213R2M1.JPG
+        assertThat(RoverTime.earthDateForFile("1P128449364EFF0200P2213R2M1.JPG"), is("2004-01-27T04:21:39"));
+
     }
 }

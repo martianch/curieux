@@ -4230,7 +4230,7 @@ abstract class RoverTime {
         return (Math.round((roverTimestamp-666952977L)*1.000007886) + 1613681069L)*1000L;
     }
     public static long toUtcMillisMer(long roverTimestamp) {
-        return MER_ZERO_TIME + roverTimestamp;
+        return MER_ZERO_TIME + roverTimestamp*1000;
     }
     public static long toUtcMillis(long roverTimestamp, WhichRover rover) {
         switch (rover) {
