@@ -124,6 +124,7 @@ import java.util.stream.Stream;
 import static com.github.martianch.curieux.MyOps.*;
 import static com.github.martianch.curieux.MyStrings.endsWithIgnoreCase;
 import static com.github.martianch.curieux.MyStrings.safeSubstring;
+import static com.github.martianch.curieux.MySwing.isShiftPressed;
 import static java.awt.Image.SCALE_SMOOTH;
 
 /** The app runner class */
@@ -219,7 +220,7 @@ interface UiEventListener {
     void setShowUrls(boolean visible);
     void resetToDefaults();
     void saveScreenshot();
-    void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
+    void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byHowMany);
     void openInBrowser(SiteOpenCommand command, boolean isRight, WhichRover whichRover);
     void markPointWithMousePress(boolean isRight, MouseEvent e);
     void setWaitingForPoint(int forPointNumber);
@@ -1428,8 +1429,8 @@ class UiController implements UiEventListener {
     }
 
     @Override
-    public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo) {
-        lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byOneOrTwo, rawData.left.pathToLoad, rawData.right.pathToLoad);
+    public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byHowMany) {
+        lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byHowMany, rawData.left.pathToLoad, rawData.right.pathToLoad);
     }
 
     @Override
@@ -2992,29 +2993,29 @@ class X3DViewer {
             {
                 JButton bButton = new JButton();
                 DigitalZoomControl.loadIcon(bButton,"icons/twoearlier24.png","««"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 2));
-                bButton.setToolTipText("go two images earlier in each pane");
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, isShiftPressed(e)?4:2));
+                bButton.setToolTipText("go two images earlier in each pane (shift: 4 images)");
                 statusPanel.add(bButton);
             }
             {
                 JButton bButton = new JButton();
                 DigitalZoomControl.loadIcon(bButton,"icons/oneearlier24.png","‹‹"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 1));
-                bButton.setToolTipText("go one image earlier in each pane");
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, isShiftPressed(e)?3:1));
+                bButton.setToolTipText("go one image earlier in each pane (shift: 3 images)");
                 statusPanel.add(bButton);
             }
             {
                 JButton fButton = new JButton();
                 DigitalZoomControl.loadIcon(fButton,"icons/onelater24.png","››"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 1));
-                fButton.setToolTipText("go one image later in each pane");
+                fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, isShiftPressed(e)?3:1));
+                fButton.setToolTipText("go one image later in each pane (shift: 3 images)");
                 statusPanel.add(fButton);
             }
             {
                 JButton ffButton = new JButton();
                 DigitalZoomControl.loadIcon(ffButton,"icons/twolater24.png","»»"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 2));
-                ffButton.setToolTipText("go two images later in each pane");
+                ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, isShiftPressed(e)?4:2));
+                ffButton.setToolTipText("go two images later in each pane (shift: 4 images)");
                 statusPanel.add(ffButton);
             }
             {
@@ -3565,7 +3566,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
      * @return 2 if Shift is pressed, 0 otherwise
      */
     int getGroupIndex(ActionEvent e) {
-        if((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0) {
+        if(isShiftPressed(e)) {
             return GROUP_LENGTH;
         } else {
             return 0;
@@ -5542,7 +5543,7 @@ class LRNavigator {
         }
         return this;
     }
-    LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo, String leftPath, String rightPath) {
+    LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byHowMany, String leftPath, String rightPath) {
         String newLeftPath = leftPath;
         String newRightPath = rightPath;
         System.out.println("---");
@@ -5550,7 +5551,7 @@ class LRNavigator {
         if (isLeft) {
             try {
                 left = newIfNotSuitable(left, newLeftPath);
-                for (int i = 0; i < byOneOrTwo; i++) {
+                for (int i = 0; i < byHowMany; i++) {
                     newLeftPath = (forwardInTime ? left.toNext() : left.toPrev()).getCurrentPath();
                     System.out.println("L " + newLeftPath + "...");
                 }
@@ -5564,7 +5565,7 @@ class LRNavigator {
         if (isRight) {
             try {
                 right = newIfNotSuitable(right, newRightPath);
-                for (int i = 0; i < byOneOrTwo; i++) {
+                for (int i = 0; i < byHowMany; i++) {
                     newRightPath = (forwardInTime ? right.toNext() : right.toPrev()).getCurrentPath();
                     System.out.println("R " + newRightPath + "...");
                 }
@@ -12245,6 +12246,11 @@ enum StereoEncoding {
     RED_CYAN_ANAGLYPH_GRAY, RED_CYAN_ANAGLYPH_COLOR, LR_STEREO_PAIR
 }
 
+class MySwing {
+    static boolean isShiftPressed(ActionEvent e) {
+        return 0 != (e.getModifiers() & ActionEvent.SHIFT_MASK);
+    }
+}
 class MyStrings {
 //    static boolean startsWithIgnoreCase(String str, String prefix)
 //    {
