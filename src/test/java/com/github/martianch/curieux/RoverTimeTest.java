@@ -15,9 +15,10 @@ public class RoverTimeTest {
     }
     @Test
     public void parseTimestampTest() {
-        assertThat(RoverTime.parseTimestamp(4,"NRB_636566514EDR1234.JPG"), is(636566514L));
-        assertThat(RoverTime.parseTimestamp(4,"NRB_63656EDR1234.JPG"), is(0L));
-        assertThat(RoverTime.parseTimestamp(4,"NRB_-63656EDR1234.JPG"), is(0L));
+        assertThat(RoverTime.parseTimestamp(RoverTime.TIMESTAMP_OFFSET_CURIOSITY,"NRB_636566514EDR1234.JPG"), is(636566514L));
+        assertThat(RoverTime.parseTimestamp(RoverTime.TIMESTAMP_OFFSET_CURIOSITY,"NRB_63656EDR1234.JPG"), is(0L));
+        assertThat(RoverTime.parseTimestamp(RoverTime.TIMESTAMP_OFFSET_CURIOSITY,"NRB_-63656EDR1234.JPG"), is(0L));
+        assertThat(RoverTime.parseTimestamp(RoverTime.TIMESTAMP_OFFSET_MER,"2P226681417EFFASWTP2567R2M1.JPG"), is(226681417L));
     }
     @Test
     public void earthDateForFileTest() {

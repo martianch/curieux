@@ -256,8 +256,13 @@ enum GoToImageOptions {
     PERSEVERANCE_LATEST;
 }
 enum WhichRover {
+    SPIRIT, // MER-A, MER-2
+    OPPORTUNITY, // MER-B, MER-1
     CURIOSITY,
     PERSEVERANCE;
+    boolean isMer() {
+        return this == SPIRIT || this == OPPORTUNITY;
+    }
 }
 
 class ColorRange {
@@ -1471,6 +1476,7 @@ class UiController implements UiEventListener {
                         break;
                 }
                 break;
+                // TODO: OPPORTUNITY, SPIRIT
         }
     }
 
@@ -1799,7 +1805,10 @@ class UiController implements UiEventListener {
     public Optional<Integer> getSol(boolean isRight, WhichRover whichRover) {
         String currentPath = (isRight ? rawData.right : rawData.left).pathToLoad;
         boolean isPerseverance = currentPath.contains("/mars2020");
-        if ((whichRover == WhichRover.PERSEVERANCE) != isPerseverance) {
+        boolean isMer = currentPath.contains("/mer/");
+        if ((whichRover == WhichRover.PERSEVERANCE) != isPerseverance
+          || whichRover.isMer() != isMer
+           ) {
             return Optional.empty();
         }
         return FileLocations.getSol(currentPath);
@@ -3925,9 +3934,9 @@ abstract class FileLocations {
             return fileNameExt.substring(indexOfDot);
         }
     }
-    // support Perseverance -- it works
+    // supports Curiosity, Perseverance, MER
     static Optional<Integer> getSol(String urlOrPath) {
-        Pattern pattern = Pattern.compile("[/\\\\]([0-9]+)[/\\\\]");
+        Pattern pattern = Pattern.compile(".*[/\\\\]([0-9]+)[/\\\\]");
         Matcher matcher = pattern.matcher(urlOrPath);
         if(matcher.find()) {
             try {
@@ -3976,7 +3985,8 @@ abstract class FileLocations {
     }
     static String replaceFileName(String urlOrPath, String newFileName) {
         String fileName0 = Paths.get(urlOrPath).getFileName().toString();
-        return urlOrPath.replace(fileName0, newFileName);
+        String withoutFileName = urlOrPath.substring(0, urlOrPath.lastIndexOf(fileName0));
+        return withoutFileName + newFileName;
     }
     static List<String> _twoPaths(String path0) {
         String fullPath1 = "", fullPath2 = "";
@@ -4192,14 +4202,26 @@ abstract class FileLocations {
         ) {
             return WhichRover.PERSEVERANCE;
         }
+        else if(
+                NasaReaderMer.isMerFilename(fname)
+        ) {
+            if (fname.startsWith("1")) {
+                return WhichRover.OPPORTUNITY;
+            } else {
+                return WhichRover.SPIRIT;
+            }
+        }
         return WhichRover.CURIOSITY;
     }
+
 }
 
 abstract class RoverTime {
     private static final int MIN_CHARS_IN_TIMESTAMP = 6;
-    private static final int TIMESTAMP_OFFSET_PERSEVERANCE = 9;
-    private static final int TIMESTAMP_OFFSET_CURIOSITY = 4;
+    static final int TIMESTAMP_OFFSET_PERSEVERANCE = 9;
+    static final int TIMESTAMP_OFFSET_CURIOSITY = 4;
+    static final int TIMESTAMP_OFFSET_MER = 2;
+    static final long MER_ZERO_TIME = 946727935816L;
 
     public static long toUtcMillisC(long roverTimestamp) {
         return Math.round(roverTimestamp*1.000009468 + 946724361)*1000L;
@@ -4207,10 +4229,21 @@ abstract class RoverTime {
     public static long toUtcMillisP(long roverTimestamp) {
         return (Math.round((roverTimestamp-666952977L)*1.000007886) + 1613681069L)*1000L;
     }
+    public static long toUtcMillisMer(long roverTimestamp) {
+        return MER_ZERO_TIME + roverTimestamp;
+    }
     public static long toUtcMillis(long roverTimestamp, WhichRover rover) {
-        return rover == WhichRover.PERSEVERANCE
-             ? toUtcMillisP(roverTimestamp)
-             : toUtcMillisC(roverTimestamp);
+        switch (rover) {
+            case SPIRIT:
+            case OPPORTUNITY:
+                return toUtcMillisMer(roverTimestamp);
+            case CURIOSITY:
+                return toUtcMillisC(roverTimestamp);
+            case PERSEVERANCE:
+                return toUtcMillisP(roverTimestamp);
+            default:
+                throw new IllegalArgumentException("unknown rover: "+rover);
+        }
     }
     public static long parseTimestamp(int offset, String s) {
         if (offset >= s.length()) {
@@ -4232,7 +4265,9 @@ abstract class RoverTime {
     }
     public static String earthDateForFile(String s) {
         var rover = FileLocations.getWhichRover(s);
-        int offset = rover == WhichRover.PERSEVERANCE ? TIMESTAMP_OFFSET_PERSEVERANCE : TIMESTAMP_OFFSET_CURIOSITY;
+        int offset = rover == WhichRover.PERSEVERANCE ? TIMESTAMP_OFFSET_PERSEVERANCE
+                   : rover == WhichRover.CURIOSITY    ? TIMESTAMP_OFFSET_CURIOSITY
+                                                      : TIMESTAMP_OFFSET_MER;
         long ts = parseTimestamp(offset, s);
         if (ts == 0) {
             return "";
@@ -5550,11 +5585,13 @@ class LRNavigator {
     }
     FileNavigator<Map<String, Object>> newIfNotSuitable(FileNavigator<Map<String, Object>> fileNavigator, String path) {
         var needRemote = FileLocations.isUrl(path);
+        var needRemoteMer = FileLocations.isMerAny(FileLocations.getFileName(path));
         var needRemoteV2 = needRemote && path.contains("/mars2020");
-        var needRemoteV1 = needRemote & ! needRemoteV2;
+        var needRemoteV1 = needRemote & ! needRemoteV2 & ! needRemoteMer;
         if (null == fileNavigator
            || needRemoteV1 != (fileNavigator instanceof RemoteFileNavigator)
            || needRemoteV2 != (fileNavigator instanceof RemoteFileNavigatorV2)
+           || needRemoteMer != (fileNavigator instanceof RemoteFileNavigatorMer)
            ) {
             fileNavigator = FileNavigatorBase.makeNew(path);
         }
@@ -5585,7 +5622,9 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         var needRemote = FileLocations.isUrl(path);
         // TODO: move this check to FileLocations or HttpLocations or sth like that
         var needRemoteV2 = needRemote && path.contains("/mars2020");
+        var needRemoteMer = needRemote && FileLocations.isMerAny(FileLocations.getFileName(path));
         FileNavigatorBase res = needRemoteV2 ? new RemoteFileNavigatorV2()
+                              : needRemoteMer ? new RemoteFileNavigatorMer()
                               : needRemote ? new RemoteFileNavigator()
                               : new LocalFileNavigator();
         res._loadInitial(path);
@@ -6001,8 +6040,181 @@ class NasaReaderV2 extends NasaReaderBase {
     }
 
 }
+class NasaReaderMer extends NasaReaderBase {
+    private static final String MER_FNAME_REGEX
+            = "(?<fileNameNoExt>"
+            + "(?<imageId>"
+            + "[12]" // 1 = Opportunity; 2 = Spirit
+            + "[FRNPME]"
+            + "(?<timeStamp>\\d{9})"
+            + "[A-Z0-9_]{7}[A-Z]\\d{4}[LRMN]\\d[A-Z]"
+            + ")"
+            + "[0-9A-Z]"
+            + ")";
 
-class RemoteFileNavigatorV2 extends FileNavigatorBase {
+    static boolean isMerFilename(String fname) {
+        return fname.matches(MER_FNAME_REGEX + ".*");
+    }
+    static String composeUrl(int sol, char camera, WhichRover rover) {
+        String roverName;
+        switch (rover) {
+            case SPIRIT:
+                roverName = "spirit";
+                break;
+            case OPPORTUNITY:
+                roverName = "opportunity";
+                break;
+            default:
+                throw new IllegalArgumentException("rover " + rover + " is not Spirit or Opportunity");
+        }
+        String solId = String.format("%03d", sol);
+        return "https://mars.nasa.gov/mer/gallery/all/"
+               + roverName + "_" + camera + solId + ".html";
+    }
+    static Map<String, String> readTocPage(int sol, String url) {
+        String sSol = String.format("%04d", sol);
+        var baseUrl = FileLocations.replaceFileName(url, "");
+        String html = null;
+        try {
+            html = readUrl(new URL(url));
+        } catch (IOException e) {
+            return Collections.emptyMap();
+        }
+        var res = new TreeMap<String, String>();
+        Matcher m = Pattern
+                .compile("<img src=\""
+                         + "(?<relPath>[12]/[a-z]/\\d+/"
+                         + MER_FNAME_REGEX
+                         + "-THM\\."
+                         + "(?<fileExt>JPG))"
+                )
+                .matcher(html);
+        while (m.find()) {
+            res.put(
+                _makeKey(sSol, m),
+                FileLocations.unThumbnail(baseUrl + m.group("relPath"))
+            );
+        }
+        return res;
+    }
+    static String urlToKey(int sol, String whereFrom) {
+        String sSol = String.format("%04d", sol);
+        Matcher m = Pattern
+                .compile(".*"+MER_FNAME_REGEX)
+                .matcher(whereFrom);
+        if (m.find()) {
+            return _makeKey(sSol, m);
+        }
+        return null;
+    }
+    private static String _makeKey(String sSol, Matcher m) {
+        return sSol
+        + "^" + m.group("timeStamp")
+        + "^" + m.group("imageId");
+    }
+
+    static Map<String, Map<String, Object>> readToc(int sol, WhichRover rover) {
+        var allImages =
+                Stream.of('f', 'r', 'n', 'p','m')
+                .map(cam -> composeUrl(sol, cam, rover))
+                .map(url -> readTocPage(sol, url))
+                .map(Map::entrySet)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(
+                    e -> e.getKey(),
+                    e -> {
+                        Map<String, Object> m = new HashMap<>();
+                        m.put("url", e.getValue());
+                        return m;
+                        },
+                    (a,b) -> oMax(
+                        a, b,
+                        Comparator.comparing((Map<String, Object> x) ->
+                                x.get("url").toString()
+                        )
+                    ),
+                    TreeMap::new
+                ));
+        return allImages;
+    }
+} // NasaReaderMer
+class RemoteFileNavigatorMer extends FileNavigatorBase { // Opportunity, Spirit
+    @Override
+    public String getPath(Map<String, Object> stringObjectMap) {
+        return oApply(Objects::toString, JsonDiy.get(stringObjectMap, "url"));
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> copy() {
+        RemoteFileNavigatorMer res = new RemoteFileNavigatorMer();
+        res.setFrom(this);
+        return res;
+    }
+    @Override
+    protected void _loadInitial(String whereFrom) {
+        var optSol = FileLocations.getSol(whereFrom);
+        WhichRover rover = FileLocations.getWhichRover(whereFrom);
+        if (optSol.isPresent() && rover.isMer()) {
+            final Integer sol = optSol.get();
+            nmap.putAll(NasaReaderMer.readToc(sol, rover));
+            setCurrentKey(NasaReaderMer.urlToKey(sol, whereFrom));
+        }
+    }
+    @Override
+    protected void _loadHigher() {
+        var optSol = FileLocations.getSol(getCurrentPath());
+        WhichRover rover = FileLocations.getWhichRover(getCurrentPath());
+        if (optSol.isPresent() && rover.isMer()) {
+            nmap.putAll(NasaReaderMer.readToc(optSol.get()+1, rover));
+        }
+    }
+
+    @Override
+
+    protected void _loadLower() {
+        var optSol = FileLocations.getSol(getCurrentPath());
+        WhichRover rover = FileLocations.getWhichRover(getCurrentPath());
+        if (optSol.isPresent() && rover.isMer()) {
+            nmap.putAll(NasaReaderMer.readToc(optSol.get()-1, rover));
+        }
+    }
+
+    @Override
+    protected void _onLoadResult(NavigableMap<String, Map<String, Object>> newData) {
+    }
+
+    @Override
+    protected void _cleanupHigher() {
+        int lastSol = solFromKey(nmap.lastKey());
+        int currentSol = solFromKey(currentKey);
+        if (lastSol > currentSol) {
+            var higherAll = nmap.tailMap(solPrefixFromInt(currentSol+1), false);
+            if(haveToClear(higherAll)) {
+                higherAll.clear();
+            }
+        }
+    }
+    @Override
+    protected void _cleanupLower() {
+        int firstSol = solFromKey(nmap.firstKey());
+        int currentSol = solFromKey(currentKey);
+        if (firstSol < currentSol) {
+            var lowerAll = nmap.headMap(solPrefixFromInt(currentSol), false);
+            if(haveToClear(lowerAll)) {
+                lowerAll.clear();
+            }
+        }
+    }
+    private boolean haveToClear(NavigableMap<String, Map<String, Object>> submap) {
+        return nmap.size() - submap.size() > 5;
+    }
+    static int solFromKey(String key) {
+        return Integer.parseInt(key.substring(0,4));
+    }
+    static String solPrefixFromInt(int sol) {
+        return String.format("%04d", sol);
+    }
+} // RemoteFileNavigatorMer
+class RemoteFileNavigatorV2 extends FileNavigatorBase { // Perseverance
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
         var res = JsonDiy.get(stringObjectMap, "image_files", "full_res");
@@ -6135,7 +6347,7 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
         return Integer.valueOf(imageId.substring(4,8));
     }
 }
-class RemoteFileNavigator extends FileNavigatorBase {
+class RemoteFileNavigator extends FileNavigatorBase { // Curiosity
     int nToLoad=25;
     int nToKeep=5;
 
@@ -12068,6 +12280,12 @@ class MyOps {
             return null;
         }
         return func.apply(arg);
+    }
+    public static<T extends Comparable<T>> T oMax(T a, T b) {
+        return a.compareTo(b) >= 0 ? a : b;
+    }
+    public static<T> T oMax(T a, T b, Comparator<T> c) {
+        return c.compare(a,b) >= 0 ? a : b;
     }
 }
 
