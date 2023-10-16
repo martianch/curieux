@@ -11869,3 +11869,29 @@ class DoubleCalculator {
 enum StereoEncoding {
     RED_CYAN_ANAGLYPH_GRAY, RED_CYAN_ANAGLYPH_COLOR, LR_STEREO_PAIR
 }
+
+class ParallelPair<T> {
+    T left, right;
+    private ParallelPair(T left, T right) {
+        this.left = left;
+        this.right = right;
+    }
+    public static<TT> ParallelPair<TT> of(TT left, TT right) {
+        return new ParallelPair<TT>(left, right);
+    }
+    public static<TT> ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
+        return new ParallelPair<TT>(leftS.get(), rightS.get());
+    }
+    <R> ParallelPair<R> map2(Function<T,R> leftFunc, Function<T,R> rightFunc) {
+        return of(
+                left != null ? leftFunc.apply(left) : null,
+                right != null ? rightFunc.apply(right) : null
+        );
+    }
+    ParallelPair<T> cmap2(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
+        return of(
+                left != null  && leftCond ? leftFunc.apply(left) : left,
+                right != null && rightCond ? rightFunc.apply(right) : right
+        );
+    }
+}
