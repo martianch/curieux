@@ -8,6 +8,7 @@ import java.util.Optional;
 import static com.github.martianch.curieux.FileLocations.*;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class FileLocationsTest {
     @Test
@@ -234,6 +235,18 @@ public class FileLocationsTest {
             assertThat(r.get(0), is("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/00002/opgs/edr/ncam/NRA_397681339EDR_F0020000AUT_04096M_.JPG"));
             assertThat(r.get(1), is("https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/00002/opgs/edr/ncam/NLA_397681339EDR_F0020000AUT_04096M_.JPG"));
         }
+        {
+            List<String> r = FileLocations.twoPaths("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685R0M1.JPG");
+            assertThat(r.size(), is(2));
+            assertThat(r.get(0), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685R0M1.JPG"));
+            assertThat(r.get(1), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685L0M1.JPG"));
+        }
+        {
+            List<String> r = FileLocations.twoPaths("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685L0M1.JPG");
+            assertThat(r.size(), is(2));
+            assertThat(r.get(0), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685R0M1.JPG"));
+            assertThat(r.get(1), is("https://mars.nasa.gov/mer/gallery/all/2/n/746/2N192597956EFFAO55P0685L0M1.JPG"));
+        }
 
         {
             List<String> r = FileLocations.twoPaths("/my/folder/RLB_635598676EDR_F0790000RHAZ00337M_.JPG");
@@ -429,6 +442,12 @@ public class FileLocationsTest {
         assertEquals(WhichRover.CURIOSITY, getWhichRover("0560ML0022630070204612C00_DXXX.jpg"));
         assertEquals(WhichRover.CURIOSITY, getWhichRover("NRB_646422318EDR_F0810628NCAM00354M_.JPG"));
 //        assertEquals(WhichRover.CURIOSITY, getWhichRover());
+        assertEquals(WhichRover.OPPORTUNITY, getWhichRover("https://mars.nasa.gov/mer/gallery/all/1/n/006/1N128711401EFF0211P1525L0M1-THM.JPG"));
+        assertEquals(WhichRover.OPPORTUNITY, getWhichRover("https://mars.nasa.gov/mer/gallery/all/1/n/006/1N128711401EFF0211P1525L0M1.JPG"));
+        assertEquals(WhichRover.OPPORTUNITY, getWhichRover("1N128711401EFF0211P1525L0M1.JPG"));
+        assertEquals(WhichRover.SPIRIT, getWhichRover("https://mars.nasa.gov/mer/gallery/all/2/p/817/2P198893325EFFAR00P2281L2M1-BR.JPG"));
+        assertEquals(WhichRover.SPIRIT, getWhichRover("https://mars.nasa.gov/mer/gallery/all/2/p/817/2P198893325EFFAR00P2281L2M1.JPG"));
+        assertEquals(WhichRover.SPIRIT, getWhichRover("2P198893325EFFAR00P2281L2M1.JPG"));
     }
     @Test
     public void getSolTest() {
@@ -441,6 +460,9 @@ public class FileLocationsTest {
         // Perseverance
         assertEquals(Optional.of(477),FileLocations.getSol("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00477/ids/edr/browse/zcam/ZR6_0477_0709276665_818EBY_N0260850ZCAM03391_0790LMJ01.png"));
         assertEquals(Optional.of(670),FileLocations.getSol("https://mars.nasa.gov/mars2020-raw-images/pub/ods/surface/sol/00670/ids/edr/browse/fcam/FRF_0670_0726420507_927ECM_N0320592FHAZ08111_01_295J01.png"));
+        // MER
+        assertEquals(Optional.of(3),FileLocations.getSol("https://mars.nasa.gov/mer/gallery/all/1/r/003/1R128453896EDN0200P1002L0M1-THM.JPG"));
+        assertEquals(Optional.of(2163),FileLocations.getSol("https://mars.nasa.gov/mer/gallery/all/2/p/2163/2P318384896EFFB2Z8P2397L5M1-THM.JPG"));
     }
     @Test
     public void isMrlTest() {
@@ -488,5 +510,12 @@ public class FileLocationsTest {
         assertEquals(mrl, FileLocations.replaceFileName(mrl, mr));
         assertEquals(mll, FileLocations.replaceFileName(mrl, ml));
         assertEquals(mll, FileLocations.replaceFileName(mll, ml));
+    }
+    @Test
+    public void replaceFileNameTest2() {
+        assertEquals("http://xyz.com/foo/baz/baz/qux",
+            FileLocations.replaceFileName("http://xyz.com/foo/baz/baz/foo",
+                                "qux")
+        );
     }
 }

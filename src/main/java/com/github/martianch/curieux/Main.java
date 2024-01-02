@@ -86,6 +86,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +97,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.PriorityQueue;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -119,6 +121,10 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
+import static com.github.martianch.curieux.MyOps.*;
+import static com.github.martianch.curieux.MyStrings.endsWithIgnoreCase;
+import static com.github.martianch.curieux.MyStrings.safeSubstring;
+import static com.github.martianch.curieux.MySwing.isShiftPressed;
 import static java.awt.Image.SCALE_SMOOTH;
 
 /** The app runner class */
@@ -128,7 +134,10 @@ public class Main {
         "https://mars.nasa.gov/msl/multimedia/raw-images/?order=sol+desc%2C+date_taken+desc%2Cinstrument_sort+asc%2Csample_type_sort+asc&per_page=100&page=0&mission=msl";
     public static final String PERSEVERANCE_RAW_IMAGES_URL =
         "https://mars.nasa.gov/mars2020/multimedia/raw-images/";
-
+    public static final String OPPORTUNITY_RAW_IMAGES_URL =
+            "https://mars.nasa.gov/mer/gallery/all/opportunity.html";
+    public static final String SPIRIT_RAW_IMAGES_URL =
+            "https://mars.nasa.gov/mer/gallery/all/spirit.html";
     public static final String[] PREFERRED_FONTS = {
             "Verdana"
             //,"Ubuntu"
@@ -211,7 +220,7 @@ interface UiEventListener {
     void setShowUrls(boolean visible);
     void resetToDefaults();
     void saveScreenshot();
-    void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo);
+    void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byHowMany);
     void openInBrowser(SiteOpenCommand command, boolean isRight, WhichRover whichRover);
     void markPointWithMousePress(boolean isRight, MouseEvent e);
     void setWaitingForPoint(int forPointNumber);
@@ -248,8 +257,13 @@ enum GoToImageOptions {
     PERSEVERANCE_LATEST;
 }
 enum WhichRover {
+    SPIRIT, // MER-A, MER-2
+    OPPORTUNITY, // MER-B, MER-1
     CURIOSITY,
     PERSEVERANCE;
+    boolean isMer() {
+        return this == SPIRIT || this == OPPORTUNITY;
+    }
 }
 
 class ColorRange {
@@ -1415,8 +1429,8 @@ class UiController implements UiEventListener {
     }
 
     @Override
-    public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo) {
-        lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byOneOrTwo, rawData.left.pathToLoad, rawData.right.pathToLoad);
+    public void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byHowMany) {
+        lrNavigator.navigate(this, isRight, isLeft, forwardInTime, byHowMany, rawData.left.pathToLoad, rawData.right.pathToLoad);
     }
 
     @Override
@@ -1463,6 +1477,7 @@ class UiController implements UiEventListener {
                         break;
                 }
                 break;
+                // TODO: OPPORTUNITY, SPIRIT
         }
     }
 
@@ -1791,7 +1806,10 @@ class UiController implements UiEventListener {
     public Optional<Integer> getSol(boolean isRight, WhichRover whichRover) {
         String currentPath = (isRight ? rawData.right : rawData.left).pathToLoad;
         boolean isPerseverance = currentPath.contains("/mars2020");
-        if ((whichRover == WhichRover.PERSEVERANCE) != isPerseverance) {
+        boolean isMer = currentPath.contains("/mer/");
+        if ((whichRover == WhichRover.PERSEVERANCE) != isPerseverance
+          || whichRover.isMer() != isMer
+           ) {
             return Optional.empty();
         }
         return FileLocations.getSol(currentPath);
@@ -2868,9 +2886,17 @@ class X3DViewer {
                         "<a href=\""+ Main.CURIOSITY_RAW_IMAGES_URL +"\">"+
                                 "Curiosity" +
                         "</a>" +
-                        " or " +
+                        ", " +
                         "<a href=\""+ Main.PERSEVERANCE_RAW_IMAGES_URL +"\">"+
                         "Perseverance" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\""+ Main.OPPORTUNITY_RAW_IMAGES_URL +"\">"+
+                        "Opportunity" +
+                        "</a>" +
+                        ", " +
+                        "<a href=\""+ Main.SPIRIT_RAW_IMAGES_URL +"\">"+
+                        "Spirit" +
                         "</a>" +
                         " pages.<br>" +
                         "<br>" +
@@ -2923,6 +2949,10 @@ class X3DViewer {
                         "<a href=\"https://github.com/martianch/curieux/releases\">"+
                         "download page" +
                         "</a>" +
+                        ", " +
+                        "<a href=\"https://marsgazer.github.io/curious-help/\">"+
+                        "<b>documentation & tutorial</b> site" +
+                        "</a>" +
                         "." +
                         "<br>"+
                         "Learn X3D: " +
@@ -2963,29 +2993,29 @@ class X3DViewer {
             {
                 JButton bButton = new JButton();
                 DigitalZoomControl.loadIcon(bButton,"icons/twoearlier24.png","««"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 2));
-                bButton.setToolTipText("go two images earlier in each pane");
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, isShiftPressed(e)?4:2));
+                bButton.setToolTipText("go two images earlier in each pane (shift: 4 images)");
                 statusPanel.add(bButton);
             }
             {
                 JButton bButton = new JButton();
                 DigitalZoomControl.loadIcon(bButton,"icons/oneearlier24.png","‹‹"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, 1));
-                bButton.setToolTipText("go one image earlier in each pane");
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, isShiftPressed(e)?3:1));
+                bButton.setToolTipText("go one image earlier in each pane (shift: 3 images)");
                 statusPanel.add(bButton);
             }
             {
                 JButton fButton = new JButton();
                 DigitalZoomControl.loadIcon(fButton,"icons/onelater24.png","››"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 1));
-                fButton.setToolTipText("go one image later in each pane");
+                fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, isShiftPressed(e)?3:1));
+                fButton.setToolTipText("go one image later in each pane (shift: 3 images)");
                 statusPanel.add(fButton);
             }
             {
                 JButton ffButton = new JButton();
                 DigitalZoomControl.loadIcon(ffButton,"icons/twolater24.png","»»"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, 2));
-                ffButton.setToolTipText("go two images later in each pane");
+                ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, isShiftPressed(e)?4:2));
+                ffButton.setToolTipText("go two images later in each pane (shift: 4 images)");
                 statusPanel.add(ffButton);
             }
             {
@@ -3536,7 +3566,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
      * @return 2 if Shift is pressed, 0 otherwise
      */
     int getGroupIndex(ActionEvent e) {
-        if((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0) {
+        if(isShiftPressed(e)) {
             return GROUP_LENGTH;
         } else {
             return 0;
@@ -3867,7 +3897,7 @@ abstract class FileLocations {
         return true;
     }
     static String replaceSuffix(String oldSuffix, String newSuffix, String orig) {
-        if (orig==null || !orig.endsWith(oldSuffix)) {
+        if (orig==null || !endsWithIgnoreCase(orig, oldSuffix)) {
             return orig;
         }
         String base = orig.substring(0, orig.length()-oldSuffix.length());
@@ -3905,9 +3935,9 @@ abstract class FileLocations {
             return fileNameExt.substring(indexOfDot);
         }
     }
-    // support Perseverance -- it works
+    // supports Curiosity, Perseverance, MER
     static Optional<Integer> getSol(String urlOrPath) {
-        Pattern pattern = Pattern.compile("[/\\\\]([0-9]+)[/\\\\]");
+        Pattern pattern = Pattern.compile(".*[/\\\\]([0-9]+)[/\\\\]");
         Matcher matcher = pattern.matcher(urlOrPath);
         if(matcher.find()) {
             try {
@@ -3956,7 +3986,8 @@ abstract class FileLocations {
     }
     static String replaceFileName(String urlOrPath, String newFileName) {
         String fileName0 = Paths.get(urlOrPath).getFileName().toString();
-        return urlOrPath.replace(fileName0, newFileName);
+        String withoutFileName = urlOrPath.substring(0, urlOrPath.lastIndexOf(fileName0));
+        return withoutFileName + newFileName;
     }
     static List<String> _twoPaths(String path0) {
         String fullPath1 = "", fullPath2 = "";
@@ -3969,6 +4000,15 @@ abstract class FileLocations {
         if (isMarkedRL(file)) {
             String otherFullPath = Paths.get(dir.toString(), toggleRL(file)).toString();
             if (file.charAt(1) == 'R') {
+                fullPath1 = path0;
+                fullPath2 = otherFullPath;
+            } else {
+                fullPath1 = otherFullPath;
+                fullPath2 = path0;
+            }
+        } else if (isMerMarkedRL(file)) {
+            String otherFullPath = Paths.get(dir.toString(), merToggleRL(file)).toString();
+            if (isMerMarkedR(file)) {
                 fullPath1 = path0;
                 fullPath2 = otherFullPath;
             } else {
@@ -3999,6 +4039,7 @@ abstract class FileLocations {
         if( (isMarkedL(file1) && isMarkedR(file2))
          || (isMrlMarkedL(urlOrPath1, file1) && isMrlMarkedR(urlOrPath2, file2))
          || (isChemcamMarkedL(file1) && isChemcamMarkedR(file2))
+         || (isMerMarkedL(file1) && isMerMarkedR(file2))
           ) {
             return Arrays.asList(urlOrPath2, urlOrPath1);
         }
@@ -4042,6 +4083,11 @@ abstract class FileLocations {
         sb.setCharAt(1, (char) (sb.charAt(1)^('R'^'L')));
         return sb.toString();
     }
+    static String merToggleRL(String file) {
+        StringBuilder sb = new StringBuilder(file);
+        sb.setCharAt(23, (char) (sb.charAt(23)^('R'^'L')));
+        return sb.toString();
+    }
     static boolean isMrlMarkedR(String path, String fname) {
         return isCuriousLRUrn(path) ? isCuriousRUrn(path) : isMr(fname);
     }
@@ -4070,6 +4116,22 @@ abstract class FileLocations {
                 .replace("PRC_F", "EDR_F")
                 .replace("L1.PNG", "M_.JPG");
         return res;
+    }
+    // MER: Opportunity, Spirit
+    static boolean isMerAny(String fname) {
+        return fname.length() >= 31
+               && fname.matches("[12][ABDEFMNPRT]\\d{9}.{3}.{2}.{2}[CDEFGKMNPRSTWXYZ]\\d{4}[LRAM]..[1-9A-Z_].*");
+        // Note: A instead of R/L is anaglyph (red/cyan stereo pair), M is mono, N is not image
+    }
+    static boolean isMerMarkedRL(String fname) {
+        return fname.length() >= 31
+           && fname.matches("[12][ABDEFMNPRT]\\d{9}.{3}.{2}.{2}[CDEFGKMNPRSTWXYZ]\\d{4}[LR]..[1-9A-Z_].*");
+    }
+    static boolean isMerMarkedR(String fname) {
+        return isMerMarkedRL(fname) && fname.charAt(23) == 'R';
+    }
+    static boolean isMerMarkedL(String fname) {
+        return isMerMarkedRL(fname) && fname.charAt(23) == 'L';
     }
     static boolean isCuriousLRUrn(String path) {
         return isCuriousLUrn(path) || isCuriousRUrn(path);
@@ -4141,14 +4203,26 @@ abstract class FileLocations {
         ) {
             return WhichRover.PERSEVERANCE;
         }
+        else if(
+                NasaReaderMer.isMerFilename(fname)
+        ) {
+            if (fname.startsWith("1")) {
+                return WhichRover.OPPORTUNITY;
+            } else {
+                return WhichRover.SPIRIT;
+            }
+        }
         return WhichRover.CURIOSITY;
     }
+
 }
 
 abstract class RoverTime {
     private static final int MIN_CHARS_IN_TIMESTAMP = 6;
-    private static final int TIMESTAMP_OFFSET_PERSEVERANCE = 9;
-    private static final int TIMESTAMP_OFFSET_CURIOSITY = 4;
+    static final int TIMESTAMP_OFFSET_PERSEVERANCE = 9;
+    static final int TIMESTAMP_OFFSET_CURIOSITY = 4;
+    static final int TIMESTAMP_OFFSET_MER = 2;
+    static final long MER_ZERO_TIME = 946727935816L;
 
     public static long toUtcMillisC(long roverTimestamp) {
         return Math.round(roverTimestamp*1.000009468 + 946724361)*1000L;
@@ -4156,10 +4230,21 @@ abstract class RoverTime {
     public static long toUtcMillisP(long roverTimestamp) {
         return (Math.round((roverTimestamp-666952977L)*1.000007886) + 1613681069L)*1000L;
     }
+    public static long toUtcMillisMer(long roverTimestamp) {
+        return MER_ZERO_TIME + roverTimestamp*1000;
+    }
     public static long toUtcMillis(long roverTimestamp, WhichRover rover) {
-        return rover == WhichRover.PERSEVERANCE
-             ? toUtcMillisP(roverTimestamp)
-             : toUtcMillisC(roverTimestamp);
+        switch (rover) {
+            case SPIRIT:
+            case OPPORTUNITY:
+                return toUtcMillisMer(roverTimestamp);
+            case CURIOSITY:
+                return toUtcMillisC(roverTimestamp);
+            case PERSEVERANCE:
+                return toUtcMillisP(roverTimestamp);
+            default:
+                throw new IllegalArgumentException("unknown rover: "+rover);
+        }
     }
     public static long parseTimestamp(int offset, String s) {
         if (offset >= s.length()) {
@@ -4181,7 +4266,9 @@ abstract class RoverTime {
     }
     public static String earthDateForFile(String s) {
         var rover = FileLocations.getWhichRover(s);
-        int offset = rover == WhichRover.PERSEVERANCE ? TIMESTAMP_OFFSET_PERSEVERANCE : TIMESTAMP_OFFSET_CURIOSITY;
+        int offset = rover == WhichRover.PERSEVERANCE ? TIMESTAMP_OFFSET_PERSEVERANCE
+                   : rover == WhichRover.CURIOSITY    ? TIMESTAMP_OFFSET_CURIOSITY
+                                                      : TIMESTAMP_OFFSET_MER;
         long ts = parseTimestamp(offset, s);
         if (ts == 0) {
             return "";
@@ -4239,14 +4326,22 @@ class HttpLocations {
             return scanner.hasNext() ? scanner.next() : "";
         }
     }
-
+    static boolean isMerHtml(String url) {
+        return endsWithIgnoreCase(url, ".HTML")
+            && FileLocations.isMerAny(FileLocations.getFileName(url));
+    }
     static String unPage(String url) {
         if (!FileLocations.isUrl(url)) {
             return url;
         }
-        String endOfUrl = url.substring(Math.max(0,url.length()-8)).toLowerCase();
-        if (endOfUrl.endsWith(".jpg") || endOfUrl.endsWith(".jpeg") || endOfUrl.endsWith(".png")) {
+        if (endsWithIgnoreCase(url, ".jpg")
+         || endsWithIgnoreCase(url, ".jpeg")
+         || endsWithIgnoreCase(url, ".png")
+        ) {
             return url;
+        }
+        if (isMerHtml(url)) {
+            return FileLocations.replaceSuffix(".html", ".JPG", url);
         }
         try {
             String type = getContentType(url);
@@ -4843,14 +4938,6 @@ class HyperTextPane extends JTextPane {
 }
 
 abstract class SaverBase {
-    static boolean endsWithIgnoreCase(String text, String suffix) {
-        if (text.length() < suffix.length()) {
-            return false;
-        }
-        String textSuffix = text.substring(text.length() - suffix.length());
-        return textSuffix.equalsIgnoreCase(suffix);
-    }
-
     static boolean checkAskOverwrite(JFrame frame, File file) {
         return !file.exists()
             || JOptionPane.YES_OPTION != JOptionPane.showConfirmDialog(frame, "File " + file + " already exists. Choose a different name?", "Overwrite?", JOptionPane.YES_NO_OPTION);
@@ -5044,36 +5131,94 @@ class ScreenshotSaver extends SaverBase {
 
 class JsonDiy {
     public static final boolean IGNORE_NULL_IN_MAPS = true;
-    static Object get(Object root, String... indexes) {
+    public static Object get(Object root, String... indexes) {
         Object obj = root;
         for (String index : indexes) {
-            if (obj instanceof Map) {
-                Map map = (Map)obj;
-                obj = map.get(index);
-            } else if (obj instanceof List) {
-                try {
-                    int i = Integer.parseInt(index);
-                    List list = (List) obj;
-                    obj = list.get(i);
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                    return null;
-                }
-            }
-            if (null == obj) {
-                return null;
-            }
+            obj = _get(obj, index);
+        }
+        if (null == obj) {
+            System.out.println("not found in json: " + String.join(".", indexes) + " not in " + JsonDiy.toString(root));
         }
         return obj;
     }
-    static int getInt(Object root, String... indexes) {
+    public static Object get(Object root, String index) {
+        Object obj = _get(root, index);
+        if (null == obj) {
+            System.out.println("not found in json: " + index + " not in " + JsonDiy.toString(root));
+        }
+        return obj;
+    }
+    private static Object _get(final Object obj, final String index) {
+        Object res;
+        if (obj instanceof Map) {
+            Map map = (Map)obj;
+            res = map.get(index);
+        } else if (obj instanceof List) {
+            try {
+                int i = Integer.parseInt(index);
+                List list = (List) obj;
+                res = list.get(i);
+            } catch (Throwable t) {
+                res = null;
+            }
+        } else { // null, or (not a List or Map, but indexed)
+            res = null;
+        }
+        return res;
+    }
+    public static int getInt(Object root, String... indexes) {
         return Integer.parseInt(Objects.toString(get(root, indexes)));
+    }
+    public static int getInt(Object root, String index) {
+        return Integer.parseInt(Objects.toString(get(root, index)));
     }
     public static Object jsonToDataStructure(String jsonString) {
         var input = new InputState(jsonString);
         Object res = getElement(input, '\0');
         input.skipWhitespace().errorIfNotAtEnd();
         return res;
+    }
+    static<T> T deleteAllKeysBut(T root, String... keys) {
+        return deleteAllKeysBut(root, new HashSet<>(Arrays.asList(keys)));
+    }
+    static<TT> TT deleteAllKeysBut(TT root, Collection<String> keys) {
+        if (root instanceof Map) {
+            Map<String, ?> map = (Map) root;
+            return (TT) map.entrySet().stream()
+                    .filter(e -> keys.contains(e.getKey()))
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            e -> deleteAllKeysBut(e.getValue(), keys)
+                    ));
+        } else if (root instanceof List) {
+            List<?> list = (List<?>) root;
+            return (TT) list.stream()
+                    .map(obj -> deleteAllKeysBut(obj, keys))
+                    .collect(Collectors.toList());
+        } else {
+            return root;
+        }
+    }
+    public static String toString(Object root) {
+        if (root instanceof Map) {
+            Map<String, ?> map = new TreeMap((Map) root);
+            return "{"
+                   + map.entrySet().stream()
+                     .map(e -> '"' + e.getKey() + '"' + ":" + toString(e.getValue()))
+                     .collect(Collectors.joining(", "))
+                   + "}";
+        } else if (root instanceof List) {
+            List<?> list = (List<?>) root;
+            return "["
+                   + list.stream()
+                     .map(obj -> toString(obj))
+                     .collect(Collectors.joining(", "))
+                   + "]";
+        } else if (root instanceof String) {
+            return '"' + (String) root + '"';
+        } else {
+            return Objects.toString(root);
+        }
     }
     static String getKey(InputState is, char... delimiters) {
         char c = is.skipWhitespace().get();
@@ -5240,7 +5385,7 @@ class JsonDiy {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Symbol symbol = (Symbol) o;
-            return value != null ? value.equals(symbol.value) : symbol.value == null;
+            return Objects.equals(value, symbol.value);
         }
         @Override
         public int hashCode() {
@@ -5398,7 +5543,7 @@ class LRNavigator {
         }
         return this;
     }
-    LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byOneOrTwo, String leftPath, String rightPath) {
+    LRNavigator navigate(UiController uiController, boolean isRight, boolean isLeft, boolean forwardInTime, int byHowMany, String leftPath, String rightPath) {
         String newLeftPath = leftPath;
         String newRightPath = rightPath;
         System.out.println("---");
@@ -5406,7 +5551,7 @@ class LRNavigator {
         if (isLeft) {
             try {
                 left = newIfNotSuitable(left, newLeftPath);
-                for (int i = 0; i < byOneOrTwo; i++) {
+                for (int i = 0; i < byHowMany; i++) {
                     newLeftPath = (forwardInTime ? left.toNext() : left.toPrev()).getCurrentPath();
                     System.out.println("L " + newLeftPath + "...");
                 }
@@ -5420,7 +5565,7 @@ class LRNavigator {
         if (isRight) {
             try {
                 right = newIfNotSuitable(right, newRightPath);
-                for (int i = 0; i < byOneOrTwo; i++) {
+                for (int i = 0; i < byHowMany; i++) {
                     newRightPath = (forwardInTime ? right.toNext() : right.toPrev()).getCurrentPath();
                     System.out.println("R " + newRightPath + "...");
                 }
@@ -5441,11 +5586,13 @@ class LRNavigator {
     }
     FileNavigator<Map<String, Object>> newIfNotSuitable(FileNavigator<Map<String, Object>> fileNavigator, String path) {
         var needRemote = FileLocations.isUrl(path);
+        var needRemoteMer = FileLocations.isMerAny(FileLocations.getFileName(path));
         var needRemoteV2 = needRemote && path.contains("/mars2020");
-        var needRemoteV1 = needRemote & ! needRemoteV2;
+        var needRemoteV1 = needRemote & ! needRemoteV2 & ! needRemoteMer;
         if (null == fileNavigator
            || needRemoteV1 != (fileNavigator instanceof RemoteFileNavigator)
            || needRemoteV2 != (fileNavigator instanceof RemoteFileNavigatorV2)
+           || needRemoteMer != (fileNavigator instanceof RemoteFileNavigatorMer)
            ) {
             fileNavigator = FileNavigatorBase.makeNew(path);
         }
@@ -5460,7 +5607,7 @@ interface FileNavigator<T> {
     T getCurrentValue();
     String getCurrentKey();
     FileNavigator<T> setCurrentKey(String key);
-    String toKey(T obj);
+    String jsonObjToKey(T obj);
     String getPath(T t);
     FileNavigator<T> copy();
     static<T> FileNavigator<T> copy(FileNavigator<T> orig) {
@@ -5471,12 +5618,14 @@ interface FileNavigator<T> {
 abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     protected NavigableMap<String, Map<String, Object>> nmap = new TreeMap<>();
     protected String currentKey;
-    int nToLoad=25;
+
     public static FileNavigatorBase makeNew(String path) {
         var needRemote = FileLocations.isUrl(path);
         // TODO: move this check to FileLocations or HttpLocations or sth like that
         var needRemoteV2 = needRemote && path.contains("/mars2020");
+        var needRemoteMer = needRemote && FileLocations.isMerAny(FileLocations.getFileName(path));
         FileNavigatorBase res = needRemoteV2 ? new RemoteFileNavigatorV2()
+                              : needRemoteMer ? new RemoteFileNavigatorMer()
                               : needRemote ? new RemoteFileNavigator()
                               : new LocalFileNavigator();
         res._loadInitial(path);
@@ -5486,14 +5635,18 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         nmap.clear();
         nmap.putAll(other.nmap);
         currentKey = other.currentKey;
-        nToLoad = other.nToLoad;
     }
-    protected void moveWindow(boolean forwardInTime) {
+    protected void moveWindow(boolean forwardInTime, Runnable currentKeyUpdate) {
         if (forwardInTime && Objects.equals(currentKey, nmap.lastKey())) {
-            _loadHigher(); _cleanupLower();
-        }
-        if (!forwardInTime && Objects.equals(currentKey, nmap.firstKey())) {
-            _loadLower(); _cleanupHigher();
+            _loadHigher();
+            currentKeyUpdate.run();
+            _cleanupLower();
+        } else if (!forwardInTime && Objects.equals(currentKey, nmap.firstKey())) {
+            _loadLower();
+            currentKeyUpdate.run();
+            _cleanupHigher();
+        } else {
+            currentKeyUpdate.run();
         }
     }
     protected abstract void _loadInitial(String whereFrom);
@@ -5502,27 +5655,27 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
     protected abstract void _onLoadResult(NavigableMap<String, Map<String, Object>> newData);
     protected abstract void _cleanupHigher();
     protected abstract void _cleanupLower();
-    protected int _numHigherToLoad() { return nToLoad; }
-    protected int _numLowerToLoad() { return nToLoad; }
 
     @Override
     public FileNavigator<Map<String, Object>> toNext() {
-        moveWindow(true);
-        if (currentKey == null) {
-            currentKey = nmap.firstKey();
-        } else {
-            currentKey = nmap.higherKey(currentKey);
-        }
+        moveWindow(
+            true,
+            () -> currentKey =
+                    currentKey == null
+                    ? nmap.firstKey()
+                    : nmap.higherKey(currentKey)
+        );
         return this;
     }
     @Override
     public FileNavigator<Map<String, Object>> toPrev() {
-        moveWindow(false);
-        if (currentKey == null) {
-            currentKey = nmap.lastKey();
-        } else {
-            currentKey = nmap.lowerKey(currentKey);
-        }
+        moveWindow(
+            false,
+            () -> currentKey =
+                    currentKey == null
+                    ? nmap.lastKey()
+                    : nmap.lowerKey(currentKey)
+        );
         return this;
     }
     @Override
@@ -5550,18 +5703,50 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         return this;
     }
     @Override
-    public String toKey(Map<String, Object> obj) {
+    public String jsonObjToKey(Map<String, Object> obj) {
         if (obj == null) {
             return null;
         }
         return obj.get("date_taken")+"^"+obj.get("imageid");
     }
+    void _loadFromJsonReply(Object jsonObject, String index) {
+        try {
+            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, index);
+            list.stream()
+                .filter(o -> o instanceof Map)
+                .map(o -> (Map<String, Object>)o)
+                .forEach( o -> nmap.put(jsonObjToKey(o), o));
+        } catch (Throwable t) {
+            System.out.println("_loadFromJsonReply() crashed:");
+            t.printStackTrace();
+        }
+//        System.out.println("_loadFromJsonReply():");
+//        System.out.println(this.toString());
+    }
+    public String toString() {
+        StringBuilder res = new StringBuilder();
+        res
+            .append("FileNavigator(")
+            .append(getCurrentKey())
+            .append(") ")
+            .append(getClass().getSimpleName())
+            .append(" {\n");
+        nmap.keySet().forEach(k ->
+                res
+                    .append(k.equals(getCurrentKey()) ? "=>" : "  ")
+                    .append(k)
+                    .append("\n")
+        );
+        res.append("}\n");
+        return res.toString();
+    }
 }
 class LocalFileNavigator extends FileNavigatorBase {
     String currentDirectory = "";
 
-    protected void setFrom(LocalFileNavigator other) {
-        currentDirectory = other.currentDirectory;
+    @Override
+    protected void setFrom(FileNavigatorBase other) {
+        currentDirectory = ((LocalFileNavigator)other).currentDirectory;
         super.setFrom(other);
     }
     @Override
@@ -5622,6 +5807,23 @@ class LocalFileNavigator extends FileNavigatorBase {
 }
 
 class NasaReaderBase {
+    static final Set<String> ALL_USED_KEYS =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "date_taken",
+                    "date_taken_mars",
+                    "full_res",
+                    "https_url",
+                    "image_files",
+                    "imageid",
+                    "images",
+                    "items",
+                    "latest_sol",
+                    "page",
+                    "per_page",
+                    "total",
+                    "total_results",
+                    "url"
+            )));
     static final String USER_AGENT;
     static {
         //Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0
@@ -5686,12 +5888,17 @@ class NasaReader extends NasaReaderBase {
         String url = makeRequest(parameters);
         System.out.println("dataStructureFromRequest url = "+url);
         String json = readUrl(new URL(url));
-        Object res = JsonDiy.jsonToDataStructure(json);
+        Object res =
+                JsonDiy.deleteAllKeysBut(
+                        JsonDiy.jsonToDataStructure(json),
+                        ALL_USED_KEYS
+                );
         return res;
     }
     static Object dataStructureFromImageId(String imageId) throws IOException {
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+//                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=10" +
                         "&page=0" +
                         "&condition_1=" + imageId + ":imageid:eq" +
@@ -5705,7 +5912,7 @@ class NasaReader extends NasaReaderBase {
         sbPairId.setCharAt(5,(char)((int)'R'^(int)'L'^(int)sbPairId.charAt(5)));
         String pairId = sbPairId.toString();
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=10" +
                         "&page=0" +
                         "&condition_1=" + pairId + ":imageid:gt" +
@@ -5716,7 +5923,7 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromCuriositySolStarting(int curiositySol, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5727,7 +5934,8 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromCuriositySolLatest(int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
+//                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
+                "order=sol desc,date_taken desc,imageid desc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5737,7 +5945,7 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromDateStarting(String date, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol asc,date_taken asc,instrument_sort asc,sample_type_sort asc" +
+                "order=sol asc,date_taken asc,imageid asc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5748,7 +5956,7 @@ class NasaReader extends NasaReaderBase {
     }
     static Object dataStructureFromDateEnding(String date, int perPage) throws IOException {
         return dataStructureFromRequest(
-                "order=sol desc,date_taken desc,instrument_sort desc,sample_type_sort desc" +
+                "order=sol desc,date_taken desc,imageid desc" +
                         "&per_page=" + perPage +
                         "&page=0" +
                         "&condition_1=msl:mission" +
@@ -5818,7 +6026,11 @@ class NasaReaderV2 extends NasaReaderBase {
         String url = makeRequest(parameters);
         System.out.println("dataStructureFromRequest url = "+url);
         String json = readUrl(new URL(url));
-        Object res = JsonDiy.jsonToDataStructure(json);
+        Object res =
+                JsonDiy.deleteAllKeysBut(
+                        JsonDiy.jsonToDataStructure(json),
+                        ALL_USED_KEYS
+                );
         return res;
     }
     static Object dataStructureForLatestSol() throws IOException {
@@ -5829,19 +6041,185 @@ class NasaReaderV2 extends NasaReaderBase {
     }
 
 }
+class NasaReaderMer extends NasaReaderBase {
+    private static final String MER_FNAME_REGEX
+            = "(?<fileNameNoExt>"
+            + "(?<imageId>"
+            + "[12]" // 1 = Opportunity; 2 = Spirit
+            + "[FRNPME]"
+            + "(?<timeStamp>\\d{9})"
+            + "[A-Z0-9_]{7}[A-Z]\\d{4}[LRMN]\\d[A-Z]"
+            + ")"
+            + "[0-9A-Z]"
+            + ")";
 
-class RemoteFileNavigatorV2 extends FileNavigatorBase {
+    static boolean isMerFilename(String fname) {
+        return fname.matches(MER_FNAME_REGEX + ".*");
+    }
+    static String composeUrl(int sol, char camera, WhichRover rover) {
+        String roverName;
+        switch (rover) {
+            case SPIRIT:
+                roverName = "spirit";
+                break;
+            case OPPORTUNITY:
+                roverName = "opportunity";
+                break;
+            default:
+                throw new IllegalArgumentException("rover " + rover + " is not Spirit or Opportunity");
+        }
+        String solId = String.format("%03d", sol);
+        return "https://mars.nasa.gov/mer/gallery/all/"
+               + roverName + "_" + camera + solId + ".html";
+    }
+    static Map<String, String> readTocPage(int sol, String url) {
+        String sSol = String.format("%04d", sol);
+        var baseUrl = FileLocations.replaceFileName(url, "");
+        String html = null;
+        try {
+            html = readUrl(new URL(url));
+        } catch (IOException e) {
+            return Collections.emptyMap();
+        }
+        var res = new TreeMap<String, String>();
+        Matcher m = Pattern
+                .compile("<img src=\""
+                         + "(?<relPath>[12]/[a-z]/\\d+/"
+                         + MER_FNAME_REGEX
+                         + "-THM\\."
+                         + "(?<fileExt>JPG))"
+                )
+                .matcher(html);
+        while (m.find()) {
+            res.put(
+                _makeKey(sSol, m),
+                FileLocations.unThumbnail(baseUrl + m.group("relPath"))
+            );
+        }
+        return res;
+    }
+    static String urlToKey(int sol, String whereFrom) {
+        String sSol = String.format("%04d", sol);
+        Matcher m = Pattern
+                .compile(".*"+MER_FNAME_REGEX)
+                .matcher(whereFrom);
+        if (m.find()) {
+            return _makeKey(sSol, m);
+        }
+        return null;
+    }
+    private static String _makeKey(String sSol, Matcher m) {
+        return sSol
+        + "^" + m.group("timeStamp")
+        + "^" + m.group("imageId");
+    }
+
+    static Map<String, Map<String, Object>> readToc(int sol, WhichRover rover) {
+        var allImages =
+                Stream.of('f', 'r', 'n', 'p','m')
+                .map(cam -> composeUrl(sol, cam, rover))
+                .map(url -> readTocPage(sol, url))
+                .map(Map::entrySet)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(
+                    e -> e.getKey(),
+                    e -> {
+                        Map<String, Object> m = new HashMap<>();
+                        m.put("url", e.getValue());
+                        return m;
+                        },
+                    (a,b) -> oMax(
+                        a, b,
+                        Comparator.comparing((Map<String, Object> x) ->
+                                x.get("url").toString()
+                        )
+                    ),
+                    TreeMap::new
+                ));
+        return allImages;
+    }
+} // NasaReaderMer
+class RemoteFileNavigatorMer extends FileNavigatorBase { // Opportunity, Spirit
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
-        String res =
-                Optional
-                .ofNullable(stringObjectMap)
-                .map(map -> map.get("image_files"))
-                .filter(o -> o instanceof Map)
-                .map(map -> ((Map) map).get("full_res"))
-                .map(Object::toString)
-                .orElse(null);
+        return oApply(Objects::toString, JsonDiy.get(stringObjectMap, "url"));
+    }
+    @Override
+    public FileNavigator<Map<String, Object>> copy() {
+        RemoteFileNavigatorMer res = new RemoteFileNavigatorMer();
+        res.setFrom(this);
         return res;
+    }
+    @Override
+    protected void _loadInitial(String whereFrom) {
+        var optSol = FileLocations.getSol(whereFrom);
+        WhichRover rover = FileLocations.getWhichRover(whereFrom);
+        if (optSol.isPresent() && rover.isMer()) {
+            final Integer sol = optSol.get();
+            nmap.putAll(NasaReaderMer.readToc(sol, rover));
+            setCurrentKey(NasaReaderMer.urlToKey(sol, whereFrom));
+        }
+    }
+    @Override
+    protected void _loadHigher() {
+        var optSol = FileLocations.getSol(getCurrentPath());
+        WhichRover rover = FileLocations.getWhichRover(getCurrentPath());
+        if (optSol.isPresent() && rover.isMer()) {
+            nmap.putAll(NasaReaderMer.readToc(optSol.get()+1, rover));
+        }
+    }
+
+    @Override
+
+    protected void _loadLower() {
+        var optSol = FileLocations.getSol(getCurrentPath());
+        WhichRover rover = FileLocations.getWhichRover(getCurrentPath());
+        if (optSol.isPresent() && rover.isMer()) {
+            nmap.putAll(NasaReaderMer.readToc(optSol.get()-1, rover));
+        }
+    }
+
+    @Override
+    protected void _onLoadResult(NavigableMap<String, Map<String, Object>> newData) {
+    }
+
+    @Override
+    protected void _cleanupHigher() {
+        int lastSol = solFromKey(nmap.lastKey());
+        int currentSol = solFromKey(currentKey);
+        if (lastSol > currentSol) {
+            var higherAll = nmap.tailMap(solPrefixFromInt(currentSol+1), false);
+            if(haveToClear(higherAll)) {
+                higherAll.clear();
+            }
+        }
+    }
+    @Override
+    protected void _cleanupLower() {
+        int firstSol = solFromKey(nmap.firstKey());
+        int currentSol = solFromKey(currentKey);
+        if (firstSol < currentSol) {
+            var lowerAll = nmap.headMap(solPrefixFromInt(currentSol), false);
+            if(haveToClear(lowerAll)) {
+                lowerAll.clear();
+            }
+        }
+    }
+    private boolean haveToClear(NavigableMap<String, Map<String, Object>> submap) {
+        return nmap.size() - submap.size() > 5;
+    }
+    static int solFromKey(String key) {
+        return Integer.parseInt(key.substring(0,4));
+    }
+    static String solPrefixFromInt(int sol) {
+        return String.format("%04d", sol);
+    }
+} // RemoteFileNavigatorMer
+class RemoteFileNavigatorV2 extends FileNavigatorBase { // Perseverance
+    @Override
+    public String getPath(Map<String, Object> stringObjectMap) {
+        var res = JsonDiy.get(stringObjectMap, "image_files", "full_res");
+        return (String) res;
     }
     @Override
     public FileNavigator<Map<String, Object>> copy() {
@@ -5851,23 +6229,21 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
     }
 
     void loadFromDataStructure(Object jsonObject) {
-        try {
-            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, "images");
-            list.stream().forEach( o -> {
-                if (o instanceof Map) {
-                    Map m = (Map) o;
-                    String date = m.get("date_taken_mars").toString();
-                    String id = m.get("imageid").toString();
-                    // TODO: sol^mars_date^id
-                    String key = date + "^" + id;
-                    nmap.put(key, m);
-                }
-            });
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        _loadFromJsonReply(jsonObject, "images");
     }
-    void loadBySol(Object sol) throws IOException {
+    @Override
+    public String jsonObjToKey(Map<String, Object> m) {
+        String date = m.get("date_taken_mars").toString(); //"Sol-00876M12:24:05.299"
+        String id = m.get("imageid").toString(); //"ZL5_0876_0744706532_443E…430000ZCAM03014_048085J"
+        return date + "^" + id;
+    }
+
+    /**
+     * @param sol Perseverance Sol # to load
+     * @return total_results
+     * @throws IOException
+     */
+    int loadBySol(Object sol) throws IOException {
         int page=0;
         do {
             String params = "page=" + page + "&=,,,,&order=sol%20desc&condition_2=" + sol + ":sol:gte&condition_3=" + sol + ":sol:lte&extended=sample_type::full,";
@@ -5877,7 +6253,7 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
             int res_page = JsonDiy.getInt(jsonObject,"page");
             int total_results = JsonDiy.getInt(jsonObject,"total_results");
             if (total_results <= per_page * (1+res_page)) {
-                break;
+                return total_results;
             }
             page++;
         } while (true);
@@ -5890,7 +6266,7 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
     protected void _loadInitial(String whereFrom) {
         try {
             String fname = FileLocations.getFileNameNoExt(whereFrom);
-            String imageId = fname.substring(0, 1+fname.lastIndexOf("J"));
+            String imageId = safeSubstring(fname, 0, 52);
             Object sol = solFromPerseveranceImageId(imageId);
             loadBySol(sol);
             currentKey = nmap.keySet().stream()
@@ -5933,42 +6309,49 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase {
         return key.substring(0, 9);
     }
 
-    // TODO: remove unused keys from nmap
+    static int solFromPrefix(String prefixOrKey) {
+        return Integer.parseInt(prefixOrKey.substring(4,9));
+    }
+
+    static String solPrefixFromInt(int sol) {
+        return String.format("Sol-%05d", sol);
+    }
+
     @Override
     protected void _cleanupHigher() {
-        String lastSolPrefix = getSolPrefix(nmap.lastKey());
-        String currentSolPrefix = getSolPrefix(currentKey);
-        if (lastSolPrefix.compareTo(currentSolPrefix) > 0) {
-            var higherAll = nmap.tailMap(currentSolPrefix, false);
-            if(nmap.size() - higherAll.size() > 5) {
+        int lastSol = solFromPrefix(nmap.lastKey());
+        int currentSol = solFromPrefix(currentKey);
+        if (lastSol > currentSol) {
+            var higherAll = nmap.tailMap(solPrefixFromInt(currentSol+1), false);
+            if(haveToClear(higherAll)) {
                 higherAll.clear();
             }
         }
     }
 
-    // TODO: remove unused keys from nmap
     @Override
     protected void _cleanupLower() {
-        //NOTE: the current logic is that when we come to the last
-        //image from Sol N, this code removes images from Sol N-1
-        String firstSolPrefix = getSolPrefix(nmap.firstKey());
-        String currentSolPrefix = getSolPrefix(currentKey);
-        if (firstSolPrefix.compareTo(currentSolPrefix) < 0) {
-            var lowerAll = nmap.headMap(currentSolPrefix, false);
-            if(nmap.size() - lowerAll.size() > 5) {
+        int firstSol = solFromPrefix(nmap.firstKey());
+        int currentSol = solFromPrefix(currentKey);
+        if (firstSol < currentSol) {
+            var lowerAll = nmap.headMap(solPrefixFromInt(currentSol), false);
+            if(haveToClear(lowerAll)) {
                 lowerAll.clear();
             }
         }
     }
+    private boolean haveToClear(NavigableMap<String, Map<String, Object>> submap) {
+        return nmap.size() - submap.size() > 5;
+    }
+
     static Integer solFromPerseveranceImageId(String imageId) {
         return Integer.valueOf(imageId.substring(4,8));
     }
 }
-class RemoteFileNavigator extends FileNavigatorBase {
-//    protected void setFrom(LocalFileNavigator other) {
-////        xxx = other.xxx;
-//        super.setFrom(other);
-//    }
+class RemoteFileNavigator extends FileNavigatorBase { // Curiosity
+    int nToLoad=25;
+    int nToKeep=5;
+
     @Override
     public FileNavigator<Map<String, Object>> copy() {
         RemoteFileNavigator res = new RemoteFileNavigator();
@@ -5976,31 +6359,26 @@ class RemoteFileNavigator extends FileNavigatorBase {
         return res;
     }
 
+    @Override
+    protected void setFrom(FileNavigatorBase other) {
+        final RemoteFileNavigator otherRfn = (RemoteFileNavigator) other;
+        nToLoad = otherRfn.nToLoad;
+        nToKeep = otherRfn.nToKeep;
+        super.setFrom(other);
+    }
+
     void loadFromDataStructure(Object jsonObject) {
-        try {
-            List<Object> list = (List<Object>) JsonDiy.get(jsonObject, "items");
-            list.stream().forEach( o -> {
-                if (o instanceof Map) {
-                    Map m = (Map) o;
-                    String date = m.get("date_taken").toString();
-                    String id = m.get("imageid").toString();
-                    nmap.put(date+"^"+id, m);
-                }
-            });
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
+        _loadFromJsonReply(jsonObject, "items");
     }
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
-        if (stringObjectMap == null) {
-            return null;
-        }
-        var res = stringObjectMap.get("https_url");
-        if (res == null) {
-            res = stringObjectMap.get("url");
-        }
-        return res == null ? null : res.toString();
+        return oApply(Object::toString,
+                      oAnd(stringObjectMap, ()->
+                           oOr(stringObjectMap.get("https_url"), ()->
+                               stringObjectMap.get("url")
+                              )
+                          )
+                     );
     }
     @Override
     protected void _loadInitial(String whereFrom) {
@@ -6038,26 +6416,24 @@ class RemoteFileNavigator extends FileNavigatorBase {
 
     @Override
     protected void _cleanupHigher() {
-        var higherAll = nmap.tailMap(currentKey, false);
-        if (higherAll.size() > nToLoad) {
-            String key = currentKey;
-            for (int i=0; i<nToLoad; i++) {
-                key = higherAll.higherKey(key);
-            }
-            var toDelete = higherAll.tailMap(key, false);
+        String key = currentKey;
+        for (int i=0; i<nToKeep && key != null; i++) {
+            key = nmap.higherKey(key);
+        }
+        if (key != null) {
+            var toDelete = nmap.tailMap(key, false);
             toDelete.clear();
         }
     }
 
     @Override
     protected void _cleanupLower() {
-        var lowerAll = nmap.headMap(currentKey, false);
-        if (lowerAll.size() > nToLoad) {
-            String key = currentKey;
-            for (int i=0; i<nToLoad; i++) {
-                key = lowerAll.lowerKey(key);
-            }
-            var toDelete = lowerAll.headMap(key, false);
+        String key = currentKey;
+        for (int i=0; i<nToKeep && key != null; i++) {
+            key = nmap.lowerKey(key);
+        }
+        if (key != null) {
+            var toDelete = nmap.headMap(key, false);
             toDelete.clear();
         }
     }
@@ -11868,6 +12244,55 @@ class DoubleCalculator {
 
 enum StereoEncoding {
     RED_CYAN_ANAGLYPH_GRAY, RED_CYAN_ANAGLYPH_COLOR, LR_STEREO_PAIR
+}
+
+class MySwing {
+    static boolean isShiftPressed(ActionEvent e) {
+        return 0 != (e.getModifiers() & ActionEvent.SHIFT_MASK);
+    }
+}
+class MyStrings {
+//    static boolean startsWithIgnoreCase(String str, String prefix)
+//    {
+//        return str.regionMatches(true, 0, prefix, 0, prefix.length());
+//    }
+    static boolean endsWithIgnoreCase(String str, String suffix)
+    {
+        int suffixLength = suffix.length();
+        return str.regionMatches(true, str.length() - suffixLength, suffix, 0, suffixLength);
+    }
+    static String safeSubstring(String s, int from, int to) {
+        if (s==null) {
+            return null;
+        }
+        return s.substring(from, Math.min(s.length(), to));
+    }
+}
+class MyOps {
+    public static<T,TT> TT oAnd (T first, Supplier<TT> second) {
+        if (first == null) {
+            return null;
+        }
+        return second.get();
+    }
+    public static<T> T oOr(T first, Supplier<T> second) {
+        if (first != null) {
+            return first;
+        }
+        return second.get();
+    }
+    public static<T,R> R oApply(Function<T,R> func, T arg) {
+        if (arg == null) {
+            return null;
+        }
+        return func.apply(arg);
+    }
+    public static<T extends Comparable<T>> T oMax(T a, T b) {
+        return a.compareTo(b) >= 0 ? a : b;
+    }
+    public static<T> T oMax(T a, T b, Comparator<T> c) {
+        return c.compare(a,b) >= 0 ? a : b;
+    }
 }
 
 class ParallelPair<T> {

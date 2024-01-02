@@ -190,6 +190,12 @@ public class JsonDiyTest {
             assertEquals(new JsonDiy.Symbol("0"), JsonDiy.get(obj,"page"));
             assertEquals(new JsonDiy.Symbol("374484"), JsonDiy.get(obj,"items","0","id"));
             assertEquals("2016-10-13T23:20:28.000Z", JsonDiy.get(obj,"items","0","date_taken"));
+            assertEquals("2016-10-13T23:20:28.000Z", JsonDiy.get(JsonDiy.get(obj,"items","0"),"date_taken"));
+            assertEquals("2016-10-13T23:20:28.000Z", JsonDiy.get(JsonDiy.get(JsonDiy.get(obj,"items"),"0"),"date_taken"));
+            assertEquals(null, JsonDiy.get(obj,"items","2","date_taken"));
+            assertEquals(null, JsonDiy.get(obj,"iitems","0","date_taken"));
+            assertEquals(null, JsonDiy.get(obj,"items","0","date_takenn"));
+            assertEquals(null, JsonDiy.get(obj,"items","0","date_taken","a"));
         }
     }
     @Test
@@ -245,5 +251,24 @@ public class JsonDiyTest {
             assertEquals(new JsonDiy.Symbol("1"), JsonDiy.get(obj,"total"));
             assertEquals(new JsonDiy.Symbol("0"), JsonDiy.get(obj,"page"));
         }
+    }
+    @Test
+    public void toStringTest() {
+        String s = "{\"foo\":\"bar\", \"a\":[{\"baz\":\"qux\", \"n\":1},{\"waldo\":\"garply\",\"n\":2}]}";
+        var obj = JsonDiy.jsonToDataStructure(s);
+        assertEquals(
+                "{\"a\":[{\"baz\":\"qux\", \"n\":1}, {\"n\":2, \"waldo\":\"garply\"}], \"foo\":\"bar\"}",
+                JsonDiy.toString(obj)
+        );
+    }
+    @Test
+    public void deleteAllKeysBut_test() {
+        String s = "{\"foo\":\"bar\", \"a\":[{\"baz\":\"qux\", \"n\":1},{\"waldo\":\"garply\",\"n\":2}], \"plugh\":\"xyzzy\"}";
+        var obj = JsonDiy.jsonToDataStructure(s);
+        var obj2 = JsonDiy.deleteAllKeysBut(obj, "plugh", "n", "a");
+        assertEquals(
+                "{\"a\":[{\"n\":1}, {\"n\":2}], \"plugh\":\"xyzzy\"}",
+                JsonDiy.toString(obj2)
+        );
     }
 }
