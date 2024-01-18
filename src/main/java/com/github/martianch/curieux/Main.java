@@ -2178,7 +2178,14 @@ class X3DViewer {
     public void updateViews(RawData rd, DisplayParameters dp, MeasurementStatus ms) {
         {
             {
+                long start = System.nanoTime();
                 var bufferedImageList = processBothImages(rd, dp, ms, ColorCorrection.Command.SHOW);
+                long elapsed = System.nanoTime() - start;
+                System.out.println(
+                        String.format("*** updateViews/processBothImages elapsed: %d.%09d",
+                        elapsed / 1_000_000_000,
+                        elapsed % 1_000_000_000
+                ));
                 ImageIcon iconL = new ImageIcon(bufferedImageList.get(0));
                 ImageIcon iconR = new ImageIcon(bufferedImageList.get(1));
                 lblL.setIcon(iconL);
