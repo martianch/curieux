@@ -100,9 +100,16 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
@@ -119,6 +126,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.github.martianch.curieux.MyOps.*;
@@ -1008,11 +1016,13 @@ class PanelMeasurementStatus {
         int width = source.getWidth();
         int height = source.getHeight();
         BufferedImage b = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        for (int j=0; j<height; j++) {
-            for (int i=0; i<width; i++) {
-                b.setRGB(i,j,source.getRGB(i,j));
+        Par.splitFor(0, height, (from, to) -> {
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < width; i++) {
+                    b.setRGB(i, j, source.getRGB(i, j));
+                }
             }
-        };
+        });
         return b;
     }
     public void setWHI(BufferedImage image, double new_ifov, String description) {
@@ -4482,23 +4492,23 @@ class StringDiffs {
         return res.toString();
     }
 
-    static void printExample(String a, String b) {
-        var d = diff(a,b);
-        String a1 = "";
-        for (int i=0; i<a.length(); i++) {
-            a1 += d.first.get(i) ? a.charAt(i) : ' ';
-        }
-        String b1 = "";
-        for (int i=0; i<b.length(); i++) {
-            b1 += d.second.get(i) ? b.charAt(i) : ' ';
-        }
-        System.out.println("--vv--");
-        System.out.println(a1);
-        System.out.println(a);
-        System.out.println(b);
-        System.out.println(b1);
-        System.out.println("--^^--");
-    }
+//    static void printExample(String a, String b) {
+//        var d = diff(a,b);
+//        String a1 = "";
+//        for (int i=0; i<a.length(); i++) {
+//            a1 += d.first.get(i) ? a.charAt(i) : ' ';
+//        }
+//        String b1 = "";
+//        for (int i=0; i<b.length(); i++) {
+//            b1 += d.second.get(i) ? b.charAt(i) : ' ';
+//        }
+//        System.out.println("--vv--");
+//        System.out.println(a1);
+//        System.out.println(a);
+//        System.out.println(b);
+//        System.out.println(b1);
+//        System.out.println("--^^--");
+//    }
 
     /**
      * Returns a minimal set of characters that have to be removed from (or added to) the respective
@@ -4581,24 +4591,30 @@ class Debayer {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        for (int i=0; i<WIDTH; i++) {
-            for (int j=0; j<HEIGHT; j++) {
-                int type = (j&1)*2 + (i&1); // RGGB
-                int r=0, g=0, b=0;
-                switch (type) {
-                    case 0: { // R
-                        r = getC(orig, i, j);
-                    } break;
-                    case 1: case 2: { // G
-                        g = getC(orig, i, j);
-                    } break;
-                    case 3: { // B
-                        b = getC(orig,i,j);
-                    } break;
+        Par.splitFor(0, HEIGHT, (from, to) -> {
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < WIDTH; i++) {
+                    int type = (j & 1) * 2 + (i & 1); // RGGB
+                    int r = 0, g = 0, b = 0;
+                    switch (type) {
+                        case 0: { // R
+                            r = getC(orig, i, j);
+                        }
+                        break;
+                        case 1:
+                        case 2: { // G
+                            g = getC(orig, i, j);
+                        }
+                        break;
+                        case 3: { // B
+                            b = getC(orig, i, j);
+                        }
+                        break;
+                    }
+                    res.setRGB(i, j, (r << 16) | (g << 8) | b);
                 }
-                res.setRGB(i,j,(r<<16)|(g<<8)|b);
             }
-        }
+        });
         return res;
     }
 
@@ -4606,22 +4622,24 @@ class Debayer {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        for (int i=0; i<WIDTH; i++) {
-            for (int j=0; j<HEIGHT; j++) {
-                int R = getC(orig, i&-2, j&-2);
-                int Gr = getC(orig, i&-2, j|1);
-                int Gb = getC(orig, i|1, j&-2);
-                int B = getC(orig, i|1, j|1);
-                // R Gr R Gr
-                // Gb B Gb B
-                // R Gr R Gr
-                // Gb B Gb B
-                int r = R;
-                int g = Gb;
-                int b = B;
-                res.setRGB(i,j,(r<<16)|(g<<8)|b);
+        Par.splitFor(0, HEIGHT, (from, to) -> {
+            for (int j=from; j<to; j++) {
+                for (int i=0; i<WIDTH; i++) {
+                    int R = getC(orig, i&-2, j&-2);
+                    int Gr = getC(orig, i&-2, j|1);
+                    int Gb = getC(orig, i|1, j&-2);
+                    int B = getC(orig, i|1, j|1);
+                    // R Gr R Gr
+                    // Gb B Gb B
+                    // R Gr R Gr
+                    // Gb B Gb B
+                    int r = R;
+                    int g = Gb;
+                    int b = B;
+                    res.setRGB(i,j,(r<<16)|(g<<8)|b);
+                }
             }
-        }
+        });
         return res;
     }
 
@@ -4629,102 +4647,114 @@ class Debayer {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        for (int i=0; i<WIDTH; i++) {
-            for (int j=0; j<HEIGHT; j++) {
-                int type = (j&1)*2 + (i&1); // RGGB
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                int r,g,b;
-                switch (type) {
-                    case 0: { // R
-                        r = getC(orig, i, j);
-                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.E, Direction.S, Direction.W, Direction.N);
-                        g = getC(orig, dirG.x1(i), dirG.y1(j));
-                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.SE, Direction.SW, Direction.NW, Direction.NE);
-                        b = getC(orig, dirB.x1(i), dirB.y1(j));
-                    } break;
-                    case 1: { // Gr
-                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
-                        r = getC(orig, dirR.x1(i), dirR.y1(j));
-                        g = getC(orig, i, j);
-                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.S, Direction.N);
-                        b = getC(orig, dirB.x1(i), dirB.y1(j));
-                    } break;
-                    case 2: { // Gb
-                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
-                        r = getC(orig, dirR.x1(i), dirR.y1(j));
-                        g = getC(orig, i, j);
-                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.E, Direction.W);
-                        b = getC(orig, dirB.x1(i), dirB.y1(j));
-                    } break;
-                    case 3: { // B
-                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.SE, Direction.NE);
-                        r = getC(orig, dirR.x1(i), dirR.y1(j));
-                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.E, Direction.S);
-                        g = getC(orig, dirG.x1(i), dirG.y1(j));
-                        b = getC(orig,i,j);
-                    } break;
-                    default: // stupid Java, this is impossible! type is 0..3!
-                        r=g=b=0;
+        Par.splitFor(0, HEIGHT, (from, to) -> {
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < WIDTH; i++) {
+                    int type = (j & 1) * 2 + (i & 1); // RGGB
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    int r, g, b;
+                    switch (type) {
+                        case 0: { // R
+                            r = getC(orig, i, j);
+                            Direction dirG = findClosestMatchDist2(orig, i, j, Direction.E, Direction.S, Direction.W, Direction.N);
+                            g = getC(orig, dirG.x1(i), dirG.y1(j));
+                            Direction dirB = findClosestMatchDist2(orig, i, j, Direction.SE, Direction.SW, Direction.NW, Direction.NE);
+                            b = getC(orig, dirB.x1(i), dirB.y1(j));
+                        }
+                        break;
+                        case 1: { // Gr
+                            Direction dirR = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
+                            r = getC(orig, dirR.x1(i), dirR.y1(j));
+                            g = getC(orig, i, j);
+                            Direction dirB = findClosestMatchDist2(orig, i, j, Direction.S, Direction.N);
+                            b = getC(orig, dirB.x1(i), dirB.y1(j));
+                        }
+                        break;
+                        case 2: { // Gb
+                            Direction dirR = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
+                            r = getC(orig, dirR.x1(i), dirR.y1(j));
+                            g = getC(orig, i, j);
+                            Direction dirB = findClosestMatchDist2(orig, i, j, Direction.E, Direction.W);
+                            b = getC(orig, dirB.x1(i), dirB.y1(j));
+                        }
+                        break;
+                        case 3: { // B
+                            Direction dirR = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.SE, Direction.NE);
+                            r = getC(orig, dirR.x1(i), dirR.y1(j));
+                            Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.E, Direction.S);
+                            g = getC(orig, dirG.x1(i), dirG.y1(j));
+                            b = getC(orig, i, j);
+                        }
+                        break;
+                        default: // stupid Java, this is impossible! type is 0..3!
+                            r = g = b = 0;
+                    }
+                    res.setRGB(i, j, (r << 16) | (g << 8) | b);
                 }
-                res.setRGB(i,j,(r<<16)|(g<<8)|b);
             }
-        }
+        });
         return res;
     }
     static BufferedImage debayer_closest_match_WNSE_clockwise(BufferedImage orig) {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        for (int i=0; i<WIDTH; i++) {
-            for (int j=0; j<HEIGHT; j++) {
-                int type = (j&1)*2 + (i&1); // RGGB
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                int r,g,b;
-                switch (type) {
-                    case 0: { // R
-                        r = getC(orig, i, j);
-                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
-                        g = getC(orig, dirG.x1(i), dirG.y1(j));
-                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
-                        b = getC(orig, dirB.x1(i), dirB.y1(j));
-                    } break;
-                    case 1: { // Gr
-                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
-                        r = getC(orig, dirR.x1(i), dirR.y1(j));
-                        g = getC(orig, i, j);
-                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
-                        b = getC(orig, dirB.x1(i), dirB.y1(j));
-                    } break;
-                    case 2: { // Gb
-                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
-                        r = getC(orig, dirR.x1(i), dirR.y1(j));
-                        g = getC(orig, i, j);
-                        Direction dirB = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
-                        b = getC(orig, dirB.x1(i), dirB.y1(j));
-                    } break;
-                    case 3: { // B
-                        Direction dirR = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
-                        r = getC(orig, dirR.x1(i), dirR.y1(j));
-                        Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
-                        g = getC(orig, dirG.x1(i), dirG.y1(j));
-                        b = getC(orig,i,j);
-                    } break;
-                    default: // stupid Java, this is impossible! type is 0..3!
-                        r=g=b=0;
+        Par.splitFor(0, HEIGHT, (from, to) -> {
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < WIDTH; i++) {
+                    int type = (j & 1) * 2 + (i & 1); // RGGB
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    int r, g, b;
+                    switch (type) {
+                        case 0: { // R
+                            r = getC(orig, i, j);
+                            Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                            g = getC(orig, dirG.x1(i), dirG.y1(j));
+                            Direction dirB = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                            b = getC(orig, dirB.x1(i), dirB.y1(j));
+                        }
+                        break;
+                        case 1: { // Gr
+                            Direction dirR = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
+                            r = getC(orig, dirR.x1(i), dirR.y1(j));
+                            g = getC(orig, i, j);
+                            Direction dirB = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
+                            b = getC(orig, dirB.x1(i), dirB.y1(j));
+                        }
+                        break;
+                        case 2: { // Gb
+                            Direction dirR = findClosestMatchDist2(orig, i, j, Direction.N, Direction.S);
+                            r = getC(orig, dirR.x1(i), dirR.y1(j));
+                            g = getC(orig, i, j);
+                            Direction dirB = findClosestMatchDist2(orig, i, j, Direction.W, Direction.E);
+                            b = getC(orig, dirB.x1(i), dirB.y1(j));
+                        }
+                        break;
+                        case 3: { // B
+                            Direction dirR = findClosestMatchDist2(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                            r = getC(orig, dirR.x1(i), dirR.y1(j));
+                            Direction dirG = findClosestMatchDist2(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                            g = getC(orig, dirG.x1(i), dirG.y1(j));
+                            b = getC(orig, i, j);
+                        }
+                        break;
+                        default: // stupid Java, this is impossible! type is 0..3!
+                            r = g = b = 0;
+                    }
+                    res.setRGB(i, j, (r << 16) | (g << 8) | b);
                 }
-                res.setRGB(i,j,(r<<16)|(g<<8)|b);
             }
-        }
+        });
         return res;
     }
     static Direction findClosestMatchDist2(BufferedImage bi, int i, int j, Direction... directions) {
@@ -4765,43 +4795,49 @@ class Debayer {
         int HEIGHT = orig.getHeight();
         int WIDTH = orig.getWidth();
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        for (int i=0; i<WIDTH; i++) {
-            for (int j=0; j<HEIGHT; j++) {
-                int type = (j&1)*2 + (i&1); // RGGB
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                int r,g,b;
-                switch (type) {
-                    case 0: { // R
-                        r = getC(orig, i, j);
-                        g = averageDist1(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
-                        b = averageDist1(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
-                    } break;
-                    case 1: { // Gr
-                        r = averageDist1(orig, i, j, Direction.W, Direction.E);
-                        g = getC(orig, i, j);
-                        b = averageDist1(orig, i, j, Direction.N, Direction.S);
-                    } break;
-                    case 2: { // Gb
-                        r = averageDist1(orig, i, j, Direction.N, Direction.S);
-                        g = getC(orig, i, j);
-                        b = averageDist1(orig, i, j, Direction.W, Direction.E);
-                    } break;
-                    case 3: { // B
-                        r = averageDist1(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
-                        g = averageDist1(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
-                        b = getC(orig,i,j);
-                    } break;
-                    default: // stupid Java, this is impossible! type is 0..3!
-                        r=g=b=0;
+        Par.splitFor(0, HEIGHT, (from, to) -> {
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < WIDTH; i++) {
+                    int type = (j & 1) * 2 + (i & 1); // RGGB
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    int r, g, b;
+                    switch (type) {
+                        case 0: { // R
+                            r = getC(orig, i, j);
+                            g = averageDist1(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                            b = averageDist1(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                        }
+                        break;
+                        case 1: { // Gr
+                            r = averageDist1(orig, i, j, Direction.W, Direction.E);
+                            g = getC(orig, i, j);
+                            b = averageDist1(orig, i, j, Direction.N, Direction.S);
+                        }
+                        break;
+                        case 2: { // Gb
+                            r = averageDist1(orig, i, j, Direction.N, Direction.S);
+                            g = getC(orig, i, j);
+                            b = averageDist1(orig, i, j, Direction.W, Direction.E);
+                        }
+                        break;
+                        case 3: { // B
+                            r = averageDist1(orig, i, j, Direction.NW, Direction.SW, Direction.NE, Direction.SE);
+                            g = averageDist1(orig, i, j, Direction.W, Direction.N, Direction.S, Direction.E);
+                            b = getC(orig, i, j);
+                        }
+                        break;
+                        default: // stupid Java, this is impossible! type is 0..3!
+                            r = g = b = 0;
+                    }
+                    res.setRGB(i, j, (r << 16) | (g << 8) | b);
                 }
-                res.setRGB(i,j,(r<<16)|(g<<8)|b);
             }
-        }
+        });
         return res;
     }
     static int getC(BufferedImage bi, int x, int y) {
@@ -6738,22 +6774,24 @@ enum FisheyeCorrectionAlgo implements ImageEffect {
         }
 
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        for (int j = 0; j < HEIGHT; j++) {
-            for (int i = 0; i < WIDTH; i++) {
-                double R = Math.hypot(i - XC, j - YC);
-                double theta = Math.atan2(j - YC, i - XC);
-                double r = xf.applyAsDouble(R);
-                double xx = r * Math.cos(theta);
-                double yy = r * Math.sin(theta);
-                if (Double.isFinite(xx) && Double.isFinite(yy)) { // false if NaN
-                    int x = (int) Math.round(xc + xx);
-                    int y = (int) Math.round(yc + yy);
-                    if (x >= 0 && x < width && y >= 0 && y < height) {
-                        res.setRGB(i, j, orig.getRGB(x, y));
+        Par.splitFor(0, HEIGHT, (from, to) -> {
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < WIDTH; i++) {
+                    double R = Math.hypot(i - XC, j - YC);
+                    double theta = Math.atan2(j - YC, i - XC);
+                    double r = xf.applyAsDouble(R);
+                    double xx = r * Math.cos(theta);
+                    double yy = r * Math.sin(theta);
+                    if (Double.isFinite(xx) && Double.isFinite(yy)) { // false if NaN
+                        int x = (int) Math.round(xc + xx);
+                        int y = (int) Math.round(yc + yy);
+                        if (x >= 0 && x < width && y >= 0 && y < height) {
+                            res.setRGB(i, j, orig.getRGB(x, y));
+                        }
                     }
                 }
             }
-        }
+        });
         return res;
     }
     private static boolean between(int value, int lower, int upper) {
@@ -7604,7 +7642,7 @@ class ColorBalancer {
         ColorRange cr = ColorRange.newEmptyRange();
         ColorRange around = ColorRange.newEmptyRange();
         int dd = d + d/2;
-        for (int j = jStart; j < jFinal; j++) {
+        for (int j = jStart; j < jFinal; j++) { // TODO: splitFor
             for (int i = iStart; i < iFinal; i++) {
                 int color = src.getRGB(i, j);
                 if (ignoreBroken) {
@@ -7664,18 +7702,20 @@ class ColorBalancer {
             }
         }
 
-        for (int j = 1; j < height-1; j++) {
-            for (int i = 1; i < width-1; i++) {
-                int color = src.getRGB(i, j);
-                if (!pixelLooksNotBroken(color, setToMinMaxRgbDiag(around, src, i, j, 1))) {
-                    res.setRGB(i, j, mendRgbDiag(src, j, i));
-                } else if(!pixelLooksNotBroken(color, setToMinMaxRgbHorVer(around, src, i, j, 1))) {
-                    res.setRGB(i, j, mendRgbHorVer(src, j, i));
-                }else {
-                    res.setRGB(i, j, color);
+        Par.splitFor(1, height-1, (from, to) -> {
+            for (int j = from; j < to; j++) {
+                for (int i = 1; i < width - 1; i++) {
+                    int color = src.getRGB(i, j);
+                    if (!pixelLooksNotBroken(color, setToMinMaxRgbDiag(around, src, i, j, 1))) {
+                        res.setRGB(i, j, mendRgbDiag(src, j, i));
+                    } else if (!pixelLooksNotBroken(color, setToMinMaxRgbHorVer(around, src, i, j, 1))) {
+                        res.setRGB(i, j, mendRgbHorVer(src, j, i));
+                    } else {
+                        res.setRGB(i, j, color);
+                    }
                 }
             }
-        }
+        });
         return res;
     }
     private static int mendRgbDiag(BufferedImage src, int j, int i) {
@@ -7763,48 +7803,61 @@ class ColorBalancer {
         }
 
         var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+        int finalMinR = minR;
+        int finalMinG = minG;
+        int finalMinB = minB;
+        int finalDr = dr;
+        int finalDg = dg;
+        int finalDb = db;
         if (saturate && !saturateToBlack) {
-            for (int j = 0; j < height; j++) {
-                for (int i = 0; i < width; i++) {
-                    int color = src.getRGB(i, j);
-                    int r = 0xff & (color >> 16);
-                    int g = 0xff & (color >> 8);
-                    int b = 0xff & (color);
-                    int r1 = Math.max(0, Math.min(255, (r - minR) * 255 / dr));
-                    int g1 = Math.max(0, Math.min(255, (g - minG) * 255 / dg));
-                    int b1 = Math.max(0, Math.min(255, (b - minB) * 255 / db));
-                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
-                    res.setRGB(i, j, color1);
+            Par.splitFor(0, height, (from, to) -> {
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int color = src.getRGB(i, j);
+                        int r = 0xff & (color >> 16);
+                        int g = 0xff & (color >> 8);
+                        int b = 0xff & (color);
+                        int r1 = Math.max(0, Math.min(255, (r - finalMinR) * 255 / finalDr));
+                        int g1 = Math.max(0, Math.min(255, (g - finalMinG) * 255 / finalDg));
+                        int b1 = Math.max(0, Math.min(255, (b - finalMinB) * 255 / finalDb));
+                        int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                        res.setRGB(i, j, color1);
+                    }
                 }
-            }
+            });
         } else if (saturateToBlack) {
-            for (int j = 0; j < height; j++) {
-                for (int i = 0; i < width; i++) {
-                    int color = src.getRGB(i, j);
-                    int r = 0xff & (color >> 16);
-                    int g = 0xff & (color >> 8);
-                    int b = 0xff & (color);
-                    int r1 = 0xff & Math.max(0, Math.min(256, (r - minR) * 255 / dr));
-                    int g1 = 0xff & Math.max(0, Math.min(256, (g - minG) * 255 / dg));
-                    int b1 = 0xff & Math.max(0, Math.min(256, (b - minB) * 255 / db));
-                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
-                    res.setRGB(i, j, color1);
+            Par.splitFor(0, height, (from, to) -> {
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int color = src.getRGB(i, j);
+                        int r = 0xff & (color >> 16);
+                        int g = 0xff & (color >> 8);
+                        int b = 0xff & (color);
+                        int r1 = 0xff & Math.max(0, Math.min(256, (r - finalMinR) * 255 / finalDr));
+                        int g1 = 0xff & Math.max(0, Math.min(256, (g - finalMinG) * 255 / finalDg));
+                        int b1 = 0xff & Math.max(0, Math.min(256, (b - finalMinB) * 255 / finalDb));
+                        int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                        res.setRGB(i, j, color1);
+                    }
                 }
-            }
+            });
         } else {
-            for (int j = 0; j < height; j++) {
-                for (int i = 0; i < width; i++) {
-                    int color = src.getRGB(i, j);
-                    int r = 0xff & (color >> 16);
-                    int g = 0xff & (color >> 8);
-                    int b = 0xff & (color);
-                    int r1 = 0xff & (r - minR) * 255 / dr;
-                    int g1 = 0xff & (g - minG) * 255 / dg;
-                    int b1 = 0xff & (b - minB) * 255 / db;
-                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
-                    res.setRGB(i, j, color1);
+            Par.splitFor(0, height, (from, to) -> {
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int color = src.getRGB(i, j);
+                        int r = 0xff & (color >> 16);
+                        int g = 0xff & (color >> 8);
+                        int b = 0xff & (color);
+                        int r1 = 0xff & (r - finalMinR) * 255 / finalDr;
+                        int g1 = 0xff & (g - finalMinG) * 255 / finalDg;
+                        int b1 = 0xff & (b - finalMinB) * 255 / finalDb;
+                        int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                        res.setRGB(i, j, color1);
+                    }
                 }
-            }
+            });
         }
         return res;
     }
@@ -7820,42 +7873,49 @@ class HSVColorBalancer {
             float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
             int width = src.getWidth();
             int height = src.getHeight();
-            float avgH = 0, avgS = 0, avgV = 0;
-            float[] hsv = { 0.f, 0.f, 0.f };
-            for (int j = M; j < height - M; j++) {
-                for (int i = M; i < width - M; i++) {
-                    int color = src.getRGB(i, j);
-                    hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
-                    minH = Math.min(minH, hsv[0]);
-                    minS = Math.min(minS, hsv[1]);
-                    minV = Math.min(minV, hsv[2]);
-                    maxH = Math.max(maxH, hsv[0]);
-                    maxS = Math.max(maxS, hsv[1]);
-                    maxV = Math.max(maxV, hsv[2]);
-                    avgH += hsv[0];
-                    avgS += hsv[1];
-                    avgV += hsv[2];
+//            float avgH = 0, avgS = 0, avgV = 0;
+            {
+                float[] hsv = {0.f, 0.f, 0.f};
+                for (int j = M; j < height - M; j++) { // TODO: Par.splitFor
+                    for (int i = M; i < width - M; i++) {
+                        int color = src.getRGB(i, j);
+                        hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+                        minH = Math.min(minH, hsv[0]);
+                        minS = Math.min(minS, hsv[1]);
+                        minV = Math.min(minV, hsv[2]);
+                        maxH = Math.max(maxH, hsv[0]);
+                        maxS = Math.max(maxS, hsv[1]);
+                        maxV = Math.max(maxV, hsv[2]);
+//                    avgH += hsv[0];
+//                    avgS += hsv[1];
+//                    avgV += hsv[2];
+                    }
                 }
             }
-            {
-                long N = (height - 2 * M) * (width - 2 * M);
-                avgH /= N;
-                avgS /= N;
-                avgV /= N;
-            }
+//            {
+//                long N = (height - 2 * M) * (width - 2 * M);
+//                avgH /= N;
+//                avgS /= N;
+//                avgV /= N;
+//            }
             float dh = maxH - minH;
             float ds = maxS - minS;
             float dv = maxV - minV;
             System.out.println("min:  " + minH + " " + minS + " " + minV);
             System.out.println("max:  " + maxH + " " + maxS + " " + maxV);
-            System.out.println("avg:  " + avgH + " " + avgS + " " + avgV);
+//            System.out.println("avg:  " + avgH + " " + avgS + " " + avgV);
             System.out.println("  d:  " + dh + " " + ds + " " + dv);
-            System.out.println("avgd: " + (avgH - minH) + " " + (avgS - minS) + " " + (avgV - minV));
+//            System.out.println("avgd: " + (avgH - minH) + " " + (avgS - minS) + " " + (avgV - minV));
             var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            for (int j = 0; j < height; j++) {
-                for (int i = 0; i < width; i++) {
-                    int color = src.getRGB(i, j);
-                    hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+            float finalMinH = minH;
+            float finalMinS = minS;
+            float finalMinV = minV;
+            Par.splitFor(0, height, (from, to) -> {
+                float[] hsv = { 0.f, 0.f, 0.f };
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int color = src.getRGB(i, j);
+                        hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
 //                    int r = 0xff & (color >> 16);
 //                    int g = 0xff & (color >> 8);
 //                    int b = 0xff & (color);
@@ -7868,13 +7928,14 @@ class HSVColorBalancer {
 //                    float h1 = stretchH ? (hsv[0] - minH) * maxH / dh : hsv[0];
 //                    float s1 = stretchS ? (hsv[1] - minS) * maxS / ds : hsv[1];
 //                    float v1 = stretchV ? (hsv[2] - minV) * maxV / dv : hsv[2];
-                    float h1 = stretchH ? (hsv[0] - minH) / dh : hsv[0];
-                    float s1 = stretchS ? (hsv[1] - minS) / ds : hsv[1];
-                    float v1 = stretchV ? (hsv[2] - minV) / dv : hsv[2];
-                    int color1 = Color.HSBtoRGB(h1, s1, v1);
-                    res.setRGB(i, j, color1);
+                        float h1 = stretchH ? (hsv[0] - finalMinH) / dh : hsv[0];
+                        float s1 = stretchS ? (hsv[1] - finalMinS) / ds : hsv[1];
+                        float v1 = stretchV ? (hsv[2] - finalMinV) / dv : hsv[2];
+                        int color1 = Color.HSBtoRGB(h1, s1, v1);
+                        res.setRGB(i, j, color1);
+                    }
                 }
-            }
+            });
             return res;
         } catch (ArithmeticException e) {
             e.printStackTrace();
@@ -7892,22 +7953,24 @@ class GammaColorBalancer {
             int width = src.getWidth();
             int height = src.getHeight();
             var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            for (int j = 0; j < height; j++) {
-                for (int i = 0; i < width; i++) {
-                    int color = src.getRGB(i, j);
+            Par.splitFor(0, height, (from, to) -> {
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int color = src.getRGB(i, j);
 
-                    int r = 0xff & (color >> 16);
-                    int g = 0xff & (color >> 8);
-                    int b = 0xff & (color);
-                    int r1 = gamma(gamma, r);
-                    int g1 = gamma(gamma, g);
-                    int b1 = gamma(gamma, b);
-                    int color1 = (r1 << 16) | (g1 << 8) | (b1);
-                    res.setRGB(i, j, color1);
+                        int r = 0xff & (color >> 16);
+                        int g = 0xff & (color >> 8);
+                        int b = 0xff & (color);
+                        int r1 = gamma(gamma, r);
+                        int g1 = gamma(gamma, g);
+                        int b1 = gamma(gamma, b);
+                        int color1 = (r1 << 16) | (g1 << 8) | (b1);
+                        res.setRGB(i, j, color1);
+                    }
                 }
-            }
+            });
             return res;
-        } catch (ArithmeticException e) {
+        } catch (RuntimeException e) {
             e.printStackTrace();
             return src;
         }
@@ -11605,46 +11668,53 @@ class DebayerBicubic {
         int WIDTH = orig.getWidth();
         System.out.println("debayer_bicubic " + WIDTH + "x" + HEIGHT);
         BufferedImage res = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        var hps = new HorizPointSet().with(orig);
-        var vps = new VertPointSet().with(orig);
-        var tps = new TwoDPointSet().with(orig);
-        for (int j=0; j<HEIGHT; j++) {
-            for (int i=0; i<WIDTH; i++) {
-                int type = (j&1)*2 + (i&1); // RGGB
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                // R Gr R Gr R Gr
-                // Gb B Gb B Gb B
-                int r,g,b;
-                switch (type) {
-                    case 0: { // R
-                        r = getC(orig, i, j);
-                        g = hps.at(i,j).interpolate();
-                        b = tps.at(i,j).interpolate();
-                    } break;
-                    case 1: { // Gr
-                        r = hps.at(i,j).interpolate();
-                        g = getC(orig, i, j);
-                        b = vps.at(i,j).interpolate();
-                    } break;
-                    case 2: { // Gb
-                        r = vps.at(i,j).interpolate();
-                        g = getC(orig, i, j);
-                        b = hps.at(i,j).interpolate();
-                    } break;
-                    case 3: { // B
-                        r = tps.at(i,j).interpolate();
-                        g = hps.at(i,j).interpolate();
-                        b = getC(orig, i, j);
-                    } break;
-                    default: // stupid Java, this is impossible! type is 0..3!
-                        r=g=b=0;
+        Par.splitFor(0, HEIGHT, (from, to) -> {
+            var hps = new HorizPointSet().with(orig);
+            var vps = new VertPointSet().with(orig);
+            var tps = new TwoDPointSet().with(orig);
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < WIDTH; i++) {
+//                int type = (j&1)*2 + (i&1); // RGGB
+                    int type = (j & 1) << 1 | (i & 1); // RGGB
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    // R Gr R Gr R Gr
+                    // Gb B Gb B Gb B
+                    int r, g, b;
+                    switch (type) {
+                        case 0: { // R
+                            r = getC(orig, i, j);
+                            g = hps.at(i, j).interpolate();
+                            b = tps.at(i, j).interpolate();
+                        }
+                        break;
+                        case 1: { // Gr
+                            r = hps.at(i, j).interpolate();
+                            g = getC(orig, i, j);
+                            b = vps.at(i, j).interpolate();
+                        }
+                        break;
+                        case 2: { // Gb
+                            r = vps.at(i, j).interpolate();
+                            g = getC(orig, i, j);
+                            b = hps.at(i, j).interpolate();
+                        }
+                        break;
+                        case 3: { // B
+                            r = tps.at(i, j).interpolate();
+                            g = hps.at(i, j).interpolate();
+                            b = getC(orig, i, j);
+                        }
+                        break;
+                        default: // stupid Java, this is impossible! type is 0..3!
+                            r = g = b = 0;
+                    }
+                    res.setRGB(i, j, rgb(r, g, b));
                 }
-                res.setRGB(i,j,rgb(r,g,b));
             }
-        }
+        });
         return res;
     }
     static int getC(BufferedImage bi, int x, int y) {
@@ -12295,28 +12365,391 @@ class MyOps {
     }
 }
 
-class ParallelPair<T> {
+abstract class ParallelPair<T> {
+    abstract ParallelPair<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc);
+    abstract ParallelPair<T> cUpdate(boolean leftConf, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc);
+    public static<TT> ParallelPair<TT> of(TT left, TT right) {
+        return new ParallelPair0<TT>(left, right);
+    }
+    public static<TT> ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
+        return ParallelPair0._of(leftS, rightS);
+    }
+}
+class ParallelPair0<T> extends ParallelPair<T> {
     T left, right;
-    private ParallelPair(T left, T right) {
+    ParallelPair0(T left, T right) {
         this.left = left;
         this.right = right;
     }
-    public static<TT> ParallelPair<TT> of(TT left, TT right) {
-        return new ParallelPair<TT>(left, right);
+    static<TT> ParallelPair0<TT> _of(Supplier<TT> leftS, Supplier<TT> rightS) {
+        return new ParallelPair0<TT>(leftS.get(), rightS.get());
     }
-    public static<TT> ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
-        return new ParallelPair<TT>(leftS.get(), rightS.get());
+
+    @Override
+    ParallelPair0<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
+        left = left != null ? leftFunc.apply(left) : null;
+        right = right != null ? rightFunc.apply(right) : null;
+        return this;
     }
-    <R> ParallelPair<R> map2(Function<T,R> leftFunc, Function<T,R> rightFunc) {
-        return of(
-                left != null ? leftFunc.apply(left) : null,
-                right != null ? rightFunc.apply(right) : null
-        );
+    @Override
+    ParallelPair0<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
+        if (leftCond) {
+            left = left != null ? leftFunc.apply(left) : null;
+        }
+        if (rightCond) {
+            right = right != null ? rightFunc.apply(right) : null;
+        }
+        return this;
     }
-    ParallelPair<T> cmap2(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
-        return of(
-                left != null  && leftCond ? leftFunc.apply(left) : left,
-                right != null && rightCond ? rightFunc.apply(right) : right
-        );
+}
+class ParallelPair1<T> extends ParallelPair<T> {
+    T left, right;
+    ParallelPair1(T left, T right) {
+        this.left = left;
+        this.right = right;
     }
+    static<TT> ParallelPair1<TT> _of(Supplier<TT> leftS, Supplier<TT> rightS) {
+        return new ParallelPair1<TT>(leftS.get(), rightS.get());
+    }
+
+    @Override
+    ParallelPair1<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
+        left = left != null ? leftFunc.apply(left) : null;
+        right = right != null ? rightFunc.apply(right) : null;
+        return this;
+    }
+    @Override
+    ParallelPair1<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
+        if (leftCond) {
+            left = left != null ? leftFunc.apply(left) : null;
+        }
+        if (rightCond) {
+            right = right != null ? rightFunc.apply(right) : null;
+        }
+        return this;
+    }
+}
+interface LoopSplitter {
+    void splitFor(int from, int to, IntBiConsumer body);
+    <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger);
+}
+interface PoolOwner<T extends ExecutorService> {
+    void setParallelism(int n);
+    int getParallelism();
+    T getPool();
+}
+interface FjpPoolOwner extends PoolOwner<ForkJoinPool> {
+    void setPool(ForkJoinPool pool);
+    default int getParallelism() {
+        return getPool().getParallelism();
+    }
+    default void setParallelism(int n) {
+        var oldForkJoinPool = getPool();
+        setPool(new ForkJoinPool(n));
+        oldForkJoinPool.shutdown();
+        try {
+            oldForkJoinPool.awaitTermination(3, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            System.out.println("FJP did not shut down, attempting shutdownNow()");
+            oldForkJoinPool.shutdownNow();
+        }
+    }
+}
+interface TpePoolOwner extends PoolOwner<ThreadPoolExecutor> {
+    default int getParallelism() {
+        ThreadPoolExecutor pool = getPool();
+        int maximumPoolSize = pool.getMaximumPoolSize();
+        int corePoolSize = pool.getCorePoolSize();
+        if (corePoolSize != maximumPoolSize) {
+            throw new IllegalStateException("pool sizes don't match: maximumPoolSize="+maximumPoolSize+" corePoolSize="+corePoolSize);
+        }
+        return maximumPoolSize;
+    }
+    default void setParallelism(int n) {
+        var pool = getPool();
+        int nNow = pool.getCorePoolSize();
+        if (n >= nNow) {
+            pool.setMaximumPoolSize(n);
+            pool.setCorePoolSize(n);
+        } else {
+            pool.setCorePoolSize(n);
+            pool.setMaximumPoolSize(n);
+        }
+    }
+}
+abstract class AbstractFjpPoolOwner implements FjpPoolOwner {
+    ForkJoinPool forkJoinPool;
+    protected AbstractFjpPoolOwner(ForkJoinPool forkJoinPool) {
+        this.forkJoinPool = forkJoinPool;
+    }
+    @Override
+    public ForkJoinPool getPool() {
+        return forkJoinPool;
+    }
+    @Override
+    public void setPool(ForkJoinPool pool) {
+        forkJoinPool = pool;
+    }
+}
+abstract class AbstractTpePoolOwner implements TpePoolOwner {
+    ThreadPoolExecutor threadPoolExecutor;
+    protected AbstractTpePoolOwner(ThreadPoolExecutor threadPoolExecutor) {
+        this.threadPoolExecutor = threadPoolExecutor;
+    }
+    @Override
+    public ThreadPoolExecutor getPool() {
+        return threadPoolExecutor;
+    }
+}
+//class ParBase {
+//    static ForkJoinPool forkJoinPool = new ForkJoinPool();
+//    static void setParallelism(int n) {
+//        var oldForkJoinPool = forkJoinPool;
+//        forkJoinPool = new ForkJoinPool(n);
+//        oldForkJoinPool.shutdown();
+//        try {
+//            oldForkJoinPool.awaitTermination(3, TimeUnit.SECONDS);
+//        } catch (InterruptedException e) {
+//            System.out.println("FJP did not shut down, attempting shutdownNow()");
+//            oldForkJoinPool.shutdownNow();
+//        }
+//    }
+//    static int getParallelism() {
+//        return forkJoinPool.getParallelism();
+//    }
+//}
+class Par0 implements LoopSplitter {
+    @Override
+    public void splitFor(int from, int to, IntBiConsumer body) {
+        body.accept(from, to);
+    }
+    @Override
+    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        T res = body.apply(from, to);
+        return merger.mergeStream(Stream.of(res));
+    }
+}
+class Par2 extends AbstractFjpPoolOwner implements LoopSplitter {
+    protected Par2(ForkJoinPool forkJoinPool) {
+        super(forkJoinPool);
+    }
+    @Override
+    public void splitFor(int from, int to, IntBiConsumer body) {
+        ForkJoinPool pool = getPool();
+        pool.invoke(ForkJoinTask.adapt(() -> {
+            int n = pool.getParallelism();
+            IntStream.range(0, n)
+            .parallel()
+            .forEach(i ->
+                    body.accept(
+                            lwb(i, n, from, to),
+                            lwb(i+1, n, from, to)
+            ));
+        }));
+    }
+
+    @Override
+    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        ForkJoinPool pool = getPool();
+        T res = pool.invoke(ForkJoinTask.adapt(() -> {
+            int n = pool.getParallelism();
+            List<T> results =
+                IntStream.range(0, n)
+                    .parallel()
+                    .mapToObj(i ->
+                            body.apply(
+                                    lwb(i, n, from, to),
+                                    lwb(i+1, n, from, to)
+                            ))
+                    .collect(Collectors.toList());
+            return merger.mergeStream(results.stream());
+        }));
+        return res;
+    }
+
+    static int lwb(int i, int n, int m0, int m) {
+        return m0 + (int) ((long)(m-m0) * i / n);
+    }
+}
+class Par3 extends AbstractFjpPoolOwner implements LoopSplitter {
+    protected Par3(ForkJoinPool forkJoinPool) {
+        super(forkJoinPool);
+    }
+    @Override
+    public void splitFor(int from, int to, IntBiConsumer body) {
+        ForkJoinPool pool = getPool();
+        int n = pool.getParallelism() - 1;
+        ForkJoinTask[] tasks = new ForkJoinTask[n];
+        IntStream.range(0, n)
+                .forEach(i -> {
+                    tasks[i] = ForkJoinTask.adapt(() ->
+                            body.accept(
+                                    lwb(i, n, from, to),
+                                    lwb(i+1, n, from, to)
+                            )
+                    );
+                });
+        pool.invoke(ForkJoinTask.adapt(() -> {
+            Stream.of(tasks).forEach(ForkJoinTask::fork);
+            Stream.of(tasks).forEach(ForkJoinTask::join);
+        }));
+    }
+
+    @Override
+    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        ForkJoinPool pool = getPool();
+        int n = pool.getParallelism() - 1;
+        ForkJoinTask<T>[] tasks = new ForkJoinTask[n];
+        IntStream.range(0, n)
+                .forEach(i -> {
+                    tasks[i] = ForkJoinTask.adapt(() ->
+                            body.apply(
+                                    lwb(i, n, from, to),
+                                    lwb(i+1, n, from, to)
+                            )
+                    );
+                });
+        List<T> resultList = pool.invoke(ForkJoinTask.adapt(() -> {
+            Stream.of(tasks).forEach(ForkJoinTask::fork);
+            return Stream.of(tasks).map(ForkJoinTask::join).collect(Collectors.toList());
+        }));
+        return merger.mergeStream(resultList.stream());
+    }
+
+    static int lwb(int i, int n, int m0, int m) {
+        return m0 + (int) ((long)(m-m0) * i / n);
+    }
+}
+class Par4 extends AbstractFjpPoolOwner implements LoopSplitter  {
+    protected Par4(ForkJoinPool forkJoinPool) {
+        super(forkJoinPool);
+    }
+    @Override
+    public void splitFor(int from, int to, IntBiConsumer body) {
+        ForkJoinPool pool = getPool();
+        int n = pool.getParallelism();
+        Callable<Void>[] tasks = new Callable[n];
+        IntStream.range(0, n)
+                .forEach(i -> {
+                    tasks[i] = () -> {
+                        body.accept(
+                                lwb(i, n, from, to),
+                                lwb(i + 1, n, from, to)
+                        );
+                        return null;
+                    };
+                });
+        pool.invokeAll(Arrays.asList(tasks));
+    }
+
+    @Override
+    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        ForkJoinPool pool = getPool();
+        int n = pool.getParallelism();
+        Callable<T>[] tasks = new Callable[n];
+        IntStream.range(0, n)
+                .forEach(i -> {
+                    tasks[i] = () ->
+                            body.apply(
+                                lwb(i, n, from, to),
+                                lwb(i + 1, n, from, to)
+                            );
+                });
+        List<Future<T>> res = pool.invokeAll(Arrays.asList(tasks));
+        return merger.mergeStream(res.stream().map(tFuture -> {
+            try {
+                return tFuture.get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        }));
+    }
+
+    static int lwb(int i, int n, int m0, int m) {
+        return m0 + (int) ((long)(m-m0) * i / n);
+    }
+}
+class Par1 extends AbstractTpePoolOwner implements LoopSplitter  {
+    protected Par1(ThreadPoolExecutor threadPoolExecutor) {
+        super(threadPoolExecutor);
+    }
+    protected Par1() {
+        super(new ThreadPoolExecutor(
+                Runtime.getRuntime().availableProcessors(),
+                Runtime.getRuntime().availableProcessors(),
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue()
+        ));
+    }
+    @Override
+    public void splitFor(int from, int to, IntBiConsumer body) {
+        var pool = getPool();
+        int n = getParallelism();
+        Callable<Void>[] tasks = new Callable[n];
+        IntStream.range(0, n)
+                .forEach(i -> {
+                    tasks[i] = () -> {
+                        body.accept(
+                                lwb(i, n, from, to),
+                                lwb(i + 1, n, from, to)
+                        );
+                        return null;
+                    };
+                });
+        try {
+            pool.invokeAll(Arrays.asList(tasks));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        var pool = getPool();
+        int n = getParallelism();
+        Callable<T>[] tasks = new Callable[n];
+        IntStream.range(0, n)
+                .forEach(i -> {
+                    tasks[i] = () ->
+                        body.apply(
+                                lwb(i, n, from, to),
+                                lwb(i + 1, n, from, to)
+                        );
+                });
+        try {
+            List<Future<T>> futures = pool.invokeAll(Arrays.asList(tasks));
+            return merger.mergeStream(futures.stream().map(future -> {
+                try {
+                    return future.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+            }));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    static int lwb(int i, int n, int m0, int m) {
+        return m0 + (int) ((long)(m-m0) * i / n);
+    }
+}
+class Par {
+    static LoopSplitter loopSplitter = new Par1();
+    public static void splitFor(int from, int to, IntBiConsumer body) {
+        loopSplitter.splitFor(from, to, body);
+    }
+    void setLoopSplitter(LoopSplitter ls) {
+        loopSplitter = ls;
+    }
+}
+interface IntBiConsumer {
+    void accept(int a, int b);
+}
+interface IntBiFunction<T> {
+    T apply(int a, int b);
+}
+interface StreamMerger<T> {
+    T mergeStream(Stream<T> stream);
 }
