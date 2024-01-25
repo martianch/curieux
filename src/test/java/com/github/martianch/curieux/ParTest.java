@@ -1,5 +1,6 @@
 package com.github.martianch.curieux;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.awt.image.BufferedImage;
@@ -61,11 +62,12 @@ class ParTest {
         }
         assertEquals(1, s.size());
     }
+    @Disabled
     @Test
     void splitForTest1() {
-        var par = new Par1();
-//        int WIDTH = 1600_0000;
-        int WIDTH = 160;
+        var par = new Par5(new FjpPoolFactory().createDefaultPool());
+        int WIDTH = 1600_0000;
+//        int WIDTH = 160_000;
         int HEIGHT = 64;
         int[] target = new int[WIDTH*HEIGHT];
         warmup2(target);
@@ -88,6 +90,103 @@ class ParTest {
             assertEquals(i, target[i], () -> "error at i="+ finalI +": "+target[finalI]);
         }
         assertEquals(par.getParallelism(), s.size());
+    }
+    @Disabled
+    @Test
+    void splitForResTest1() {
+        var par = new Par5(new FjpPoolFactory().createDefaultPool());
+//                int WIDTH = 1600_0000;
+        int WIDTH = 160_000;
+        int HEIGHT = 64;
+        int[] array = new int[WIDTH*HEIGHT];
+        for (int j=0; j<HEIGHT; j++) {
+            for (int i=0; i<WIDTH; i++) {
+                var ii = j*WIDTH + i;
+                array[ii] = i;
+            }
+        }
+        Set<String> s = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        array[WIDTH/2 + WIDTH*(HEIGHT/2)] = WIDTH+1;
+        assertEquals(WIDTH+1, parMax(array, 1, array.length, par, s));
+        assertEquals(par.getParallelism(), s.size());
+        s.clear();
+        assertEquals(WIDTH+1, parMax(array, WIDTH, HEIGHT, par, s));
+        assertEquals(par.getParallelism(), s.size());
+        s.clear();
+        array[0] = WIDTH+2;
+        assertEquals(WIDTH+2, parMax(array, 1, array.length, par, s));
+        assertEquals(par.getParallelism(), s.size());
+        s.clear();
+        array[array.length-1] = WIDTH+3;
+        assertEquals(WIDTH+3, parMax(array, 1, array.length, par, s));
+        assertEquals(par.getParallelism(), s.size());
+        s.clear();
+        array[1] = WIDTH+4;
+        assertEquals(WIDTH+4, parMax(array, 1, array.length, par, s));
+        assertEquals(par.getParallelism(), s.size());
+        s.clear();
+        array[WIDTH+2] = WIDTH+5;
+        assertEquals(WIDTH+5, parMax(array, 1, array.length, par, s));
+        assertEquals(par.getParallelism(), s.size());
+        s.clear();
+    }
+    @Disabled
+    @Test
+    void splitForResTest1a() {
+        var par = new Par5(new FjpPoolFactory().createDefaultPool());
+//        int WIDTH = 160_000_000;
+        var pairCaller = new PairRunner1(par.getPool());
+        pairCaller.runOne(() -> {
+
+        int WIDTH = 100000000;
+        int HEIGHT = 3;
+        int[] array = new int[WIDTH*HEIGHT];
+        for (int j=0; j<HEIGHT; j++) {
+            for (int i=0; i<WIDTH; i++) {
+                var ii = j*WIDTH + i;
+                array[ii] = i;
+            }
+        }
+        array[WIDTH/2 + WIDTH*(HEIGHT/2)] = WIDTH+1;
+        Set<String> s = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        assertEquals(WIDTH+1, parMax(array, WIDTH, HEIGHT, par, s));
+        assertEquals(3,s.size());
+        s.clear();
+        array[0] = WIDTH+2;
+        assertEquals(WIDTH+2, parMax(array, WIDTH, HEIGHT, par, s));
+        assertEquals(3,s.size());
+        s.clear();
+        array[array.length-1] = WIDTH+3;
+        assertEquals(WIDTH+3, parMax(array, WIDTH, HEIGHT, par, s));
+        assertEquals(3,s.size());
+        s.clear();
+        array[1] = WIDTH+4;
+        assertEquals(WIDTH+4, parMax(array, WIDTH, HEIGHT, par, s));
+        assertEquals(3,s.size());
+        s.clear();
+        array[2] = WIDTH+5;
+        assertEquals(WIDTH+5, parMax(array, WIDTH, HEIGHT, par, s));
+        assertEquals(3,s.size());
+
+        });
+    }
+    int parMax(int[] arr, int width, int height, LoopSplitter par, Set<String> s) {
+        return par.splitFor(0, height, (from, to) -> {
+            if (from == to) {
+                throw new RuntimeException("empty job "+from+".."+to);
+            }
+            int res = arr[from*width+0];
+            for (int j=from; j<to; j++) {
+                for (int i=0; i<width; i++) {
+                    int ii = j*width+i;
+                    res = Math.max(res, arr[ii]);
+                }
+            }
+            s.add(Thread.currentThread().getName());
+            return res;
+        }, stream -> {
+            return stream.max(Integer::compareTo).get();
+        });
     }
     @Test
     void warmUpPerfTest() {

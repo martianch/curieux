@@ -63,6 +63,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
@@ -109,6 +110,8 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.RecursiveTask;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -120,6 +123,7 @@ import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
 import java.util.function.IntSupplier;
 import java.util.function.IntUnaryOperator;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -2106,74 +2110,129 @@ class X3DViewer {
         return res;
     }
     List<BufferedImage> processBothImages(RawData rd, DisplayParameters dp, MeasurementStatus ms, ColorCorrection.Command command) {
-        final boolean PRECISE_MARKS = ms.isSubpixelPrecision;
-//        BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
-//        BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
-        BufferedImage imgL = dp.debayerL.doAlgo2(rd.left.image, rd.left.path);
-        BufferedImage imgR = dp.debayerR.doAlgo2(rd.right.image, rd.right.path);
-
         System.out.println("processBothImages L:" + dp.preFilterL);
         System.out.println("processBothImages R:" + dp.preFilterR);
         System.out.println("processBothImages L:" + dp.lFisheyeCorrection);
         System.out.println("processBothImages R:" + dp.rFisheyeCorrection);
-        if (dp.preFilterL.notNothing()) {
-            imgL = ColorBalancer.interpolateBrokenPixels(imgL);
-        }
-        if (dp.preFilterR.notNothing()) {
-            imgR = ColorBalancer.interpolateBrokenPixels(imgR);
-        }
-        // barrel distortion correction
-        imgL = dp.lFisheyeCorrection.doFisheyeCorrection(imgL);
-        imgR = dp.rFisheyeCorrection.doFisheyeCorrection(imgR);
+        return Par.callOne(() ->
+        {
+            final boolean PRECISE_MARKS = ms.isSubpixelPrecision;
+//        BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
+//        BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
+            ParallelPair<BufferedImage> images = ParallelPair.of(
+                    () -> dp.debayerL.doAlgo2(rd.left.image, rd.left.path),
+                    () -> dp.debayerR.doAlgo2(rd.right.image, rd.right.path)
+            );
+//        BufferedImage imgL = dp.debayerL.doAlgo2(rd.left.image, rd.left.path);
+//        BufferedImage imgR = dp.debayerR.doAlgo2(rd.right.image, rd.right.path);
 
-        imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
-        imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
+//        if (dp.preFilterL.notNothing()) {
+//            imgL = ColorBalancer.interpolateBrokenPixels(imgL);
+//        }
+//        if (dp.preFilterR.notNothing()) {
+//            imgR = ColorBalancer.interpolateBrokenPixels(imgR);
+//        }
+            images.cUpdate(
+                    dp.preFilterL.notNothing(),
+                    imgL -> ColorBalancer.interpolateBrokenPixels(imgL),
+                    dp.preFilterR.notNothing(),
+                    imgR -> ColorBalancer.interpolateBrokenPixels(imgR)
+            );
+            // barrel distortion correction
+//        imgL = dp.lFisheyeCorrection.doFisheyeCorrection(imgL);
+//        imgR = dp.rFisheyeCorrection.doFisheyeCorrection(imgR);
+            images.cUpdate(
+                    dp.lFisheyeCorrection.algo.notNothing(),
+                    imgL -> dp.lFisheyeCorrection.doFisheyeCorrection(imgL),
+                    dp.rFisheyeCorrection.algo.notNothing(),
+                    imgR -> dp.rFisheyeCorrection.doFisheyeCorrection(imgR)
+            );
+//        imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
+//        imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
+            images.update(
+//                    dp.lColorCorrection.algos.stream().anyMatch(c -> c.notNothing()),
+                    imgL -> dp.lColorCorrection.doColorCorrection(imgL, command),
+//                    dp.rColorCorrection.algos.stream().anyMatch(c -> c.notNothing()),
+                    imgR -> dp.rColorCorrection.doColorCorrection(imgR, command)
+            );
+//        ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R");
+//        ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L");
+            ms.left.setWHI(images.left, ms.stereoPairParameters.ifovL, "pane:L eye:R");
+            ms.right.setWHI(images.right, ms.stereoPairParameters.ifovR, "pane:R eye:L");
+            if (!PRECISE_MARKS && ms.measurementShown) {
+//            imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
+//            imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
+                images.update(
+                        imgL -> ms.left.drawMarks(imgL, ms.measurementPointMark),
+                        imgR -> ms.right.drawMarks(imgR, ms.measurementPointMark)
+                );
+            }
 
-        ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R");
-        ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L");
-        if (!PRECISE_MARKS && ms.measurementShown) {
-            imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
-            imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
-        }
-
-        AffineTransform transformL = rotationTransform(imgL, dp.angle + dp.angleL);
-        AffineTransform transformR = rotationTransform(imgL, dp.angle + dp.angleR);
-        BufferedImage rotatedL = rotate(imgL, transformL);
-        BufferedImage rotatedR = rotate(imgR, transformR);
+            images.update(
+                    imgL -> {
+                        AffineTransform transformL = rotationTransform(imgL, dp.angle + dp.angleL);
+                        ms.left.transform = transformL;
+                        return rotate(imgL, transformL);
+                    },
+                    imgR -> {
+                        AffineTransform transformR = rotationTransform(imgR, dp.angle + dp.angleR);
+                        ms.right.transform = transformR;
+                        return rotate(imgR, transformR);
+                    }
+            );
+//        BufferedImage rotatedL = rotate(imgL, transformL);
+//        BufferedImage rotatedR = rotate(imgR, transformR);
 //        System.out.println("----");
-        double dw1 = (rotatedR.getWidth()*dp.zoomR - rotatedL.getWidth()*dp.zoomL) / 2;
-        double dh1 = (rotatedR.getHeight()*dp.zoomR - rotatedL.getHeight()*dp.zoomL) / 2;
-        int dwR = (int) (dw1/dp.zoomR);
-        int dwL = (int) (dw1/dp.zoomL);
-        int dhR = (int) (dh1/dp.zoomR);
-        int dhL = (int) (dh1/dp.zoomL);
-        ms.left.centeringDX = max0(dwL);
-        ms.left.centeringDY = max0(dhL);
-        ms.left.transform = transformL;
-        ms.right.centeringDX = max0(-dwR);
-        ms.right.centeringDY = max0(-dhR);
-        ms.right.transform = transformR;
-        double zL = dp.zoom * dp.zoomL;
-        double zR = dp.zoom * dp.zoomR;
-        int offXL = dp.offsetX + ms.left.centeringDX - ms.right.centeringDX;
-        int offYL = dp.offsetY + ms.left.centeringDY - ms.right.centeringDY;
-        if (!PRECISE_MARKS || !ms.measurementShown) {
-            return Arrays.asList(
-                    zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
-                    zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR)
-            );
-        } else {
-            return Arrays.asList(
-                ms.left.drawMarks(
-                    zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
-                    ms.measurementPointMark, transformL, zL, offXL, offYL
-                ),
-                ms.right.drawMarks(
-                    zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR),
-                    ms.measurementPointMark, transformR, zR, -offXL, -offYL
-                )
-            );
+//        double dw1 = (rotatedR.getWidth()*dp.zoomR - rotatedL.getWidth()*dp.zoomL) / 2;
+//        double dh1 = (rotatedR.getHeight()*dp.zoomR - rotatedL.getHeight()*dp.zoomL) / 2;
+            double dw1 = (images.right.getWidth() * dp.zoomR - images.left.getWidth() * dp.zoomL) / 2;
+            double dh1 = (images.right.getHeight() * dp.zoomR - images.left.getHeight() * dp.zoomL) / 2;
+            int dwR = (int) (dw1 / dp.zoomR);
+            int dwL = (int) (dw1 / dp.zoomL);
+            int dhR = (int) (dh1 / dp.zoomR);
+            int dhL = (int) (dh1 / dp.zoomL);
+            ms.left.centeringDX = max0(dwL);
+            ms.left.centeringDY = max0(dhL);
+            ms.right.centeringDX = max0(-dwR);
+            ms.right.centeringDY = max0(-dhR);
+            double zL = dp.zoom * dp.zoomL;
+            double zR = dp.zoom * dp.zoomR;
+            int offXL = dp.offsetX + ms.left.centeringDX - ms.right.centeringDX;
+            int offYL = dp.offsetY + ms.left.centeringDY - ms.right.centeringDY;
+            if (!PRECISE_MARKS || !ms.measurementShown) {
+//            return Arrays.asList(
+//                    zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
+//                    zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR)
+//            );
+                return ParallelPair.of(
+                        () -> zoom(images.left, zL, images.right, zR, offXL, offYL, dp.imageResamplingModeL),
+                        () -> zoom(images.right, zR, images.left, zL, -offXL, -offYL, dp.imageResamplingModeR)
+                ).asList();
+
+            } else {
+//            return Arrays.asList(
+//                ms.left.drawMarks(
+//                    zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
+//                    ms.measurementPointMark, transformL, zL, offXL, offYL
+//                ),
+//                ms.right.drawMarks(
+//                    zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR),
+//                    ms.measurementPointMark, transformR, zR, -offXL, -offYL
+//                )
+//            );
+                return ParallelPair.of(
+                        () -> ms.left.drawMarks(
+                                zoom(images.left, zL, images.right, zR, offXL, offYL, dp.imageResamplingModeL),
+                                ms.measurementPointMark, ms.left.transform, zL, offXL, offYL
+                        ),
+                        () -> ms.right.drawMarks(
+                                zoom(images.right, zR, images.left, zL, -offXL, -offYL, dp.imageResamplingModeR),
+                                ms.measurementPointMark, ms.right.transform, zR, -offXL, -offYL
+                        )
+                ).asList();
+            }
         }
+        );
     }
     public void updateViews(RawData rd, DisplayParameters dp, MeasurementStatus ms) {
         {
@@ -12373,17 +12432,20 @@ class MyOps {
 }
 
 abstract class ParallelPair<T> {
+    T left, right;
     abstract ParallelPair<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc);
     abstract ParallelPair<T> cUpdate(boolean leftConf, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc);
-    public static<TT> ParallelPair<TT> of(TT left, TT right) {
-        return new ParallelPair0<TT>(left, right);
-    }
+//    public static<TT> ParallelPair<TT> of(TT left, TT right) {
+//        return new ParallelPair1<TT>(left, right);
+//    }
     public static<TT> ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
-        return ParallelPair0._of(leftS, rightS);
+        return ParallelPair1._of(leftS, rightS);
+    }
+    public List<T> asList() {
+        return Arrays.asList(left, right);
     }
 }
 class ParallelPair0<T> extends ParallelPair<T> {
-    T left, right;
     ParallelPair0(T left, T right) {
         this.left = left;
         this.right = right;
@@ -12410,29 +12472,35 @@ class ParallelPair0<T> extends ParallelPair<T> {
     }
 }
 class ParallelPair1<T> extends ParallelPair<T> {
-    T left, right;
     ParallelPair1(T left, T right) {
         this.left = left;
         this.right = right;
     }
     static<TT> ParallelPair1<TT> _of(Supplier<TT> leftS, Supplier<TT> rightS) {
-        return new ParallelPair1<TT>(leftS.get(), rightS.get());
+        var res = new ParallelPair1<TT>(null, null);
+        Par.runTwo(
+                () -> res.left = leftS.get(),
+                () -> res.right = rightS.get()
+        );
+        return res;
     }
 
     @Override
     ParallelPair1<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
-        left = left != null ? leftFunc.apply(left) : null;
-        right = right != null ? rightFunc.apply(right) : null;
+        Par.runTwo(
+                () -> left = left != null ? leftFunc.apply(left) : null,
+                () -> right = right != null ? rightFunc.apply(right) : null
+        );
         return this;
     }
     @Override
     ParallelPair1<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
-        if (leftCond) {
-            left = left != null ? leftFunc.apply(left) : null;
-        }
-        if (rightCond) {
-            right = right != null ? rightFunc.apply(right) : null;
-        }
+        Par.runConditional(
+                leftCond,
+                () -> left = left != null ? leftFunc.apply(left) : null,
+                rightCond,
+                () -> right = right != null ? rightFunc.apply(right) : null
+        );
         return this;
     }
 }
@@ -12440,10 +12508,141 @@ interface LoopSplitter {
     void splitFor(int from, int to, IntBiConsumer body);
     <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger);
 }
+interface PairRunner {
+    void runOne(Runnable runnable);
+    <T> T callOne(Callable<T> callable);
+    void runTwo(Runnable first, Runnable second);
+    default void runConditional(boolean firstCond, Runnable first, boolean secondCond, Runnable second) {
+        if (firstCond & secondCond) {
+            runTwo(first, second);
+        } else {
+            if (firstCond) {
+                runOne(first);
+            }
+            if (secondCond) {
+                runOne(second);
+            }
+        }
+    }
+}
+class PairRunner0 implements PairRunner {
+    @Override
+    public void runOne(Runnable runnable) {
+        runnable.run();
+    }
+    @Override
+    public <T> T callOne(Callable<T> callable) {
+        try {
+            return callable.call();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+    @Override
+    public void runTwo(Runnable first, Runnable second) {
+        first.run();
+        second.run();
+    }
+}
+class PairRunner1 extends AbstractFjpPoolOwner implements PairRunner {
+    protected PairRunner1(ForkJoinPool forkJoinPool) {
+        super(forkJoinPool);
+    }
+    @Override
+    public void runOne(Runnable runnable) {
+        runTask(ForkJoinTask.adapt(runnable));
+    }
+    @Override
+    public <T> T callOne(Callable<T> callable) {
+        return callTask(ForkJoinTask.adapt(callable));
+    }
+    @Override
+    public void runTwo(Runnable first, Runnable second) {
+        runTask(new RecursiveAction() {
+            @Override
+            protected void compute() {
+                invokeAll(
+                        ForkJoinTask.adapt(first),
+                        ForkJoinTask.adapt(second)
+                );
+            }
+        });
+    }
+    void runTask(ForkJoinTask<?> task) {
+        getPool().invoke(task);
+    }
+    <T> T callTask(ForkJoinTask<T> task) {
+        return getPool().invoke(task);
+    }
+}
 interface PoolOwner<T extends ExecutorService> {
     void setParallelism(int n);
     int getParallelism();
     T getPool();
+}
+interface PoolFactory<T extends ExecutorService> {
+    T createPool(int parallelism);
+    default T createDefaultPool() {
+        return createPool(defaultParallelism());
+    }
+    default int defaultParallelism() {
+        return Runtime.getRuntime().availableProcessors();
+    }
+}
+class FjpPoolFactory implements PoolFactory<ForkJoinPool> {
+//    @Override
+//    public ForkJoinPool createPool(int parallelism) {
+//        return new ForkJoinPool(parallelism);
+//    }
+    @Override
+    public ForkJoinPool createPool(int parallelism) {
+        try {
+            var res = ForkJoinPool
+                .class
+                .getConstructor(
+                    int.class,
+                    ForkJoinPool.ForkJoinWorkerThreadFactory.class,
+                    Thread.UncaughtExceptionHandler.class,
+                    boolean.class,
+                    int.class,
+                    int.class,
+                    int.class,
+                    Predicate.class,
+                    long.class,
+                    TimeUnit.class
+                ).newInstance(
+                    parallelism, // parallelism
+                    ForkJoinPool.defaultForkJoinWorkerThreadFactory, // factory
+                    null, // handler
+                    false, // asyncMode
+                    parallelism, // corePoolSize
+                    Integer.MAX_VALUE, // maximumPoolSize
+                    parallelism, // minimumRunnable
+                    null, // saturate
+                    60000L, // keepAliveTime
+                    TimeUnit.MILLISECONDS // keepAliveTime units
+                );
+            System.out.println("new ForkJoinPool ok");
+            return res;
+        } catch (NoSuchMethodException | IllegalAccessException
+                 | InstantiationException | InvocationTargetException e
+                ) {
+            System.out.println("new ForkJoinPool fallback");
+            return new ForkJoinPool(parallelism);
+        }
+    }
+}
+class TpePoolFactory implements PoolFactory<ThreadPoolExecutor> {
+    @Override
+    public ThreadPoolExecutor createPool(int parallelism) {
+        return new ThreadPoolExecutor(
+                parallelism,
+                parallelism,
+                    0L,
+                    TimeUnit.MILLISECONDS,
+                    new LinkedBlockingQueue()
+        );
+    }
 }
 interface FjpPoolOwner extends PoolOwner<ForkJoinPool> {
     void setPool(ForkJoinPool pool);
@@ -12536,6 +12735,7 @@ class Par0 implements LoopSplitter {
         return merger.mergeStream(Stream.of(res));
     }
 }
+// ForkJoinPool, IntStream.parallel()
 class Par2 extends AbstractFjpPoolOwner implements LoopSplitter {
     protected Par2(ForkJoinPool forkJoinPool) {
         super(forkJoinPool);
@@ -12578,6 +12778,7 @@ class Par2 extends AbstractFjpPoolOwner implements LoopSplitter {
         return m0 + (int) ((long)(m-m0) * i / n);
     }
 }
+// ForkJoinPool, forEach(fork)
 class Par3 extends AbstractFjpPoolOwner implements LoopSplitter {
     protected Par3(ForkJoinPool forkJoinPool) {
         super(forkJoinPool);
@@ -12626,6 +12827,79 @@ class Par3 extends AbstractFjpPoolOwner implements LoopSplitter {
     static int lwb(int i, int n, int m0, int m) {
         return m0 + (int) ((long)(m-m0) * i / n);
     }
+}
+// ForkJoinPool, forEach(fork)
+class Par5 extends AbstractFjpPoolOwner implements LoopSplitter {
+    protected Par5(ForkJoinPool forkJoinPool) {
+        super(forkJoinPool);
+    }
+//    protected Par5() {
+//        super(createPool(defaultParallelism()));
+//    }
+    @Override
+    public void splitFor(int from, int to, IntBiConsumer body) {
+        ForkJoinPool pool = getPool();
+        int n = pool.getParallelism();
+        pool.invoke(
+                new RecursiveAction() {
+                    @Override
+                    protected void compute() {
+                        ForkJoinTask[] tasks = new ForkJoinTask[n];
+                        IntStream.range(0, n)
+                                .forEach(i -> {
+                                    tasks[i] = ForkJoinTask.adapt(() ->
+                                            body.accept(
+                                                    lwb(i, n, from, to),
+                                                    lwb(i+1, n, from, to)
+                                            )
+                                    );
+                                });
+                        invokeAll(tasks);
+                    }
+                });
+    }
+    @Override
+    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        if (from >= to) {
+            return null;
+        }
+        ForkJoinPool pool = getPool();
+        int nParallel = pool.getParallelism();
+        int n = Math.min(nParallel, to-from);
+        List<T> resultList = pool.invoke(
+                new RecursiveTask<List<T>>() {
+                    @Override
+                    protected List<T> compute() {
+                        ForkJoinTask<T>[] tasks = new ForkJoinTask[n];
+                        IntStream.range(0, n)
+                            .forEach(i -> {
+                                tasks[i] = ForkJoinTask.adapt(() ->
+                                    body.apply(
+                                        lwb(i, n, from, to),
+                                        lwb(i + 1, n, from, to)
+                                    )
+                                );
+                            });
+                        System.out.println("N tasks = "+tasks.length);// Arrays.asList(tasks));
+                        invokeAll(tasks);
+                        return Stream.of(tasks).map(ForkJoinTask::join).collect(Collectors.toList());
+                    }
+                });
+        return merger.mergeStream(resultList.stream());
+    }
+
+    static int lwb(int i, int n, int m0, int m) {
+        return m0 + (int) ((long)(m-m0) * i / n);
+    }
+//    static class TaskRunner extends RecursiveAction {
+//        public TaskRunner() {
+//        }
+//
+//        @Override
+//        protected void compute() {
+//
+//        }
+//    }
 }
 class Par4 extends AbstractFjpPoolOwner implements LoopSplitter  {
     protected Par4(ForkJoinPool forkJoinPool) {
@@ -12681,13 +12955,7 @@ class Par1 extends AbstractTpePoolOwner implements LoopSplitter  {
         super(threadPoolExecutor);
     }
     protected Par1() {
-        super(new ThreadPoolExecutor(
-                Runtime.getRuntime().availableProcessors(),
-                Runtime.getRuntime().availableProcessors(),
-                0L,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue()
-        ));
+        super(new TpePoolFactory().createDefaultPool());
     }
     @Override
     public void splitFor(int from, int to, IntBiConsumer body) {
@@ -12743,12 +13011,33 @@ class Par1 extends AbstractTpePoolOwner implements LoopSplitter  {
     }
 }
 class Par {
-    static LoopSplitter loopSplitter = new Par1();
+//    static LoopSplitter loopSplitter = new Par1();
+    static LoopSplitter loopSplitter;
+    static PairRunner pairRunner;
+    static {
+        var fjp = new FjpPoolFactory().createDefaultPool();
+        loopSplitter = new Par5(fjp);
+//        loopSplitter = new Par0();
+        pairRunner = new PairRunner1(fjp);
+//        pairRunner = new PairRunner0();
+    }
     public static void splitFor(int from, int to, IntBiConsumer body) {
         loopSplitter.splitFor(from, to, body);
     }
+    public static<T> T callOne(Callable<T> callable) {
+        return pairRunner.callOne(callable);
+    }
+    public static void runTwo(Runnable first, Runnable second) {
+        pairRunner.runTwo(first, second);
+    }
+    public static void runConditional(boolean firstCond, Runnable first, boolean secondCond, Runnable second) {
+        pairRunner.runConditional(firstCond, first, secondCond, second);
+    }
     void setLoopSplitter(LoopSplitter ls) {
         loopSplitter = ls;
+    }
+    public static void setPairRunner(PairRunner pr) {
+        pairRunner = pr;
     }
 }
 interface IntBiConsumer {
