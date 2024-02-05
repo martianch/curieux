@@ -1,17 +1,23 @@
 package com.github.martianch.curieux;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ForkJoinPool;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.github.martianch.curieux.DebayerBicubic.debayer_bicubic;
@@ -19,27 +25,55 @@ import static com.github.martianch.curieux.ImageAndPath.imageIoRead;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ParTest {
+    @BeforeEach
+    void setUp() {
+        Par.init();
+    }
+
+    @AfterEach
+    void tearDown() {
+        Par.Configurator.shutdownPar();
+    }
 
     @Test
     void setParallelismTest() {
-        var par = new Par1();
-        int p1 = par.getParallelism();
-        assertEquals(p1, par.getParallelism());
-        par.setParallelism(4);
-        assertEquals(4, par.getParallelism());
-//        assertEquals(4, par.forkJoinPool.getParallelism());
-        par.setParallelism(8);
-        assertEquals(8, par.getParallelism());
-//        assertEquals(8, par.forkJoinPool.getParallelism());
-        par.setParallelism(p1);
-        assertEquals(p1, par.getParallelism());
-//        assertEquals(p1, par.forkJoinPool.getParallelism());
+        int p1 = Par.Configurator.getPoolParallelism();
+        assertEquals(p1, Par.forkJoinPool.getParallelism());
+        Par.Configurator.setPoolParallelism(4);
+        assertEquals(4, Par.forkJoinPool.getParallelism());
+        Par.Configurator.setPoolParallelism(8);
+        assertEquals(8, Par.forkJoinPool.getParallelism());
+        Par.Configurator.setPoolParallelism(p1);
+        assertEquals(p1, Par.forkJoinPool.getParallelism());
     }
     @Test
+    @Disabled
+    void splitForBareWriteTest() {
+        int WIDTH = 1600_0000;
+        int HEIGHT = 64;
+        int[] target = new int[WIDTH*HEIGHT];
+        long startAt = System.currentTimeMillis();
+        {
+            var from = 0;
+            var to = target.length;
+            for (int j = from; j < to; j++) {
+                    target[j] = j;
+            }
+        }
+        long endAt = System.currentTimeMillis();
+        System.out.println("elapsed="+(endAt - startAt));
+        System.out.println("target size="+(target.length*4L/1000000.)+"M");
+        for (int i=0; i<target.length; i++) {
+            int finalI = i;
+            assertEquals(i, target[i], () -> "error at i="+ finalI +": "+target[finalI]);
+        }
+    }
+    @Test
+    @Disabled
     void splitForTest0() {
-        var par = new Par0();
-//        int WIDTH = 1600_0000;
-        int WIDTH = 160;
+        var par = new SeqLoopSplitter();
+        int WIDTH = 1600_0000;
+//        int WIDTH = 160;
         int HEIGHT = 64;
         int[] target = new int[WIDTH*HEIGHT];
         warmup2(target);
@@ -65,7 +99,7 @@ class ParTest {
     @Disabled
     @Test
     void splitForTest1() {
-        var par = new Par5(new FjpPoolFactory().createDefaultPool());
+        var par = Par.loopSplitter;
         int WIDTH = 1600_0000;
 //        int WIDTH = 160_000;
         int HEIGHT = 64;
@@ -89,12 +123,12 @@ class ParTest {
             int finalI = i;
             assertEquals(i, target[i], () -> "error at i="+ finalI +": "+target[finalI]);
         }
-        assertEquals(par.getParallelism(), s.size());
+        printThreads(s);
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
     }
     @Disabled
     @Test
     void splitForResTest1() {
-        var par = new Par5(new FjpPoolFactory().createDefaultPool());
 //                int WIDTH = 1600_0000;
         int WIDTH = 160_000;
         int HEIGHT = 64;
@@ -107,36 +141,40 @@ class ParTest {
         }
         Set<String> s = Collections.newSetFromMap(new ConcurrentHashMap<>());
         array[WIDTH/2 + WIDTH*(HEIGHT/2)] = WIDTH+1;
+        var par = Par.loopSplitter;
         assertEquals(WIDTH+1, parMax(array, 1, array.length, par, s));
-        assertEquals(par.getParallelism(), s.size());
+        printThreads(s);
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
         s.clear();
         assertEquals(WIDTH+1, parMax(array, WIDTH, HEIGHT, par, s));
-        assertEquals(par.getParallelism(), s.size());
+        printThreads(s);
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
         s.clear();
         array[0] = WIDTH+2;
         assertEquals(WIDTH+2, parMax(array, 1, array.length, par, s));
-        assertEquals(par.getParallelism(), s.size());
+        printThreads(s);
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
         s.clear();
         array[array.length-1] = WIDTH+3;
         assertEquals(WIDTH+3, parMax(array, 1, array.length, par, s));
-        assertEquals(par.getParallelism(), s.size());
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
         s.clear();
         array[1] = WIDTH+4;
         assertEquals(WIDTH+4, parMax(array, 1, array.length, par, s));
-        assertEquals(par.getParallelism(), s.size());
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
         s.clear();
         array[WIDTH+2] = WIDTH+5;
         assertEquals(WIDTH+5, parMax(array, 1, array.length, par, s));
-        assertEquals(par.getParallelism(), s.size());
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
         s.clear();
     }
     @Disabled
     @Test
     void splitForResTest1a() {
-        var par = new Par5(new FjpPoolFactory().createDefaultPool());
+        var par = Par.loopSplitter;
 //        int WIDTH = 160_000_000;
-        var pairCaller = new PairRunner1(par.getPool());
-        pairCaller.runOne(() -> {
+        var pairCaller = Par.pairRunner;
+//        pairCaller.runOne(() -> {
 
         int WIDTH = 100000000;
         int HEIGHT = 3;
@@ -150,10 +188,12 @@ class ParTest {
         array[WIDTH/2 + WIDTH*(HEIGHT/2)] = WIDTH+1;
         Set<String> s = Collections.newSetFromMap(new ConcurrentHashMap<>());
         assertEquals(WIDTH+1, parMax(array, WIDTH, HEIGHT, par, s));
+        printThreads(s);
         assertEquals(3,s.size());
         s.clear();
         array[0] = WIDTH+2;
         assertEquals(WIDTH+2, parMax(array, WIDTH, HEIGHT, par, s));
+        printThreads(s);
         assertEquals(3,s.size());
         s.clear();
         array[array.length-1] = WIDTH+3;
@@ -167,8 +207,14 @@ class ParTest {
         array[2] = WIDTH+5;
         assertEquals(WIDTH+5, parMax(array, WIDTH, HEIGHT, par, s));
         assertEquals(3,s.size());
-
-        });
+        printThreads(s);
+//        });
+    }
+    void printThreads(Collection<String> s) {
+        TreeSet<String> ss = new TreeSet<String>(Comparator.comparing(String::length).thenComparing(Function.identity()));
+        ss.addAll(s);
+        String d = ss.stream().collect(Collectors.joining("\n"));
+        System.out.println("Threads:\n"+d);
     }
     int parMax(int[] arr, int width, int height, LoopSplitter par, Set<String> s) {
         return par.splitFor(0, height, (from, to) -> {
@@ -188,9 +234,10 @@ class ParTest {
             return stream.max(Integer::compareTo).get();
         });
     }
+    @Disabled
     @Test
     void warmUpPerfTest() {
-        var par = new Par1();
+        var par = Par.loopSplitter;
 //        int WIDTH = 1600_0000;
         int WIDTH = 160;
         int HEIGHT = 64;
@@ -201,8 +248,9 @@ class ParTest {
         warmUp(s, par);
         long endAt = System.currentTimeMillis();
         System.out.println("elapsed="+(endAt - startAt));
-        assertEquals(par.getParallelism(), s.size());
+        assertEquals(Par.Configurator.getPoolParallelism(), s.size());
     }
+    @Disabled
     @Test
     void debayerPerfTest() throws IOException {
         int N=4;
@@ -219,8 +267,8 @@ class ParTest {
         return ns/1000_000_000 + "." + String.format("%9d", ns%1000_000_000);
     }
 // no use
-    void warmUp(Set<String> s, Par1 par) {
-        int n = par.getParallelism();
+    void warmUp(Set<String> s, LoopSplitter par) {
+        int n = par.getNTasksToSpawn();
         Callable<Void>[] tasks = new Callable[n];
         IntStream.range(0, n)
                 .forEach(i -> {
@@ -230,7 +278,7 @@ class ParTest {
                     };
                 });
         try {
-            par.getPool().invokeAll(Arrays.asList(tasks));
+            Par.forkJoinPool.invokeAll(Arrays.asList(tasks));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
