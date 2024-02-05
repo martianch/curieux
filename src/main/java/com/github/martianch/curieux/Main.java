@@ -11511,21 +11511,32 @@ class SettingsPanel extends JPanel {
                     0,
                     parFacade.getMaxParallelism()
             );
+            {
+                String tip = "You may reserve some CPU cores for activities other than this program.  0 disables parallelism.";
+                row1.setToolTipText(tip);
+                spNCores.setToolTipText(tip);
+            }
             row1.add(spNCores);
             this.add(row1);
 
             var row2 = new JPanel();
             JCheckBox cbParLR = new JCheckBox("Separate tasks for left and right images", parFacade.getParLR());
+            cbParLR.setToolTipText("No reason to uncheck it if you use multiple CPU cores.");
             row2.add(cbParLR);
             this.add(row2);
 
             var row3 = new JPanel();
-            row3.add(new JLabel("Number of tasks to spawn:"));
+            row3.add(new JLabel("Number of subtasks to spawn:"));
             JSpinner spNTasks = Spinners.createJSpinner(
                     parFacade.getNTasksToSpawn(),
                     0,
                     parFacade.getMaxNTasksToSpawn()
             );
+            {
+                String tip = "Subtasks are spawned by image filters. Use 0 to disable this feature.";
+                row3.setToolTipText(tip);
+                spNTasks.setToolTipText(tip);
+            }
             row3.add(spNTasks);
             this.add(row3);
 
@@ -11535,10 +11546,71 @@ class SettingsPanel extends JPanel {
             });
 
             var row4 = new JPanel();
-            JButton button = new JButton("Apply Parallelization Parameters");
-            row4.add(button);
+            HyperTextPane helpText = new HyperTextPane(
+                    "<html>" +
+                            "<h2>Background info about parallelism</h2>" +
+                            "\n" +
+                            "There are CPU cores, processes, threads and tasks. Your computer has a processor that has a number of CPU cores " +
+                            "<br/>that share the same memory. Processes are programs, one process is this program, other processes may be other " +
+                            "<br/>application programs or parts of the operating system. This program has no idea or control of how many CPU cores " +
+                            "<br/>other processes occupy, and why they do so. This program has no access to bare metal CPU cores, instead it uses " +
+                            "<br/>worker threads to run tasks in parallel. Ideally, each thread would occupy one CPU core. In practice, some CPU " +
+                            "<br/>core(s) may have other work to do for other processes, and threads allocated to such CPU cores may be slow just " +
+                            "<br/>because the underlying CPU core is working part-time for this program. Tasks are small pieces of work that may " +
+                            "<br/>be run in parallel. Unfortunately, some big pieces of work just cannot be split into tasks to run in parallel. " +
+                            "<br/>In addition, worker threads need to communicate at least when they start and complete tasks, which also consumes " +
+                            "<br/>time. So using 4 CPU cores does not make the program run 4 times faster." +
+                            "\n" +
+                            "<h2>What the digits mean</h2>\n" +
+                            "<b>\"Number of CPU cores to use\"</b> is the number of worker threads. It is not meaningful to have more threads than " +
+                            "<br/>there are CPU cores. If your computer is doing some important work in the background, it may be reasonable to " +
+                            "<br/>use less CPU cores than there are available.\n" +
+                            "<br/>" +
+                            "<br/>0 means \"use sequential execution\", and 1 means \"use only one worker thread\" which should be even slower " +
+                            "<br/>because you pay the cost of communication between threads but get no parallelism. So for practical purposes 0 is " +
+                            "<br/>meaningful if you want to use only one CPU core, and 1 is not meaningful unless you want to see whether the " +
+                            "<br/>difference between 0 and 1 is negligible. It is numbers 2 and above that give you parallel execution.\n" +
+                            "<br/>\n" +
+                            "<br/><b>\"Number of subtasks to spawn\"</b> is a bit more tricky. There are two tasks, one for the left image and one for " +
+                            "<br/>the right image. These two tasks will run in parallel if the first number, the \"number of CPU cores to use\", " +
+                            "<br/>is 2 or above. But in some cases (it depends on the image filters applied) these two tasks have work that may " +
+                            "<br/>be divided, and that's when these two \"main\" tasks may spawn a large number of short-living tasks. It's normal " +
+                            "<br/>if the number of tasks exceeds the number of threads, the tasks will wait in a queue. Should tasks be numerous " +
+                            "<br/>and small? On the one hand, if the \"main\" task spawns 8 subtasks and you have only 7 CPU cores (the 8th core " +
+                            "<br/>is busy), the 7 cores execute 7 subtasks and then the main thread will have to wait for the 8th subtask running " +
+                            "<br/>on one core while other 6 cores are idle. So the smaller your subtasks are, the less you have to wait if one " +
+                            "<br/>subtask happens to be late. On the other hand, starting and stopping subtasks also takes time. And there is one " +
+                            "<br/>more gotcha: the same memory is shared among the CPU cores, and if the memory is already doing its best working " +
+                            "<br/>for one CPU core, that memory will not get faster if two CPU cores try to make the memory work for them both." +
+                            "<br/>\n" +
+                            "<br/>The <b>\"Separate tasks for left and right images\"</b> checkbox lets you disable this level of multitasking. There " +
+                            "<br/>is not much reason in doing that unless you want to find out how this affects performance."+
+                            "\n" +
+                            "<h2>Can I do this from the command line?</h2>\n" +
+                            "Yes, use the JVM flag <b>-XX:ActiveProcessorCount=4</b> (replace 4 with your number of choice) to override the " +
+                            "<br/>number of CPUs visible to the JVM." +
+                            "<h2>How do I measure time?</h2>\n" +
+                            "If you start this program from the terminal (the command line box), you can find a line like " +
+                            "<br/><tt>*** updateViews/processBothImages elapsed: 0.181538552</tt>" +
+                            "<br/> in the output. This is the amount of time, in seconds, spent processing both images." +
+                            "</html>");
+            JButton butHelp = new JButton("Help");
+            butHelp.setToolTipText("Read about the parallelization parameters");
+            row4.add(butHelp);
+            JButton butApply = new JButton("Apply Parallelization Parameters");
+            butApply.setToolTipText("Press this button to apply changes in parallelization, the OK button does not do that!");
+            row4.add(butApply);
             this.add(row4);
-            button.addActionListener(e -> {
+
+            butHelp.addActionListener(e -> {
+                JOptionPane.showMessageDialog(
+                        SwingUtilities.getAncestorOfClass(JFrame.class, this),
+                        helpText,
+                        "Parallelization Help",
+                        JOptionPane.PLAIN_MESSAGE
+                );
+            });
+            butApply.addActionListener(e -> {
                 int parallelism = (Integer) spNCores.getValue();
                 int nTasksToSpawn = (Integer) spNTasks.getValue();
                 boolean parLR = cbParLR.isSelected();
@@ -11547,7 +11619,23 @@ class SettingsPanel extends JPanel {
                         parLR,
                         nTasksToSpawn
                 );
-                // TODO update UI
+                spNCores.setValue(parFacade.getParallelism());
+                spNTasks.setValue(parFacade.getNTasksToSpawn());
+                cbParLR.setSelected(parFacade.getParLR());
+                System.out.println(Par.describe());
+            });
+
+            this.addAncestorListener(new AncestorListener() {
+                @Override
+                public void ancestorAdded(AncestorEvent ancestorEvent) {
+                    spNCores.setValue(parFacade.getParallelism());
+                    spNTasks.setValue(parFacade.getNTasksToSpawn());
+                    cbParLR.setSelected(parFacade.getParLR());
+                }
+                @Override
+                public void ancestorRemoved(AncestorEvent ancestorEvent) {}
+                @Override
+                public void ancestorMoved(AncestorEvent ancestorEvent) {}
             });
         }
         {
@@ -12483,6 +12571,11 @@ class MyStrings {
         }
         return s.substring(from, Math.min(s.length(), to));
     }
+    static String simpleToString(Object obj) {
+        return obj != null
+             ? obj.getClass().getSimpleName() + "@" + Integer.toHexString(obj.hashCode())
+             : "null";
+    }
 }
 class MyOps {
     public static<T,TT> TT oAnd (T first, Supplier<TT> second) {
@@ -12656,7 +12749,7 @@ class FjpPairRunner implements PairRunner {
     @Override
     public String toString() {
         return "FjpPairRunner{" +
-                "pool=" + pool +
+                "pool=" + MyStrings.simpleToString(pool) +
                 ", parallelism=" + pool.getParallelism() +
                 '}';
     }
@@ -12667,9 +12760,6 @@ class FjpLoopSplitter implements LoopSplitter {
     protected FjpLoopSplitter(ForkJoinPool forkJoinPool, int nTasksToSpawn) {
         pool = forkJoinPool;
         this.nTasksToSpawn = Math.max(1, nTasksToSpawn);
-    }
-    void setPool(ForkJoinPool forkJoinPool) {
-        pool = forkJoinPool;
     }
     public int getNTasksToSpawn() {
         return nTasksToSpawn;
@@ -12732,7 +12822,7 @@ class FjpLoopSplitter implements LoopSplitter {
     @Override
     public String toString() {
         return "FjpLoopSplitter{" +
-                "pool=" + pool +
+                "pool=" + MyStrings.simpleToString(pool) +
                 ", parallelism=" + pool.getParallelism() +
                 ", nTasksToSpawn=" + nTasksToSpawn +
                 '}';
@@ -12801,6 +12891,17 @@ class Par {
     public static void runConditional(boolean firstCond, Runnable first, boolean secondCond, Runnable second) {
         pairRunner.runConditional(firstCond, first, secondCond, second);
     }
+    public static String describe() {
+        var pool = forkJoinPool;
+        return "Par{" +
+                "" + MyStrings.simpleToString(pool) +
+                ", " + loopSplitter +
+                ", " + pairRunner +
+                ", " + parFacade +
+                ", forkJoinPool=" + forkJoinPool +
+                "}";
+    }
+
     static class Configurator {
         public static ParUiFacade getParUiFacade() {
             return parFacade;
@@ -12833,7 +12934,7 @@ class Par {
                                 parallelism, // parallelism
                                 ForkJoinPool.defaultForkJoinWorkerThreadFactory, // factory
                                 null, // handler
-                                false, // asyncMode
+                                true, // asyncMode (default: false)
                                 parallelism, // corePoolSize
                                 Integer.MAX_VALUE, // maximumPoolSize
                                 parallelism, // minimumRunnable
@@ -12864,7 +12965,7 @@ class Par {
                 return;
             }
             var oldForkJoinPool = forkJoinPool;
-            forkJoinPool = n > 0 ? new ForkJoinPool(n) : null;
+            forkJoinPool = n > 0 ? createPool(n) : null;
             if (oldForkJoinPool != null) {
                 oldForkJoinPool.shutdown();
                 try {
@@ -12898,6 +12999,7 @@ class Par {
         }
     } // Par.Configurator
 } // Par
+// ====== /parallelism ======
 
 interface IntBiConsumer {
     void accept(int a, int b);
