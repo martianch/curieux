@@ -1,15 +1,27 @@
 package com.github.martianch.curieux;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
 
-import static com.github.martianch.curieux.ScreenshotSaver.mkdirs;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class DebayerBicubicTest {
     static final boolean WRITE_IMAGES = false;
+
+    @BeforeClass
+    public static void setUp() throws Exception {
+        Par.init();
+    }
+    @AfterClass
+    public static void tearDown() throws Exception {
+        Par.Configurator.shutdownPar();
+    }
+
     @Test
     public void sameColorTest() throws Exception {
         var red0 = imageOfSameColor(0x700000);

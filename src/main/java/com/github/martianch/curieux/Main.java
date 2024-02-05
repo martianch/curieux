@@ -105,14 +105,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RecursiveAction;
 import java.util.concurrent.RecursiveTask;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
@@ -183,6 +179,7 @@ public class Main {
             break;
         }
 
+        Par.init();
         var rd0 = RawData.createInProgress(paths.get(0), paths.get(1));
         var dp = new DisplayParameters();
         var xv = new X3DViewer();
@@ -260,6 +257,7 @@ interface UiEventListener {
     void setUseCustomCrosshairCursor(boolean useCustomCrosshairCursor);
     void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc);
     void setPreFilter(boolean isRight, boolean isOn);
+    ParUiFacade getParUiFacade();
 }
 
 enum GoToImageOptions {
@@ -2039,7 +2037,11 @@ class UiController implements UiEventListener {
             return valueIfAbsent.get();
         }
     }
-}
+    @Override
+    public ParUiFacade getParUiFacade() {
+        return Par.Configurator.getParUiFacade();
+    }
+}  // UiController
 
 // MVC View
 class X3DViewer {
@@ -3250,25 +3252,7 @@ class X3DViewer {
         return fontName;
     }
     static Optional<Integer> askForNumber(int startWith, String title) {
-        SpinnerNumberModel spinnerNumberModel = new SpinnerNumberModel(
-                Integer.valueOf(startWith), // value
-                Integer.valueOf(0), // min
-                null, // max
-                Integer.valueOf(1) // step
-        );
-        JSpinner jSpinner = new JSpinner(spinnerNumberModel);
-
-        JFormattedTextField jFormattedTextField = ((JSpinner.DefaultEditor)jSpinner.getEditor()).getTextField();
-        {
-            NumberFormat numberFormat = new DecimalFormat("#");
-            NumberFormatter numberFormatter = new NumberFormatter(numberFormat);
-            numberFormatter.setValueClass(Integer.class);
-            numberFormatter.setMinimum(0);
-            numberFormatter.setMaximum(Integer.MAX_VALUE);
-            numberFormatter.setAllowsInvalid(false);
-            DefaultFormatterFactory myFormatterFactory = new DefaultFormatterFactory(numberFormatter);
-            jFormattedTextField.setFormatterFactory(myFormatterFactory);
-        }
+        JSpinner jSpinner = Spinners.createJSpinner(startWith, Integer.valueOf(0), null);
 
         int result = JOptionPane.showConfirmDialog(null, jSpinner, title, JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
@@ -3430,6 +3414,31 @@ class X3DViewer {
         return Math.max(0., x);
     }
 
+}
+
+class Spinners {
+    static JSpinner createJSpinner(Integer startValue, Integer min, Integer max) {
+        SpinnerNumberModel spinnerNumberModel = new SpinnerNumberModel(
+                startValue,
+                min,
+                max,
+                Integer.valueOf(1) // step
+        );
+        JSpinner jSpinner = new JSpinner(spinnerNumberModel);
+
+        JFormattedTextField jFormattedTextField = ((JSpinner.DefaultEditor)jSpinner.getEditor()).getTextField();
+        {
+            NumberFormat numberFormat = new DecimalFormat("#");
+            NumberFormatter numberFormatter = new NumberFormatter(numberFormat);
+            numberFormatter.setValueClass(Integer.class);
+            numberFormatter.setMinimum(0);
+            numberFormatter.setMaximum(Integer.MAX_VALUE);
+            numberFormatter.setAllowsInvalid(false);
+            DefaultFormatterFactory myFormatterFactory = new DefaultFormatterFactory(numberFormatter);
+            jFormattedTextField.setFormatterFactory(myFormatterFactory);
+        }
+        return jSpinner;
+    }
 }
 
 enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
@@ -11486,53 +11495,124 @@ class SettingsPanel extends JPanel {
 
     public SettingsPanel(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
+        ParUiFacade parFacade = uiEventListener.getParUiFacade();
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         {
-            JCheckBox unThumbnailCheckox = new JCheckBox("Un-Thumbnail");
-            unThumbnailCheckox.setSelected(true);
-            unThumbnailCheckox.addActionListener(
-                    e -> uiEventListener.unthumbnailChanged(unThumbnailCheckox.isSelected())
-            );
-            unThumbnailCheckox.setToolTipText("You can drag thumbnails, the full-scale version will be shown");
-            this.add(unThumbnailCheckox);
+            var row = new JPanel();
+            String cpuCores = "Parallel processing options. Available CPU cores: " + parFacade.getMaxParallelism();
+            row.add(new JLabel(cpuCores));
+            this.add(row);
         }
         {
-            showUrlsCheckbox = new JCheckBox("Show URLs");
-            showUrlsCheckbox.setSelected(true);
-            showUrlsCheckbox.addActionListener(
-                    e -> uiEventListener.setShowUrls(showUrlsCheckbox.isSelected())
+            var row1 = new JPanel();
+            row1.add(new JLabel("Number of CPU cores to use:"));
+            JSpinner spNCores = Spinners.createJSpinner(
+                    parFacade.getParallelism(),
+                    0,
+                    parFacade.getMaxParallelism()
             );
-            showUrlsCheckbox.setToolTipText("Show image URLs in the bottom of the window");
-            this.add(showUrlsCheckbox);
-        }
-        {
-            saveGifCheckbox = new JCheckBox("Save Animated GIF");
-            saveGifCheckbox.setSelected(true);
-            saveGifCheckbox.addActionListener(
-                    e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(), saveRightLeftCheckbox.isSelected())
-            );
-            saveGifCheckbox.setToolTipText("When you click \"Save\", additionally save an animated GIF with the right and left halves of the stereo pair");
-            this.add(saveGifCheckbox);
-        }
-        {
-            saveRightLeftCheckbox = new JCheckBox("Save Left and Right Images Separately");
-            saveRightLeftCheckbox.setSelected(true);
-            saveRightLeftCheckbox.addActionListener(
-                    e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(), saveRightLeftCheckbox.isSelected())
-            );
-            saveRightLeftCheckbox.setToolTipText("When you click \"Save\", additionally save left and right halves of the stereo pair separately");
-            this.add(saveRightLeftCheckbox);
-        }
-        {
-            customCrosshairCursorCheckbox = new JCheckBox("Use custom cursor when setting measurement marks");
-            customCrosshairCursorCheckbox.setSelected(true);
-            customCrosshairCursorCheckbox.addActionListener(
-                    e -> uiEventListener.setUseCustomCrosshairCursor(customCrosshairCursorCheckbox.isSelected())
-            );
-            customCrosshairCursorCheckbox.setToolTipText("You can use either the standard thick cross-hair cursor or a custom one");
-            this.add(customCrosshairCursorCheckbox);
-        }
+            row1.add(spNCores);
+            this.add(row1);
 
+            var row2 = new JPanel();
+            JCheckBox cbParLR = new JCheckBox("Separate tasks for left and right images", parFacade.getParLR());
+            row2.add(cbParLR);
+            this.add(row2);
+
+            var row3 = new JPanel();
+            row3.add(new JLabel("Number of tasks to spawn:"));
+            JSpinner spNTasks = Spinners.createJSpinner(
+                    parFacade.getNTasksToSpawn(),
+                    0,
+                    parFacade.getMaxNTasksToSpawn()
+            );
+            row3.add(spNTasks);
+            this.add(row3);
+
+            spNCores.addChangeListener(ce -> {
+                spNTasks.setValue(spNCores.getValue());
+                cbParLR.setSelected((Integer)spNCores.getValue() > 0);
+            });
+
+            var row4 = new JPanel();
+            JButton button = new JButton("Apply Parallelization Parameters");
+            row4.add(button);
+            this.add(row4);
+            button.addActionListener(e -> {
+                int parallelism = (Integer) spNCores.getValue();
+                int nTasksToSpawn = (Integer) spNTasks.getValue();
+                boolean parLR = cbParLR.isSelected();
+                uiEventListener.getParUiFacade().setParameters(
+                        parallelism,
+                        parLR,
+                        nTasksToSpawn
+                );
+                // TODO update UI
+            });
+        }
+        {
+            var rowWrapper = new JPanel();
+            var row = new JPanel();
+            row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
+            row.add(new JLabel("Options that change UI behavior."));
+            row.add(new JLabel("Hint: place the mouse over a control and read the tooltip."));
+            rowWrapper.add(row);
+            this.add(rowWrapper);
+        }
+        {
+            // So many wrappers... Unfortunately, what you get by default is checkboxes in the center,
+            // their text on the right, and a wide empty space on the left
+            var rowWrapper = new JPanel();
+            var box = new JPanel();
+            box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
+            {
+                JCheckBox unThumbnailCheckox = new JCheckBox("Un-Thumbnail");
+                unThumbnailCheckox.setSelected(true);
+                unThumbnailCheckox.addActionListener(
+                        e -> uiEventListener.unthumbnailChanged(unThumbnailCheckox.isSelected())
+                );
+                unThumbnailCheckox.setToolTipText("When checked, you drag image thumbnails, but the full-scale images are shown");
+                box.add(unThumbnailCheckox);
+            }
+            {
+                showUrlsCheckbox = new JCheckBox("Show URLs");
+                showUrlsCheckbox.setSelected(true);
+                showUrlsCheckbox.addActionListener(
+                        e -> uiEventListener.setShowUrls(showUrlsCheckbox.isSelected())
+                );
+                showUrlsCheckbox.setToolTipText("Show image URLs in the bottom of the window");
+                box.add(showUrlsCheckbox);
+            }
+            {
+                saveGifCheckbox = new JCheckBox("Save Animated GIF");
+                saveGifCheckbox.setSelected(true);
+                saveGifCheckbox.addActionListener(
+                        e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(), saveRightLeftCheckbox.isSelected())
+                );
+                saveGifCheckbox.setToolTipText("When you click \"Save\", additionally save an animated GIF with the right and left halves of the stereo pair");
+                box.add(saveGifCheckbox);
+            }
+            {
+                saveRightLeftCheckbox = new JCheckBox("Save Left and Right Images Separately");
+                saveRightLeftCheckbox.setSelected(true);
+                saveRightLeftCheckbox.addActionListener(
+                        e -> uiEventListener.setSaveOptions(saveGifCheckbox.isSelected(), saveRightLeftCheckbox.isSelected())
+                );
+                saveRightLeftCheckbox.setToolTipText("When you click \"Save\", additionally save left and right halves of the stereo pair separately");
+                box.add(saveRightLeftCheckbox);
+            }
+            {
+                customCrosshairCursorCheckbox = new JCheckBox("Use custom cursor when setting marks");
+                customCrosshairCursorCheckbox.setSelected(true);
+                customCrosshairCursorCheckbox.addActionListener(
+                        e -> uiEventListener.setUseCustomCrosshairCursor(customCrosshairCursorCheckbox.isSelected())
+                );
+                customCrosshairCursorCheckbox.setToolTipText("You can use either the standard thick cross-hair cursor or a custom one");
+                box.add(customCrosshairCursorCheckbox);
+            }
+            rowWrapper.add(box);
+            this.add(rowWrapper);
+        }
     }
     void setControls (BehavioralOptions bo) {
         saveGifCheckbox.setSelected(bo.saveGif);
@@ -12431,70 +12511,32 @@ class MyOps {
     }
 }
 
-abstract class ParallelPair<T> {
+// ====== parallelism ======
+class ParallelPair<T> {
     T left, right;
-    abstract ParallelPair<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc);
-    abstract ParallelPair<T> cUpdate(boolean leftConf, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc);
-//    public static<TT> ParallelPair<TT> of(TT left, TT right) {
-//        return new ParallelPair1<TT>(left, right);
-//    }
-    public static<TT> ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
-        return ParallelPair1._of(leftS, rightS);
-    }
-    public List<T> asList() {
-        return Arrays.asList(left, right);
-    }
-}
-class ParallelPair0<T> extends ParallelPair<T> {
-    ParallelPair0(T left, T right) {
+    ParallelPair(T left, T right) {
         this.left = left;
         this.right = right;
     }
-    static<TT> ParallelPair0<TT> _of(Supplier<TT> leftS, Supplier<TT> rightS) {
-        return new ParallelPair0<TT>(leftS.get(), rightS.get());
-    }
-
-    @Override
-    ParallelPair0<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
-        left = left != null ? leftFunc.apply(left) : null;
-        right = right != null ? rightFunc.apply(right) : null;
-        return this;
-    }
-    @Override
-    ParallelPair0<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
-        if (leftCond) {
-            left = left != null ? leftFunc.apply(left) : null;
-        }
-        if (rightCond) {
-            right = right != null ? rightFunc.apply(right) : null;
-        }
-        return this;
-    }
-}
-class ParallelPair1<T> extends ParallelPair<T> {
-    ParallelPair1(T left, T right) {
-        this.left = left;
-        this.right = right;
-    }
-    static<TT> ParallelPair1<TT> _of(Supplier<TT> leftS, Supplier<TT> rightS) {
-        var res = new ParallelPair1<TT>(null, null);
+    static<TT> ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
+        var res = new ParallelPair<TT>(null, null);
         Par.runTwo(
                 () -> res.left = leftS.get(),
                 () -> res.right = rightS.get()
         );
         return res;
     }
-
-    @Override
-    ParallelPair1<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
+    public List<T> asList() {
+        return Arrays.asList(left, right);
+    }
+    ParallelPair<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
         Par.runTwo(
                 () -> left = left != null ? leftFunc.apply(left) : null,
                 () -> right = right != null ? rightFunc.apply(right) : null
         );
         return this;
     }
-    @Override
-    ParallelPair1<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
+    ParallelPair<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
         Par.runConditional(
                 leftCond,
                 () -> left = left != null ? leftFunc.apply(left) : null,
@@ -12507,6 +12549,7 @@ class ParallelPair1<T> extends ParallelPair<T> {
 interface LoopSplitter {
     void splitFor(int from, int to, IntBiConsumer body);
     <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger);
+    int getNTasksToSpawn();
 }
 interface PairRunner {
     void runOne(Runnable runnable);
@@ -12524,8 +12567,9 @@ interface PairRunner {
             }
         }
     }
+    boolean isParallel();
 }
-class PairRunner0 implements PairRunner {
+class SeqPairRunner implements PairRunner {
     @Override
     public void runOne(Runnable runnable) {
         runnable.run();
@@ -12543,10 +12587,41 @@ class PairRunner0 implements PairRunner {
         first.run();
         second.run();
     }
+    @Override
+    public boolean isParallel() {
+        return false;
+    }
+    @Override
+    public String toString() {
+        return "SeqPairRunner{}";
+    }
 }
-class PairRunner1 extends AbstractFjpPoolOwner implements PairRunner {
-    protected PairRunner1(ForkJoinPool forkJoinPool) {
-        super(forkJoinPool);
+class SeqLoopSplitter implements LoopSplitter {
+    @Override
+    public void splitFor(int from, int to, IntBiConsumer body) {
+        body.accept(from, to);
+    }
+    @Override
+    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        T res = body.apply(from, to);
+        return merger.mergeStream(Stream.of(res));
+    }
+    @Override
+    public int getNTasksToSpawn() {
+        return 0;
+    }
+    @Override
+    public String toString() {
+        return "SeqLoopSplitter{}";
+    }
+}
+class FjpPairRunner implements PairRunner {
+    ForkJoinPool pool;
+    protected FjpPairRunner(ForkJoinPool forkJoinPool) {
+        pool = forkJoinPool;
+    }
+    void setPool(ForkJoinPool forkJoinPool) {
+        pool = forkJoinPool;
     }
     @Override
     public void runOne(Runnable runnable) {
@@ -12568,278 +12643,43 @@ class PairRunner1 extends AbstractFjpPoolOwner implements PairRunner {
             }
         });
     }
+    @Override
+    public boolean isParallel() {
+        return true;
+    }
     void runTask(ForkJoinTask<?> task) {
-        getPool().invoke(task);
+        pool.invoke(task);
     }
     <T> T callTask(ForkJoinTask<T> task) {
-        return getPool().invoke(task);
-    }
-}
-interface PoolOwner<T extends ExecutorService> {
-    void setParallelism(int n);
-    int getParallelism();
-    T getPool();
-}
-interface PoolFactory<T extends ExecutorService> {
-    T createPool(int parallelism);
-    default T createDefaultPool() {
-        return createPool(defaultParallelism());
-    }
-    default int defaultParallelism() {
-        return Runtime.getRuntime().availableProcessors();
-    }
-}
-class FjpPoolFactory implements PoolFactory<ForkJoinPool> {
-//    @Override
-//    public ForkJoinPool createPool(int parallelism) {
-//        return new ForkJoinPool(parallelism);
-//    }
-    @Override
-    public ForkJoinPool createPool(int parallelism) {
-        try {
-            var res = ForkJoinPool
-                .class
-                .getConstructor(
-                    int.class,
-                    ForkJoinPool.ForkJoinWorkerThreadFactory.class,
-                    Thread.UncaughtExceptionHandler.class,
-                    boolean.class,
-                    int.class,
-                    int.class,
-                    int.class,
-                    Predicate.class,
-                    long.class,
-                    TimeUnit.class
-                ).newInstance(
-                    parallelism, // parallelism
-                    ForkJoinPool.defaultForkJoinWorkerThreadFactory, // factory
-                    null, // handler
-                    false, // asyncMode
-                    parallelism, // corePoolSize
-                    Integer.MAX_VALUE, // maximumPoolSize
-                    parallelism, // minimumRunnable
-                    null, // saturate
-                    60000L, // keepAliveTime
-                    TimeUnit.MILLISECONDS // keepAliveTime units
-                );
-            System.out.println("new ForkJoinPool ok");
-            return res;
-        } catch (NoSuchMethodException | IllegalAccessException
-                 | InstantiationException | InvocationTargetException e
-                ) {
-            System.out.println("new ForkJoinPool fallback");
-            return new ForkJoinPool(parallelism);
-        }
-    }
-}
-class TpePoolFactory implements PoolFactory<ThreadPoolExecutor> {
-    @Override
-    public ThreadPoolExecutor createPool(int parallelism) {
-        return new ThreadPoolExecutor(
-                parallelism,
-                parallelism,
-                    0L,
-                    TimeUnit.MILLISECONDS,
-                    new LinkedBlockingQueue()
-        );
-    }
-}
-interface FjpPoolOwner extends PoolOwner<ForkJoinPool> {
-    void setPool(ForkJoinPool pool);
-    default int getParallelism() {
-        return getPool().getParallelism();
-    }
-    default void setParallelism(int n) {
-        var oldForkJoinPool = getPool();
-        setPool(new ForkJoinPool(n));
-        oldForkJoinPool.shutdown();
-        try {
-            oldForkJoinPool.awaitTermination(3, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            System.out.println("FJP did not shut down, attempting shutdownNow()");
-            oldForkJoinPool.shutdownNow();
-        }
-    }
-}
-interface TpePoolOwner extends PoolOwner<ThreadPoolExecutor> {
-    default int getParallelism() {
-        ThreadPoolExecutor pool = getPool();
-        int maximumPoolSize = pool.getMaximumPoolSize();
-        int corePoolSize = pool.getCorePoolSize();
-        if (corePoolSize != maximumPoolSize) {
-            throw new IllegalStateException("pool sizes don't match: maximumPoolSize="+maximumPoolSize+" corePoolSize="+corePoolSize);
-        }
-        return maximumPoolSize;
-    }
-    default void setParallelism(int n) {
-        var pool = getPool();
-        int nNow = pool.getCorePoolSize();
-        if (n >= nNow) {
-            pool.setMaximumPoolSize(n);
-            pool.setCorePoolSize(n);
-        } else {
-            pool.setCorePoolSize(n);
-            pool.setMaximumPoolSize(n);
-        }
-    }
-}
-abstract class AbstractFjpPoolOwner implements FjpPoolOwner {
-    ForkJoinPool forkJoinPool;
-    protected AbstractFjpPoolOwner(ForkJoinPool forkJoinPool) {
-        this.forkJoinPool = forkJoinPool;
+        return pool.invoke(task);
     }
     @Override
-    public ForkJoinPool getPool() {
-        return forkJoinPool;
-    }
-    @Override
-    public void setPool(ForkJoinPool pool) {
-        forkJoinPool = pool;
-    }
-}
-abstract class AbstractTpePoolOwner implements TpePoolOwner {
-    ThreadPoolExecutor threadPoolExecutor;
-    protected AbstractTpePoolOwner(ThreadPoolExecutor threadPoolExecutor) {
-        this.threadPoolExecutor = threadPoolExecutor;
-    }
-    @Override
-    public ThreadPoolExecutor getPool() {
-        return threadPoolExecutor;
+    public String toString() {
+        return "FjpPairRunner{" +
+                "pool=" + pool +
+                ", parallelism=" + pool.getParallelism() +
+                '}';
     }
 }
-//class ParBase {
-//    static ForkJoinPool forkJoinPool = new ForkJoinPool();
-//    static void setParallelism(int n) {
-//        var oldForkJoinPool = forkJoinPool;
-//        forkJoinPool = new ForkJoinPool(n);
-//        oldForkJoinPool.shutdown();
-//        try {
-//            oldForkJoinPool.awaitTermination(3, TimeUnit.SECONDS);
-//        } catch (InterruptedException e) {
-//            System.out.println("FJP did not shut down, attempting shutdownNow()");
-//            oldForkJoinPool.shutdownNow();
-//        }
-//    }
-//    static int getParallelism() {
-//        return forkJoinPool.getParallelism();
-//    }
-//}
-class Par0 implements LoopSplitter {
-    @Override
-    public void splitFor(int from, int to, IntBiConsumer body) {
-        body.accept(from, to);
+class FjpLoopSplitter implements LoopSplitter {
+    ForkJoinPool pool;
+    int nTasksToSpawn;
+    protected FjpLoopSplitter(ForkJoinPool forkJoinPool, int nTasksToSpawn) {
+        pool = forkJoinPool;
+        this.nTasksToSpawn = Math.max(1, nTasksToSpawn);
     }
-    @Override
-    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
-        T res = body.apply(from, to);
-        return merger.mergeStream(Stream.of(res));
+    void setPool(ForkJoinPool forkJoinPool) {
+        pool = forkJoinPool;
     }
-}
-// ForkJoinPool, IntStream.parallel()
-class Par2 extends AbstractFjpPoolOwner implements LoopSplitter {
-    protected Par2(ForkJoinPool forkJoinPool) {
-        super(forkJoinPool);
+    public int getNTasksToSpawn() {
+        return nTasksToSpawn;
     }
     @Override
     public void splitFor(int from, int to, IntBiConsumer body) {
-        ForkJoinPool pool = getPool();
-        pool.invoke(ForkJoinTask.adapt(() -> {
-            int n = pool.getParallelism();
-            IntStream.range(0, n)
-            .parallel()
-            .forEach(i ->
-                    body.accept(
-                            lwb(i, n, from, to),
-                            lwb(i+1, n, from, to)
-            ));
-        }));
-    }
-
-    @Override
-    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
-        ForkJoinPool pool = getPool();
-        T res = pool.invoke(ForkJoinTask.adapt(() -> {
-            int n = pool.getParallelism();
-            List<T> results =
-                IntStream.range(0, n)
-                    .parallel()
-                    .mapToObj(i ->
-                            body.apply(
-                                    lwb(i, n, from, to),
-                                    lwb(i+1, n, from, to)
-                            ))
-                    .collect(Collectors.toList());
-            return merger.mergeStream(results.stream());
-        }));
-        return res;
-    }
-
-    static int lwb(int i, int n, int m0, int m) {
-        return m0 + (int) ((long)(m-m0) * i / n);
-    }
-}
-// ForkJoinPool, forEach(fork)
-class Par3 extends AbstractFjpPoolOwner implements LoopSplitter {
-    protected Par3(ForkJoinPool forkJoinPool) {
-        super(forkJoinPool);
-    }
-    @Override
-    public void splitFor(int from, int to, IntBiConsumer body) {
-        ForkJoinPool pool = getPool();
-        int n = pool.getParallelism() - 1;
-        ForkJoinTask[] tasks = new ForkJoinTask[n];
-        IntStream.range(0, n)
-                .forEach(i -> {
-                    tasks[i] = ForkJoinTask.adapt(() ->
-                            body.accept(
-                                    lwb(i, n, from, to),
-                                    lwb(i+1, n, from, to)
-                            )
-                    );
-                });
-        pool.invoke(ForkJoinTask.adapt(() -> {
-            Stream.of(tasks).forEach(ForkJoinTask::fork);
-            Stream.of(tasks).forEach(ForkJoinTask::join);
-        }));
-    }
-
-    @Override
-    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
-        ForkJoinPool pool = getPool();
-        int n = pool.getParallelism() - 1;
-        ForkJoinTask<T>[] tasks = new ForkJoinTask[n];
-        IntStream.range(0, n)
-                .forEach(i -> {
-                    tasks[i] = ForkJoinTask.adapt(() ->
-                            body.apply(
-                                    lwb(i, n, from, to),
-                                    lwb(i+1, n, from, to)
-                            )
-                    );
-                });
-        List<T> resultList = pool.invoke(ForkJoinTask.adapt(() -> {
-            Stream.of(tasks).forEach(ForkJoinTask::fork);
-            return Stream.of(tasks).map(ForkJoinTask::join).collect(Collectors.toList());
-        }));
-        return merger.mergeStream(resultList.stream());
-    }
-
-    static int lwb(int i, int n, int m0, int m) {
-        return m0 + (int) ((long)(m-m0) * i / n);
-    }
-}
-// ForkJoinPool, forEach(fork)
-class Par5 extends AbstractFjpPoolOwner implements LoopSplitter {
-    protected Par5(ForkJoinPool forkJoinPool) {
-        super(forkJoinPool);
-    }
-//    protected Par5() {
-//        super(createPool(defaultParallelism()));
-//    }
-    @Override
-    public void splitFor(int from, int to, IntBiConsumer body) {
-        ForkJoinPool pool = getPool();
-        int n = pool.getParallelism();
+        if (from >= to) {
+            return;
+        }
+        int n = Math.min(Math.max(1, nTasksToSpawn), to-from);
         pool.invoke(
                 new RecursiveAction() {
                     @Override
@@ -12854,6 +12694,7 @@ class Par5 extends AbstractFjpPoolOwner implements LoopSplitter {
                                             )
                                     );
                                 });
+                        System.out.println("N tasks = "+tasks.length);
                         invokeAll(tasks);
                     }
                 });
@@ -12863,9 +12704,7 @@ class Par5 extends AbstractFjpPoolOwner implements LoopSplitter {
         if (from >= to) {
             return null;
         }
-        ForkJoinPool pool = getPool();
-        int nParallel = pool.getParallelism();
-        int n = Math.min(nParallel, to-from);
+        int n = Math.min(Math.max(1, nTasksToSpawn), to-from);
         List<T> resultList = pool.invoke(
                 new RecursiveTask<List<T>>() {
                     @Override
@@ -12880,146 +12719,75 @@ class Par5 extends AbstractFjpPoolOwner implements LoopSplitter {
                                     )
                                 );
                             });
-                        System.out.println("N tasks = "+tasks.length);// Arrays.asList(tasks));
+                        System.out.println("N tasks = "+tasks.length);
                         invokeAll(tasks);
                         return Stream.of(tasks).map(ForkJoinTask::join).collect(Collectors.toList());
                     }
                 });
         return merger.mergeStream(resultList.stream());
     }
-
     static int lwb(int i, int n, int m0, int m) {
         return m0 + (int) ((long)(m-m0) * i / n);
     }
-//    static class TaskRunner extends RecursiveAction {
-//        public TaskRunner() {
-//        }
-//
-//        @Override
-//        protected void compute() {
-//
-//        }
-//    }
-}
-class Par4 extends AbstractFjpPoolOwner implements LoopSplitter  {
-    protected Par4(ForkJoinPool forkJoinPool) {
-        super(forkJoinPool);
-    }
     @Override
-    public void splitFor(int from, int to, IntBiConsumer body) {
-        ForkJoinPool pool = getPool();
-        int n = pool.getParallelism();
-        Callable<Void>[] tasks = new Callable[n];
-        IntStream.range(0, n)
-                .forEach(i -> {
-                    tasks[i] = () -> {
-                        body.accept(
-                                lwb(i, n, from, to),
-                                lwb(i + 1, n, from, to)
-                        );
-                        return null;
-                    };
-                });
-        pool.invokeAll(Arrays.asList(tasks));
-    }
-
-    @Override
-    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
-        ForkJoinPool pool = getPool();
-        int n = pool.getParallelism();
-        Callable<T>[] tasks = new Callable[n];
-        IntStream.range(0, n)
-                .forEach(i -> {
-                    tasks[i] = () ->
-                            body.apply(
-                                lwb(i, n, from, to),
-                                lwb(i + 1, n, from, to)
-                            );
-                });
-        List<Future<T>> res = pool.invokeAll(Arrays.asList(tasks));
-        return merger.mergeStream(res.stream().map(tFuture -> {
-            try {
-                return tFuture.get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
-            }
-        }));
-    }
-
-    static int lwb(int i, int n, int m0, int m) {
-        return m0 + (int) ((long)(m-m0) * i / n);
+    public String toString() {
+        return "FjpLoopSplitter{" +
+                "pool=" + pool +
+                ", parallelism=" + pool.getParallelism() +
+                ", nTasksToSpawn=" + nTasksToSpawn +
+                '}';
     }
 }
-class Par1 extends AbstractTpePoolOwner implements LoopSplitter  {
-    protected Par1(ThreadPoolExecutor threadPoolExecutor) {
-        super(threadPoolExecutor);
-    }
-    protected Par1() {
-        super(new TpePoolFactory().createDefaultPool());
+interface ParUiFacade {
+    int getParallelism();
+    int getNTasksToSpawn();
+    boolean getParLR();
+    void setParameters(int parallelism, boolean parLR, int nTasksToSpawn);
+    int getMaxParallelism();
+    int getMaxNTasksToSpawn();
+}
+class ParFacadeImpl implements ParUiFacade {
+    @Override
+    public int getParallelism() {
+        return Par.Configurator.getPoolParallelism();
     }
     @Override
-    public void splitFor(int from, int to, IntBiConsumer body) {
-        var pool = getPool();
-        int n = getParallelism();
-        Callable<Void>[] tasks = new Callable[n];
-        IntStream.range(0, n)
-                .forEach(i -> {
-                    tasks[i] = () -> {
-                        body.accept(
-                                lwb(i, n, from, to),
-                                lwb(i + 1, n, from, to)
-                        );
-                        return null;
-                    };
-                });
-        try {
-            pool.invokeAll(Arrays.asList(tasks));
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+    public int getNTasksToSpawn() {
+        return Par.Configurator.getNTasksToSpawn();
     }
-
     @Override
-    public <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
-        var pool = getPool();
-        int n = getParallelism();
-        Callable<T>[] tasks = new Callable[n];
-        IntStream.range(0, n)
-                .forEach(i -> {
-                    tasks[i] = () ->
-                        body.apply(
-                                lwb(i, n, from, to),
-                                lwb(i + 1, n, from, to)
-                        );
-                });
-        try {
-            List<Future<T>> futures = pool.invokeAll(Arrays.asList(tasks));
-            return merger.mergeStream(futures.stream().map(future -> {
-                try {
-                    return future.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+    public boolean getParLR() {
+        return Par.Configurator.getParLR();
     }
-
-    static int lwb(int i, int n, int m0, int m) {
-        return m0 + (int) ((long)(m-m0) * i / n);
+    @Override
+    public void setParameters(int parallelism, boolean parLR, int nTasksToSpawn) {
+        Par.Configurator.setPoolParallelism(parallelism);
+        Par.Configurator.setTaskingParameters(parLR, nTasksToSpawn>0, nTasksToSpawn);
+    }
+    @Override
+    public int getMaxParallelism() {
+        return Par.Configurator.availableParallelism();
+    }
+    @Override
+    public int getMaxNTasksToSpawn() {
+        return getMaxParallelism() * 8;
     }
 }
+/**
+ * The facade of the parallelization subsystem.
+ * Only user-visible methods (but the user is a programmer willing to use parallel computations).
+ * All internals are in the Par.Configurator class.
+ */
 class Par {
-//    static LoopSplitter loopSplitter = new Par1();
+    static ForkJoinPool forkJoinPool;
     static LoopSplitter loopSplitter;
     static PairRunner pairRunner;
-    static {
-        var fjp = new FjpPoolFactory().createDefaultPool();
-        loopSplitter = new Par5(fjp);
-//        loopSplitter = new Par0();
-        pairRunner = new PairRunner1(fjp);
-//        pairRunner = new PairRunner0();
+    static ParUiFacade parFacade;
+    /** Initialize the parallelization subsystem. Use Par.Configurator.shutdown() to undo this action. */
+    static void init() {
+        // TODO: special case for 1 available CPU core
+        Configurator.setPoolParallelism(Configurator.defaultParallelism());
+        Configurator.setTaskingParameters(true, true, Configurator.defaultNTasksToSpawn());
     }
     public static void splitFor(int from, int to, IntBiConsumer body) {
         loopSplitter.splitFor(from, to, body);
@@ -13033,13 +12801,104 @@ class Par {
     public static void runConditional(boolean firstCond, Runnable first, boolean secondCond, Runnable second) {
         pairRunner.runConditional(firstCond, first, secondCond, second);
     }
-    void setLoopSplitter(LoopSplitter ls) {
-        loopSplitter = ls;
-    }
-    public static void setPairRunner(PairRunner pr) {
-        pairRunner = pr;
-    }
-}
+    static class Configurator {
+        public static ParUiFacade getParUiFacade() {
+            return parFacade;
+        }
+        static int availableParallelism() {
+            return Runtime.getRuntime().availableProcessors();
+        }
+        static int defaultParallelism() {
+            return availableParallelism();
+        }
+        static int defaultNTasksToSpawn() {
+            return availableParallelism();
+        }
+        static ForkJoinPool createPool(int parallelism) {
+            try {
+                var res = ForkJoinPool
+                        .class
+                        .getConstructor(
+                                int.class,
+                                ForkJoinPool.ForkJoinWorkerThreadFactory.class,
+                                Thread.UncaughtExceptionHandler.class,
+                                boolean.class,
+                                int.class,
+                                int.class,
+                                int.class,
+                                Predicate.class,
+                                long.class,
+                                TimeUnit.class
+                        ).newInstance(
+                                parallelism, // parallelism
+                                ForkJoinPool.defaultForkJoinWorkerThreadFactory, // factory
+                                null, // handler
+                                false, // asyncMode
+                                parallelism, // corePoolSize
+                                Integer.MAX_VALUE, // maximumPoolSize
+                                parallelism, // minimumRunnable
+                                null, // saturate
+                                60000L, // keepAliveTime
+                                TimeUnit.MILLISECONDS // keepAliveTime units
+                        );
+                System.out.println("new ForkJoinPool ok");
+                return res;
+            } catch (NoSuchMethodException | IllegalAccessException
+                     | InstantiationException | InvocationTargetException e
+            ) {
+                System.out.println("new ForkJoinPool fallback");
+                return new ForkJoinPool(parallelism);
+            }
+        }
+        static int getPoolParallelism() {
+            return forkJoinPool != null ? forkJoinPool.getParallelism() : 0;
+        }
+        static int getNTasksToSpawn() {
+            return loopSplitter.getNTasksToSpawn();
+        }
+        static boolean getParLR() {
+            return pairRunner.isParallel();
+        }
+        static void setPoolParallelism(int n) {
+            if (n == getPoolParallelism()) {
+                return;
+            }
+            var oldForkJoinPool = forkJoinPool;
+            forkJoinPool = n > 0 ? new ForkJoinPool(n) : null;
+            if (oldForkJoinPool != null) {
+                oldForkJoinPool.shutdown();
+                try {
+                    oldForkJoinPool.awaitTermination(3, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    System.out.println("FJP did not shut down, attempting shutdownNow()");
+                    oldForkJoinPool.shutdownNow();
+                }
+            }
+        }
+        static void setTaskingParameters(boolean parLR, boolean parLoops, int nTasksToSpawn) {
+            var pool = forkJoinPool;
+            parFacade = new ParFacadeImpl();
+            if (pool != null && parLR) {
+                pairRunner = new FjpPairRunner(pool);
+            } else {
+                pairRunner = new SeqPairRunner();
+            }
+            if (pool != null && parLoops && nTasksToSpawn > 0) {
+                loopSplitter = new FjpLoopSplitter(pool, nTasksToSpawn);
+            } else {
+                loopSplitter = new SeqLoopSplitter();
+            }
+        }
+        static void shutdownPar() {
+            forkJoinPool.shutdown();
+            forkJoinPool = null;
+            loopSplitter = null;
+            pairRunner = null;
+            parFacade = null;
+        }
+    } // Par.Configurator
+} // Par
+
 interface IntBiConsumer {
     void accept(int a, int b);
 }
