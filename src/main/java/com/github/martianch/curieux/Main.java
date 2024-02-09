@@ -2121,10 +2121,10 @@ class X3DViewer {
             final boolean PRECISE_MARKS = ms.isSubpixelPrecision;
 //        BufferedImage imgL = dp.debayerL.doAlgo(rd.left.image, () -> FileLocations.isBayered(rd.left.path), Debayer.debayering_methods);
 //        BufferedImage imgR = dp.debayerR.doAlgo(rd.right.image, () -> FileLocations.isBayered(rd.right.path), Debayer.debayering_methods);
-            ParallelPair<BufferedImage> images = ParallelPair.of(
+            ParallelPair<BufferedImage> images = ParallelPair.<BufferedImage>creator().of(
                     () -> dp.debayerL.doAlgo2(rd.left.image, rd.left.path),
                     () -> dp.debayerR.doAlgo2(rd.right.image, rd.right.path)
-            );
+            )
 //        BufferedImage imgL = dp.debayerL.doAlgo2(rd.left.image, rd.left.path);
 //        BufferedImage imgR = dp.debayerR.doAlgo2(rd.right.image, rd.right.path);
 
@@ -2134,43 +2134,51 @@ class X3DViewer {
 //        if (dp.preFilterR.notNothing()) {
 //            imgR = ColorBalancer.interpolateBrokenPixels(imgR);
 //        }
-            images.cUpdate(
+            .cUpdate(
                     dp.preFilterL.notNothing(),
                     imgL -> ColorBalancer.interpolateBrokenPixels(imgL),
                     dp.preFilterR.notNothing(),
                     imgR -> ColorBalancer.interpolateBrokenPixels(imgR)
-            );
+            )
             // barrel distortion correction
 //        imgL = dp.lFisheyeCorrection.doFisheyeCorrection(imgL);
 //        imgR = dp.rFisheyeCorrection.doFisheyeCorrection(imgR);
-            images.cUpdate(
+            .cUpdate(
                     dp.lFisheyeCorrection.algo.notNothing(),
                     imgL -> dp.lFisheyeCorrection.doFisheyeCorrection(imgL),
                     dp.rFisheyeCorrection.algo.notNothing(),
                     imgR -> dp.rFisheyeCorrection.doFisheyeCorrection(imgR)
-            );
+            )
 //        imgL = dp.lColorCorrection.doColorCorrection(imgL, command);
 //        imgR = dp.rColorCorrection.doColorCorrection(imgR, command);
-            images.update(
+            .update(
 //                    dp.lColorCorrection.algos.stream().anyMatch(c -> c.notNothing()),
                     imgL -> dp.lColorCorrection.doColorCorrection(imgL, command),
 //                    dp.rColorCorrection.algos.stream().anyMatch(c -> c.notNothing()),
                     imgR -> dp.rColorCorrection.doColorCorrection(imgR, command)
-            );
+            )
 //        ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R");
 //        ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L");
-            ms.left.setWHI(images.left, ms.stereoPairParameters.ifovL, "pane:L eye:R");
-            ms.right.setWHI(images.right, ms.stereoPairParameters.ifovR, "pane:R eye:L");
-            if (!PRECISE_MARKS && ms.measurementShown) {
-//            imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
-//            imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
-                images.update(
-                        imgL -> ms.left.drawMarks(imgL, ms.measurementPointMark),
-                        imgR -> ms.right.drawMarks(imgR, ms.measurementPointMark)
-                );
-            }
+            .peek(
+                imgL -> ms.left.setWHI(imgL, ms.stereoPairParameters.ifovL, "pane:L eye:R"),
+                imgR -> ms.right.setWHI(imgR, ms.stereoPairParameters.ifovR, "pane:R eye:L")
+            )
+//            if (!PRECISE_MARKS && ms.measurementShown) {
+////            imgL = ms.left.drawMarks(imgL, ms.measurementPointMark);
+////            imgR = ms.right.drawMarks(imgR, ms.measurementPointMark);
+//                images.update(
+//                        imgL -> ms.left.drawMarks(imgL, ms.measurementPointMark),
+//                        imgR -> ms.right.drawMarks(imgR, ms.measurementPointMark)
+//                );
+//            }
+            .cUpdate(
+                    !PRECISE_MARKS && ms.measurementShown,
+                    imgL -> ms.left.drawMarks(imgL, ms.measurementPointMark),
+                    !PRECISE_MARKS && ms.measurementShown,
+                    imgR -> ms.right.drawMarks(imgR, ms.measurementPointMark)
+            )
 
-            images.update(
+            .update(
                     imgL -> {
                         AffineTransform transformL = rotationTransform(imgL, dp.angle + dp.angleL);
                         ms.left.transform = transformL;
@@ -2181,7 +2189,8 @@ class X3DViewer {
                         ms.right.transform = transformR;
                         return rotate(imgR, transformR);
                     }
-            );
+            )
+            .toParallelPair();
 //        BufferedImage rotatedL = rotate(imgL, transformL);
 //        BufferedImage rotatedR = rotate(imgR, transformR);
 //        System.out.println("----");
@@ -2206,10 +2215,10 @@ class X3DViewer {
 //                    zoom(rotatedL, zL, rotatedR, zR, offXL, offYL, dp.imageResamplingModeL),
 //                    zoom(rotatedR, zR, rotatedL, zL, -offXL, -offYL, dp.imageResamplingModeR)
 //            );
-                return ParallelPair.of(
+                return ParallelPair.<BufferedImage>creator().of(
                         () -> zoom(images.left, zL, images.right, zR, offXL, offYL, dp.imageResamplingModeL),
                         () -> zoom(images.right, zR, images.left, zL, -offXL, -offYL, dp.imageResamplingModeR)
-                ).asList();
+                ).toParallelPair().asList();
 
             } else {
 //            return Arrays.asList(
@@ -2222,7 +2231,7 @@ class X3DViewer {
 //                    ms.measurementPointMark, transformR, zR, -offXL, -offYL
 //                )
 //            );
-                return ParallelPair.of(
+                return ParallelPair.<BufferedImage>creator().of(
                         () -> ms.left.drawMarks(
                                 zoom(images.left, zL, images.right, zR, offXL, offYL, dp.imageResamplingModeL),
                                 ms.measurementPointMark, ms.left.transform, zL, offXL, offYL
@@ -2231,7 +2240,7 @@ class X3DViewer {
                                 zoom(images.right, zR, images.left, zL, -offXL, -offYL, dp.imageResamplingModeR),
                                 ms.measurementPointMark, ms.right.transform, zR, -offXL, -offYL
                         )
-                ).asList();
+                ).toParallelPair().asList();
             }
         }
         );
@@ -2242,6 +2251,7 @@ class X3DViewer {
                 long start = System.nanoTime();
                 var bufferedImageList = processBothImages(rd, dp, ms, ColorCorrection.Command.SHOW);
                 long elapsed = System.nanoTime() - start;
+                System.out.println(Par.describe());
                 System.out.println(
                         String.format("*** updateViews/processBothImages elapsed: %d.%09d",
                         elapsed / 1_000_000_000,
@@ -11526,7 +11536,16 @@ class SettingsPanel extends JPanel {
             this.add(row2);
 
             var row3 = new JPanel();
-            row3.add(new JLabel("Number of subtasks to spawn:"));
+            JCheckBox cbIntermediateSync =
+                    new JCheckBox("Intermediate sync in tasks for left and right images",
+                            parFacade.getIntermediateSyncLR()
+                    );
+            cbIntermediateSync.setToolTipText("A subtle change in internal logic, practical effect unknown.");
+            row3.add(cbIntermediateSync);
+            this.add(row3);
+
+            var row4 = new JPanel();
+            row4.add(new JLabel("Number of subtasks to spawn:"));
             JSpinner spNTasks = Spinners.createJSpinner(
                     parFacade.getNTasksToSpawn(),
                     0,
@@ -11534,18 +11553,18 @@ class SettingsPanel extends JPanel {
             );
             {
                 String tip = "Subtasks are spawned by image filters. Use 0 to disable this feature.";
-                row3.setToolTipText(tip);
+                row4.setToolTipText(tip);
                 spNTasks.setToolTipText(tip);
             }
-            row3.add(spNTasks);
-            this.add(row3);
+            row4.add(spNTasks);
+            this.add(row4);
 
             spNCores.addChangeListener(ce -> {
                 spNTasks.setValue(spNCores.getValue());
                 cbParLR.setSelected((Integer)spNCores.getValue() > 0);
             });
 
-            var row4 = new JPanel();
+            var row5 = new JPanel();
             HyperTextPane helpText = new HyperTextPane(
                     "<html>" +
                             "<h2>Background info about parallelism</h2>" +
@@ -11596,11 +11615,11 @@ class SettingsPanel extends JPanel {
                             "</html>");
             JButton butHelp = new JButton("Help");
             butHelp.setToolTipText("Read about the parallelization parameters");
-            row4.add(butHelp);
+            row5.add(butHelp);
             JButton butApply = new JButton("Apply Parallelization Parameters");
             butApply.setToolTipText("Press this button to apply changes in parallelization, the OK button does not do that!");
-            row4.add(butApply);
-            this.add(row4);
+            row5.add(butApply);
+            this.add(row5);
 
             butHelp.addActionListener(e -> {
                 JOptionPane.showMessageDialog(
@@ -11614,14 +11633,17 @@ class SettingsPanel extends JPanel {
                 int parallelism = (Integer) spNCores.getValue();
                 int nTasksToSpawn = (Integer) spNTasks.getValue();
                 boolean parLR = cbParLR.isSelected();
+                boolean parLRSync = cbIntermediateSync.isSelected();
                 uiEventListener.getParUiFacade().setParameters(
                         parallelism,
                         parLR,
+                        parLRSync,
                         nTasksToSpawn
                 );
                 spNCores.setValue(parFacade.getParallelism());
                 spNTasks.setValue(parFacade.getNTasksToSpawn());
                 cbParLR.setSelected(parFacade.getParLR());
+                cbIntermediateSync.setSelected(parFacade.getIntermediateSyncLR());
                 System.out.println(Par.describe());
             });
 
@@ -12602,34 +12624,61 @@ class MyOps {
     public static<T> T oMax(T a, T b, Comparator<T> c) {
         return c.compare(a,b) >= 0 ? a : b;
     }
+    static Runnable concat(Runnable first, Runnable second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return () -> { first.run(); second.run(); };
+    }
 }
 
 // ====== parallelism ======
-class ParallelPair<T> {
+interface ParallelPairOps<T> {
+    ParallelPairOps<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc);
+    ParallelPairOps<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc);
+    ParallelPairOps<T> peek(Consumer<T> leftConsumer, Consumer<T> rightConsumer);
+    ParallelPair<T> toParallelPair();
+}
+interface ParallelPairCreator<T> {
+    ParallelPairOps<T> of(Supplier<T> leftS, Supplier<T> rightS);
+}
+class ParallelPair<T> implements ParallelPairOps<T>{
     T left, right;
-    ParallelPair(T left, T right) {
+    private ParallelPair(T left, T right) {
         this.left = left;
         this.right = right;
     }
-    static<TT> ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
-        var res = new ParallelPair<TT>(null, null);
-        Par.runTwo(
-                () -> res.left = leftS.get(),
-                () -> res.right = rightS.get()
-        );
-        return res;
+    static class Creator<TT> implements ParallelPairCreator<TT> {
+        public ParallelPair<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
+            var res = new ParallelPair<TT>(null, null);
+            Par.runTwo(
+                    () -> res.left = leftS.get(),
+                    () -> res.right = rightS.get()
+            );
+            return res;
+        }
+    }
+    public static<TT> ParallelPairCreator<TT> creator() {
+        if (Par.getParLrSync()) {
+            return new ParallelPair.Creator<>();
+        } else {
+            return new ParallelPair.Planner.Creator<>();
+        }
     }
     public List<T> asList() {
         return Arrays.asList(left, right);
     }
-    ParallelPair<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
+    public ParallelPair<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc) {
         Par.runTwo(
                 () -> left = left != null ? leftFunc.apply(left) : null,
                 () -> right = right != null ? rightFunc.apply(right) : null
         );
         return this;
     }
-    ParallelPair<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
+    public ParallelPair<T> cUpdate(boolean leftCond, Function<T,T> leftFunc, boolean rightCond, Function<T,T> rightFunc) {
         Par.runConditional(
                 leftCond,
                 () -> left = left != null ? leftFunc.apply(left) : null,
@@ -12637,6 +12686,63 @@ class ParallelPair<T> {
                 () -> right = right != null ? rightFunc.apply(right) : null
         );
         return this;
+    }
+    public ParallelPair<T> peek(Consumer<T> leftConsumer, Consumer<T> rightConsumer) {
+        Par.runTwo(
+                () -> leftConsumer.accept(left),
+                () -> rightConsumer.accept(right)
+        );
+        return this;
+    }
+    public ParallelPair<T> toParallelPair() {
+        return this;
+    }
+    static class Planner<TTT> implements ParallelPairOps<TTT> {
+        ParallelPair<TTT> pair;
+        Runnable leftRunnable;
+        Runnable rightRunnable;
+        private Planner(ParallelPair<TTT> pair, Runnable leftRunnable, Runnable rightRunnable) {
+            this.pair = pair;
+            this.leftRunnable = leftRunnable;
+            this.rightRunnable = rightRunnable;
+        }
+        static class Creator<TT> implements ParallelPairCreator<TT> {
+            public Planner<TT> of(Supplier<TT> leftS, Supplier<TT> rightS) {
+                ParallelPair<TT> pair = new ParallelPair<>(null, null);
+                return new Planner<>(
+                        pair,
+                        () -> pair.left = leftS.get(),
+                        () -> pair.right = rightS.get()
+                );
+            }
+        }
+        public Planner<TTT> update(Function<TTT, TTT> leftFunc, Function<TTT, TTT> rightFunc) {
+            return new Planner<>(
+                    pair,
+                    MyOps.concat(leftRunnable, () -> pair.left = pair.left != null ? leftFunc.apply(pair.left) : null),
+                    MyOps.concat(rightRunnable, () -> pair.right = pair.right != null ? rightFunc.apply(pair.right) : null)
+            );
+        }
+        public Planner<TTT> cUpdate(boolean leftCond, Function<TTT, TTT> leftFunc, boolean rightCond, Function<TTT, TTT> rightFunc) {
+            Runnable leftR = leftCond ? () -> pair.left = pair.left != null ? leftFunc.apply(pair.left) : null : null;
+            Runnable rightR = rightCond ? () -> pair.right = pair.right != null ? rightFunc.apply(pair.right) : null : null;
+            return new Planner<>(
+                    pair,
+                    MyOps.concat(leftRunnable, leftR),
+                    MyOps.concat(rightRunnable, rightR)
+            );
+        }
+        public Planner<TTT> peek(Consumer<TTT> leftConsumer, Consumer<TTT> rightConsumer) {
+            return new Planner<>(
+                    pair,
+                    MyOps.concat(leftRunnable, () -> leftConsumer.accept(pair.left)),
+                    MyOps.concat(rightRunnable, () -> rightConsumer.accept(pair.right))
+            );
+        }
+        public ParallelPair<TTT> toParallelPair() {
+            Par.runTwo(leftRunnable, rightRunnable);
+            return pair;
+        }
     }
 }
 interface LoopSplitter {
@@ -12661,6 +12767,7 @@ interface PairRunner {
         }
     }
     boolean isParallel();
+    boolean isWithIntermediateSync();
 }
 class SeqPairRunner implements PairRunner {
     @Override
@@ -12683,6 +12790,10 @@ class SeqPairRunner implements PairRunner {
     @Override
     public boolean isParallel() {
         return false;
+    }
+    @Override
+    public boolean isWithIntermediateSync() {
+        return true;
     }
     @Override
     public String toString() {
@@ -12710,8 +12821,10 @@ class SeqLoopSplitter implements LoopSplitter {
 }
 class FjpPairRunner implements PairRunner {
     ForkJoinPool pool;
-    protected FjpPairRunner(ForkJoinPool forkJoinPool) {
+    boolean withIntermediateSync;
+    FjpPairRunner(ForkJoinPool forkJoinPool, boolean withIntermediateSync) {
         pool = forkJoinPool;
+        this.withIntermediateSync = withIntermediateSync;
     }
     void setPool(ForkJoinPool forkJoinPool) {
         pool = forkJoinPool;
@@ -12740,6 +12853,10 @@ class FjpPairRunner implements PairRunner {
     public boolean isParallel() {
         return true;
     }
+    @Override
+    public boolean isWithIntermediateSync() {
+        return withIntermediateSync;
+    }
     void runTask(ForkJoinTask<?> task) {
         pool.invoke(task);
     }
@@ -12751,6 +12868,7 @@ class FjpPairRunner implements PairRunner {
         return "FjpPairRunner{" +
                 "pool=" + MyStrings.simpleToString(pool) +
                 ", parallelism=" + pool.getParallelism() +
+                ", withIntermediateSync=" + withIntermediateSync +
                 '}';
     }
 }
@@ -12832,7 +12950,8 @@ interface ParUiFacade {
     int getParallelism();
     int getNTasksToSpawn();
     boolean getParLR();
-    void setParameters(int parallelism, boolean parLR, int nTasksToSpawn);
+    boolean getIntermediateSyncLR();
+    void setParameters(int parallelism, boolean parLR, boolean withIntermediateSync, int nTasksToSpawn);
     int getMaxParallelism();
     int getMaxNTasksToSpawn();
 }
@@ -12850,9 +12969,13 @@ class ParFacadeImpl implements ParUiFacade {
         return Par.Configurator.getParLR();
     }
     @Override
-    public void setParameters(int parallelism, boolean parLR, int nTasksToSpawn) {
+    public boolean getIntermediateSyncLR() {
+        return Par.getParLrSync();
+    }
+    @Override
+    public void setParameters(int parallelism, boolean parLR, boolean withIntermediateSync, int nTasksToSpawn) {
         Par.Configurator.setPoolParallelism(parallelism);
-        Par.Configurator.setTaskingParameters(parLR, nTasksToSpawn>0, nTasksToSpawn);
+        Par.Configurator.setTaskingParameters(parLR, nTasksToSpawn>0, withIntermediateSync, nTasksToSpawn);
     }
     @Override
     public int getMaxParallelism() {
@@ -12877,7 +13000,7 @@ class Par {
     static void init() {
         // TODO: special case for 1 available CPU core
         Configurator.setPoolParallelism(Configurator.defaultParallelism());
-        Configurator.setTaskingParameters(true, true, Configurator.defaultNTasksToSpawn());
+        Configurator.setTaskingParameters(true, true, true, Configurator.defaultNTasksToSpawn());
     }
     public static void splitFor(int from, int to, IntBiConsumer body) {
         loopSplitter.splitFor(from, to, body);
@@ -12890,6 +13013,9 @@ class Par {
     }
     public static void runConditional(boolean firstCond, Runnable first, boolean secondCond, Runnable second) {
         pairRunner.runConditional(firstCond, first, secondCond, second);
+    }
+    public static boolean getParLrSync() {
+        return pairRunner.isWithIntermediateSync();
     }
     public static String describe() {
         var pool = forkJoinPool;
@@ -12910,10 +13036,18 @@ class Par {
             return Runtime.getRuntime().availableProcessors();
         }
         static int defaultParallelism() {
-            return availableParallelism();
+            int n = availableParallelism();
+            if (n < 2) {
+                n = 0; // sequential
+            }
+            return n;
         }
         static int defaultNTasksToSpawn() {
-            return availableParallelism();
+            int nTasks = availableParallelism() - 1;
+            if (nTasks < 2) {
+                nTasks = 0; // sequential
+            }
+            return nTasks;
         }
         static ForkJoinPool createPool(int parallelism) {
             try {
@@ -12976,11 +13110,11 @@ class Par {
                 }
             }
         }
-        static void setTaskingParameters(boolean parLR, boolean parLoops, int nTasksToSpawn) {
+        static void setTaskingParameters(boolean parLR, boolean parLoops, boolean withIntermediateSync, int nTasksToSpawn) {
             var pool = forkJoinPool;
             parFacade = new ParFacadeImpl();
             if (pool != null && parLR) {
-                pairRunner = new FjpPairRunner(pool);
+                pairRunner = new FjpPairRunner(pool, withIntermediateSync);
             } else {
                 pairRunner = new SeqPairRunner();
             }
