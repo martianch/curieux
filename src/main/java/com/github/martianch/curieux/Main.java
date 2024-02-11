@@ -7491,17 +7491,17 @@ class ColorRangeAndFlagsChooser extends JPanel {
             cbSaturateToBlack.setToolTipText("Overexposed (too bright) pixels must become black");
         }
         {
-            JButton button = new JButton("Get from Viewport");
+            JButton button = new JButton("Get Color Range from Viewport");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
             button.addActionListener(e -> actionCalculateViewportColorRange(false));
-            button.setToolTipText("First zoom/resize/scroll the window to exclude pixels that are too dark/too bright");
+            button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
             this.add(button);
         }
         {
-            JButton button = new JButton("Get from Viewport, Ignore Broken Pixels");
+            JButton button = new JButton("Get Color Range from Viewport, Ignore Broken Pixels");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
             button.addActionListener(e -> actionCalculateViewportColorRange(true));
-            button.setToolTipText("First zoom/resize/scroll the window to exclude pixels that are too dark/too bright");
+            button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
             this.add(button);
         }
         {
@@ -11687,7 +11687,7 @@ class SettingsPanel extends JPanel {
                             "<br/>The <b>\"Separate tasks for left and right images\"</b> checkbox lets you disable this level of multitasking. There " +
                             "<br/>is not much reason in doing that unless you want to find out how this affects performance."+
                             "<br/>\n" +
-                            "<br/>If \"Intermediate sync\" is not checked, the subtasks of the right image task may compete with the main left image " +
+                            "<br/>If <b>\"Intermediate sync\"</b> is not checked, the subtasks of the right image task may compete with the main left image " +
                             "<br>task (for CPU cores), and vice versa, left subtasks may compete with the main right task. It looks like it is better " +
                             "<br>to have it checked, but YMMV. OTOH, you may just let the main tasks spawn less subtasks than there are CPU cores." +
                             "\n" +
