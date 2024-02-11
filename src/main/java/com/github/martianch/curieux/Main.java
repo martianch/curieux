@@ -334,6 +334,15 @@ class ColorRange {
             maxB = Math.max(maxB, b);
         }
     }
+    ColorRange merge(ColorRange other) {
+        minR = Math.min(minR, other.minR);
+        maxR = Math.max(maxR, other.maxR);
+        minG = Math.min(minG, other.minG);
+        maxG = Math.max(maxG, other.maxG);
+        minB = Math.min(minB, other.minB);
+        maxB = Math.max(maxB, other.maxB);
+        return this;
+    }
     boolean contains(int rgb) {
         int c;
         return minR <= (c = 0xff & (rgb >> 16)) && c <= maxR
@@ -5234,6 +5243,7 @@ class ScreenshotSaver extends SaverBase {
     static String toAsciiOnly(String text) {
         return text
                 .replaceAll("γ","gamma")
+                .replaceAll("°","deg")
                 .replaceAll("[^\\u0000-\\u007F]","?");
     }
     public static void writeText(File file, String text) throws FileNotFoundException {
@@ -7202,13 +7212,31 @@ class ColorCorrection {
                     }
                     break;
                 case STRETCH_CONTRAST_HSV_S:
-                    res = HSVColorBalancer.balanceColors(res, false, true, false);
+                    res = HSVColorBalancer.balanceColors(res, -1, true, false);
                     break;
                 case STRETCH_CONTRAST_HSV_V:
-                    res = HSVColorBalancer.balanceColors(res, false, false, true);
+                    res = HSVColorBalancer.balanceColors(res, -1, false, true);
                     break;
                 case STRETCH_CONTRAST_HSV_SV:
-                    res = HSVColorBalancer.balanceColors(res, false, true, true);
+                    res = HSVColorBalancer.balanceColors(res, -1, true, true);
+                    break;
+                case STRETCH_CONTRAST_HSV_H000:
+                    res = HSVColorBalancer.balanceColors(res, 0, false, false);
+                    break;
+                case STRETCH_CONTRAST_HSV_H060:
+                    res = HSVColorBalancer.balanceColors(res, 60, false, false);
+                    break;
+                case STRETCH_CONTRAST_HSV_H120:
+                    res = HSVColorBalancer.balanceColors(res, 120, false, false);
+                    break;
+                case STRETCH_CONTRAST_HSV_H180:
+                    res = HSVColorBalancer.balanceColors(res, 180, false, false);
+                    break;
+                case STRETCH_CONTRAST_HSV_H240:
+                    res = HSVColorBalancer.balanceColors(res, 240, false, false);
+                    break;
+                case STRETCH_CONTRAST_HSV_H300:
+                    res = HSVColorBalancer.balanceColors(res, 300, false, false);
                     break;
                 case INTERPOLATE_BROKEN_PIXELS:
                     res = ColorBalancer.interpolateBrokenPixels(res);
@@ -7292,6 +7320,12 @@ enum ColorCorrectionAlgo implements ImageEffect {
     STRETCH_CONTRAST_HSV_V("stretch V in HSV space", "sHSVv"),
     STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
     STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space", "sHSV"),
+    STRETCH_CONTRAST_HSV_H000("stretch H in HSV space (change color), 0°, R", "sHSVh0"),
+    STRETCH_CONTRAST_HSV_H060("stretch H in HSV space (change color), 60°, Y", "sHSVh0"),
+    STRETCH_CONTRAST_HSV_H120("stretch H in HSV space (change color), 120°, G", "sHSVh1"),
+    STRETCH_CONTRAST_HSV_H180("stretch H in HSV space (change color), 180°, C", "sHSVh1"),
+    STRETCH_CONTRAST_HSV_H240("stretch H in HSV space (change color), 240°, B", "sHSVh2"),
+    STRETCH_CONTRAST_HSV_H300("stretch H in HSV space (change color), 300°, M", "sHSVh2"),
     INTERPOLATE_BROKEN_PIXELS("interpolate broken pixels", "ib"),
     //  γ<1 is sometimes called an encoding gamma (γ-compression), γ>1 is called a decoding gamma (γ-expansion)
     GAMMA_DECODE_2_4("gamma decode, γ=2.4", "gd24"),
@@ -7724,27 +7758,38 @@ class ColorBalancer {
             jStart+=d;
             jFinal-=d;
         }
-        ColorRange cr = ColorRange.newEmptyRange();
-        ColorRange around = ColorRange.newEmptyRange();
-        int dd = d + d/2;
-        for (int j = jStart; j < jFinal; j++) { // TODO: splitFor
-            for (int i = iStart; i < iFinal; i++) {
-                int color = src.getRGB(i, j);
-                if (ignoreBroken) {
-                    if (pixelLooksNotBroken(color, setToMinMaxRgbDiag(around, src, i, j, dd))
-                     && pixelLooksNotBroken(color, setToMinMaxRgbHorVer(around, src, i, j, dd))
-                    ) {
-                        if ((color&0xff_ff_ff)==0xff_ff_ff) {
-                            System.out.println("not broken 255: ("+i+","+j+")");
+        int finalIStart = iStart;
+        int finalIFinal = iFinal;
+        ColorRange res = Par.splitFor(jStart, jFinal, (from, to) -> {
+            ColorRange cr = ColorRange.newEmptyRange();
+            ColorRange around = ColorRange.newEmptyRange();
+            int dd = d + d / 2;
+            for (int j = from; j < to; j++) {
+                for (int i = finalIStart; i < finalIFinal; i++) {
+                    int color = src.getRGB(i, j);
+                    if (ignoreBroken) {
+                        if (pixelLooksNotBroken(color, setToMinMaxRgbDiag(around, src, i, j, dd))
+                         && pixelLooksNotBroken(color, setToMinMaxRgbHorVer(around, src, i, j, dd))
+                        ) {
+                            if ((color&0xff_ff_ff)==0xff_ff_ff) {
+                                System.out.println("not broken 255: (" + i + "," + j + ")");
+                            }
+                            cr.update(color);
                         }
+                    } else {
                         cr.update(color);
                     }
-                } else {
-                    cr.update(color);
                 }
             }
-        }
-        return cr;
+            return cr;
+        }, stream ->
+            stream.collect(Collector.of(
+                    ColorRange::newEmptyRange,
+                    ColorRange::merge,
+                    ColorRange::merge
+            ))
+        );
+        return res;
     }
     static boolean pixelLooksNotBroken(int rgb, ColorRange rgbs) {
         return rgbs.almostContains(rgb, 10); // 20?
@@ -7780,14 +7825,21 @@ class ColorBalancer {
         int width = src.getWidth();
         int height = src.getHeight();
         var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        ColorRange around = ColorRange.newEmptyRange();
+        // copy the upper and lower borders (see the step); no need for Par.splitFor here
         for (int j = 0; j < height; j += height-1) {
+            for (int i = 0; i < width; i++) {
+                res.setRGB(i, j, src.getRGB(i, j));
+            }
+        }
+        // copy the left and right borders (see the step); no need for Par.splitFor here
+        for (int j = 1; j < height-1; j++) {
             for (int i = 0; i < width; i += width-1) {
                 res.setRGB(i, j, src.getRGB(i, j));
             }
         }
 
         Par.splitFor(1, height-1, (from, to) -> {
+            ColorRange around = ColorRange.newEmptyRange();
             for (int j = from; j < to; j++) {
                 for (int i = 1; i < width - 1; i++) {
                     int color = src.getRGB(i, j);
@@ -7949,73 +8001,55 @@ class ColorBalancer {
 }
 
 class HSVColorBalancer {
-    public static BufferedImage balanceColors(BufferedImage src, boolean stretchH, boolean stretchS, boolean stretchV) {
+    final static int M = 16;
+    public static BufferedImage balanceColors(BufferedImage src, int stretchHAround, boolean stretchS, boolean stretchV) {
         if (ImageAndPath.isDummyImage(src)) {
             return src;
         }
         try {
-            final int M = 16;
-            float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
+            boolean stretchH = stretchHAround >= 0;
             int width = src.getWidth();
             int height = src.getHeight();
-//            float avgH = 0, avgS = 0, avgV = 0;
-            {
-                float[] hsv = {0.f, 0.f, 0.f};
-                for (int j = M; j < height - M; j++) { // TODO: Par.splitFor
-                    for (int i = M; i < width - M; i++) {
-                        int color = src.getRGB(i, j);
-                        hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
-                        minH = Math.min(minH, hsv[0]);
-                        minS = Math.min(minS, hsv[1]);
-                        minV = Math.min(minV, hsv[2]);
-                        maxH = Math.max(maxH, hsv[0]);
-                        maxS = Math.max(maxS, hsv[1]);
-                        maxV = Math.max(maxV, hsv[2]);
-//                    avgH += hsv[0];
-//                    avgS += hsv[1];
-//                    avgV += hsv[2];
+            HsvMinMax h =
+                Par.splitFor(M, height - M, (from, to) ->
+                {
+                    var hsvHSV = new HsvMinMax(stretchHAround);
+                    float[] hsv = {0.f, 0.f, 0.f};
+                    for (int j = from; j < to; j++) {
+                        for (int i = M; i < width - M; i++) {
+                            int color = src.getRGB(i, j);
+                            hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+                            hsvHSV.update(hsv);
+                        }
                     }
-                }
-            }
-//            {
-//                long N = (height - 2 * M) * (width - 2 * M);
-//                avgH /= N;
-//                avgS /= N;
-//                avgV /= N;
-//            }
-            float dh = maxH - minH;
-            float ds = maxS - minS;
-            float dv = maxV - minV;
-            System.out.println("min:  " + minH + " " + minS + " " + minV);
-            System.out.println("max:  " + maxH + " " + maxS + " " + maxV);
-//            System.out.println("avg:  " + avgH + " " + avgS + " " + avgV);
-            System.out.println("  d:  " + dh + " " + ds + " " + dv);
-//            System.out.println("avgd: " + (avgH - minH) + " " + (avgS - minS) + " " + (avgV - minV));
+                    return hsvHSV;
+                }, stream ->
+                    stream.collect(Collector.of(
+                        () -> new HsvMinMax(stretchHAround),
+                        HsvMinMax::merge,
+                        HsvMinMax::merge
+                    ))
+                );
+            float dh = h.maxH - h.minH;
+            float ds = h.maxS - h.minS;
+            float dv = h.maxV - h.minV;
+            System.out.println("HSV stretch: " + stretchH + "(" + stretchHAround + " -> " + h.hAround + ") " + stretchS + " " + stretchV);
+            System.out.println("HSV min:  " + h.minH + " " + h.minS + " " + h.minV);
+            System.out.println("HSV max:  " + h.maxH + " " + h.maxS + " " + h.maxV);
+            System.out.println("HSV   d:  " + dh + " " + ds + " " + dv);
             var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            float finalMinH = minH;
-            float finalMinS = minS;
-            float finalMinV = minV;
             Par.splitFor(0, height, (from, to) -> {
                 float[] hsv = { 0.f, 0.f, 0.f };
                 for (int j = from; j < to; j++) {
                     for (int i = 0; i < width; i++) {
                         int color = src.getRGB(i, j);
                         hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
-//                    int r = 0xff & (color >> 16);
-//                    int g = 0xff & (color >> 8);
-//                    int b = 0xff & (color);
-////                    int r1 = (int) (r * avgB*avgG/avgR/255);//r * 255 / maxR;//(r - minR) * 255 / dr;
-////                    int g1 = (int) (g * avgB*avgR/avgG/255); //g * 255 / maxG;//(g - minG) * 255 / dg;
-////                    int b1 = (int) (b * avgG*avgR/avgB/255); //b * 255 / maxB;// b * (b - minB) * 255 / db;
-////                    int r1 = (r - minR) * 255 / dr;
-////                    int g1 = (g - minG) * 255 / dg;
-////                    int b1 = (b - minB) * 255 / db;
-//                    float h1 = stretchH ? (hsv[0] - minH) * maxH / dh : hsv[0];
-//                    float s1 = stretchS ? (hsv[1] - minS) * maxS / ds : hsv[1];
-//                    float v1 = stretchV ? (hsv[2] - minV) * maxV / dv : hsv[2];
-                        float h1 = stretchH ? (hsv[0] - finalMinH) / dh : hsv[0];
-                        float s1 = stretchS ? (hsv[1] - finalMinS) / ds : hsv[1];
-                        float v1 = stretchV ? (hsv[2] - finalMinV) / dv : hsv[2];
+                        // s ∈ [0, 1], v ∈ [0, 1]; h ∈ [0, 1] and what is >1 is ignored
+                        // ds ∈ [0, 1], dv ∈ [0, 1]
+                        // no need to multiply by 1.0f
+                        float h1 = stretchH ? h.scaleH(hsv[0], dh) : hsv[0];
+                        float s1 = stretchS ? (hsv[1] - h.minS) / ds : hsv[1];
+                        float v1 = stretchV ? (hsv[2] - h.minV) / dv : hsv[2];
                         int color1 = Color.HSBtoRGB(h1, s1, v1);
                         res.setRGB(i, j, color1);
                     }
@@ -8025,6 +8059,52 @@ class HSVColorBalancer {
         } catch (ArithmeticException e) {
             e.printStackTrace();
             return src;
+        }
+    }
+    static class HsvMinMax {
+        float hAround;
+        boolean adjustH;
+        float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE,
+                maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
+        public HsvMinMax(int hAround) {
+            if (hAround >= 0) {
+                this.hAround = (float) (hAround/360.);
+                this.adjustH = true;
+            } else {
+                this.hAround = 0.f;
+                this.adjustH = false;
+            }
+        }
+        void update(float[] hsv) {
+            float h = adjustH ? encodeH(hsv[0]) : hsv[0];
+            minH = Math.min(minH, h);
+            minS = Math.min(minS, hsv[1]);
+            minV = Math.min(minV, hsv[2]);
+            maxH = Math.max(maxH, h);
+            maxS = Math.max(maxS, hsv[1]);
+            maxV = Math.max(maxV, hsv[2]);
+        }
+        static float frac(float x) {
+            return (float) (x - Math.floor(x));
+        }
+        //        float diffH(float h) {
+//            return frac(h - hAround + 0.5f) - 0.5f;
+//        }
+        HsvMinMax merge(HsvMinMax other) {
+            minH = Math.min(minH, other.minH);
+            minS = Math.min(minS, other.minS);
+            minV = Math.min(minV, other.minV);
+            maxH = Math.max(maxH, other.maxH);
+            maxS = Math.max(maxS, other.maxS);
+            maxV = Math.max(maxV, other.maxV);
+            return this;
+        }
+        float encodeH(float h) {
+            return frac(h - hAround);
+        }
+        float scaleH(float h, float dh) {
+            var center = hAround + minH;
+            return frac((h - center) / dh + hAround);
         }
     }
 }
@@ -8075,12 +8155,14 @@ class CyanRedColorFilter {
             int width = src.getWidth();
             int height = src.getHeight();
             var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            for (int j = 0; j < height; j++) {
-                for (int i = 0; i < width; i++) {
-                    int color = src.getRGB(i, j);
-                    res.setRGB(i, j, changeColor.applyAsInt(color));
+            Par.splitFor(0, height, (from, to) -> {
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int color = src.getRGB(i, j);
+                        res.setRGB(i, j, changeColor.applyAsInt(color));
+                    }
                 }
-            }
+            });
             return res;
         } catch (ArithmeticException e) {
             e.printStackTrace();
@@ -11604,10 +11686,14 @@ class SettingsPanel extends JPanel {
                             "<br/>\n" +
                             "<br/>The <b>\"Separate tasks for left and right images\"</b> checkbox lets you disable this level of multitasking. There " +
                             "<br/>is not much reason in doing that unless you want to find out how this affects performance."+
+                            "<br/>\n" +
+                            "<br/>If \"Intermediate sync\" is not checked, the subtasks of the right image task may compete with the main left image " +
+                            "<br>task (for CPU cores), and vice versa, left subtasks may compete with the main right task. It looks like it is better " +
+                            "<br>to have it checked, but YMMV. OTOH, you may just let the main tasks spawn less subtasks than there are CPU cores." +
                             "\n" +
                             "<h2>Can I do this from the command line?</h2>\n" +
                             "Yes, use the JVM flag <b>-XX:ActiveProcessorCount=4</b> (replace 4 with your number of choice) to override the " +
-                            "<br/>number of CPUs visible to the JVM." +
+                            "<br/>number of CPUs visible to the JVM (Java Virtual Machine)." +
                             "<h2>How do I measure time?</h2>\n" +
                             "If you start this program from the terminal (the command line box), you can find a line like " +
                             "<br/><tt>*** updateViews/processBothImages elapsed: 0.181538552</tt>" +
@@ -12202,12 +12288,14 @@ class ImageMerger
     }
 
     static BufferedImage copyToFrom(BufferedImage dst, int offx, int offy, BufferedImage src, int fromX, int fromY, int width, int height) {
-        for (int y=0; y<height; y++) {
-            for (int x=0; x<width; x++) {
-                int rgb = src.getRGB(x+fromX,y+fromY);
-                dst.setRGB(offx+x, offy+y, rgb);
+        Par.splitFor(0, height, (from, to) -> {
+            for (int y=from; y<to; y++) { // TODO: to consider Par.splitFor both here and at the call point
+                for (int x=0; x<width; x++) {
+                    int rgb = src.getRGB(x+fromX,y+fromY);
+                    dst.setRGB(offx+x, offy+y, rgb);
+                }
             }
-        }
+        });
         return dst;
     }
     static List<ImageMerger.ImageDescriptor> getSmallImages(List<String> fileList, Function<String, BufferedImage> imageReader) {
@@ -12990,6 +13078,9 @@ class ParFacadeImpl implements ParUiFacade {
  * The facade of the parallelization subsystem.
  * Only user-visible methods (but the user is a programmer willing to use parallel computations).
  * All internals are in the Par.Configurator class.
+ * <p/>
+ * This class is a layer above ForkJoinPool, it lets us not to mix what must be executed with
+ * the implementation details of how that action(s) may be done in parallel.
  */
 class Par {
     static ForkJoinPool forkJoinPool;
@@ -12999,18 +13090,58 @@ class Par {
     /** Initialize the parallelization subsystem. Use Par.Configurator.shutdown() to undo this action. */
     static void init() {
         // TODO: special case for 1 available CPU core
-        Configurator.setPoolParallelism(Configurator.defaultParallelism());
-        Configurator.setTaskingParameters(true, true, true, Configurator.defaultNTasksToSpawn());
+        Configurator.init(Configurator.defaultParallelism(), Configurator.defaultNTasksToSpawn());
     }
+    /**
+     * This implements a control structure for parallel loop execution.
+     * Instead of: <pre>{@code for (int j=0; j<M; j++) { loop_body; }}</pre>
+     * you write:<pre>
+     * {@code Par.splitFor(0, M, (from, to) -> {
+     *     for (int j=from; j<to; j++) { loop_body; }
+     * }); }</pre>
+     * and the loop body is executed in parallel in a ForkJoinPool (provided that there are multiple CPU cores).
+     * If there is only one CPU core available, the "sequential" implementation just calls the provided lambda
+     * with the provided loop bounds.
+     */
     public static void splitFor(int from, int to, IntBiConsumer body) {
         loopSplitter.splitFor(from, to, body);
     }
+    /**
+     * This implements a control structure for parallel loop execution when the loop must produce some result.
+     * Instead of: <pre>{@code Res res = Res.newEmpty();
+     * for (int j=0; j<M; j++) { res.update(...); }
+     * }</pre> you write:<pre>
+     * {@code Res res = Par.splitFor(0, M, (from, to) -> {
+     *     Res r = Res.newEmpty();
+     *     for (int j=from; j<to; j++) { r.update(...); }
+     *     return r;
+     * }, stream ->
+     *     Collector.of(Res::newEmpty, Res::merge, Res::merge)
+     * ); }</pre>
+     * and the loop body is executed in parallel in a ForkJoinPool (provided that there are multiple CPU cores).
+     * If there is only one CPU core available, the "sequential" implementation just calls the provided lambda
+     * with the provided loop bounds.<p/>
+     *
+     * The second lambda merges results from parallel invocations of the first lambda into the final result.
+     */
+    public static <T> T splitFor(int from, int to, IntBiFunction<T> body, StreamMerger<T> merger) {
+        return loopSplitter.splitFor(from, to, body, merger);
+    }
+    /** Invoke callable in a ForkJoinPool, unless the "sequential" implementation is being used. */
     public static<T> T callOne(Callable<T> callable) {
         return pairRunner.callOne(callable);
     }
+    /** Run two {@code Runnable}s, probably in parallel. */
     public static void runTwo(Runnable first, Runnable second) {
         pairRunner.runTwo(first, second);
     }
+    /**
+     * Conditionally run from 0 to 2 runnables, probably in parallel.
+     * @param firstCond condition for the first Runnable
+     * @param first the first Runnable
+     * @param secondCond condition for the second Runnable
+     * @param second the second Runnable
+     */
     public static void runConditional(boolean firstCond, Runnable first, boolean secondCond, Runnable second) {
         pairRunner.runConditional(firstCond, first, secondCond, second);
     }
@@ -13029,6 +13160,10 @@ class Par {
     }
 
     static class Configurator {
+        static void init(int parallelism, int nTasksToSpawn) {
+            Configurator.setPoolParallelism(parallelism);
+            Configurator.setTaskingParameters(true, true, true, nTasksToSpawn);
+        }
         public static ParUiFacade getParUiFacade() {
             return parFacade;
         }
@@ -13125,7 +13260,9 @@ class Par {
             }
         }
         static void shutdownPar() {
-            forkJoinPool.shutdown();
+            if (forkJoinPool != null) {
+                forkJoinPool.shutdown();
+            }
             forkJoinPool = null;
             loopSplitter = null;
             pairRunner = null;

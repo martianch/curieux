@@ -31,6 +31,9 @@ build
 # Ignore Idea build output directory
 out
 
+#ignore test output
+testout
+
 .idea
 .ignore
 

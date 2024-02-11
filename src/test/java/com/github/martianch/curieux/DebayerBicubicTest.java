@@ -293,7 +293,7 @@ public class DebayerBicubicTest {
         assertEquals(first.getWidth(), second.getWidth());
         assertEquals(first.getHeight(), second.getHeight());
         int w = first.getWidth();
-        int h = first.getHeight();
+        int h = second.getHeight();
         boolean res = true;
         for (int j=0; j<h; j++) {
             for (int i=0; i<w; i++) {
