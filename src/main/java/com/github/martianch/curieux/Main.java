@@ -247,12 +247,15 @@ interface UiEventListener {
     Optional<Integer> getSol(boolean isRight, WhichRover whichRover);
     MeasurementStatus getMeasurementStatus();
     DisplayParameters getDisplayParameters();
-    ColorRange getViewportColorRange(boolean isRight, boolean ignoreBroken);
+    ColorRange getViewportRgbRange(boolean isRight, boolean ignoreBroken);
+    HsvRange getViewportHsvRange(boolean isRight, boolean ignoreBroken, double hLower);
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
+    CustomStretchHsvParameters getCurrentCustomStretchHsvParameters(boolean isRight);
     FisheyeCorrection getFisheyeCorrection(boolean isRight);
     ColorCorrectionAlgo getPreFilter(boolean isRight);
     Dimension getRawImageDimensions(boolean isRight);
     void setCustomStretchRgbParameters(CustomStretchRgbParameters customStretchRgbParameters, boolean isRight); //???
+    void setCustomStretchHsvParameters(CustomStretchHsvParameters customStretchHsvParameters, boolean isRight); //???
     void setSaveOptions(boolean saveGif, boolean saveLeftRIght);
     void setUseCustomCrosshairCursor(boolean useCustomCrosshairCursor);
     void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc);
@@ -427,6 +430,254 @@ class CustomStretchRgbParameters {
         return Objects.hash(colorRange, isPerChannel, isSaturated, isBlackSaturated);
     }
 }
+class HTargetRange {
+    final double minH, maxH;
+    private HTargetRange(double minH, double maxH) {
+        this.minH = minH;
+        this.maxH = maxH;
+    }
+    public static HTargetRange newFullRange() {
+        return new HTargetRange(0., 1.);
+    }
+    public boolean isFullRange() {
+        return  minH == 0. && maxH == 1.;
+    }
+    public HTargetRange withMinH(double minH) {
+        return new HTargetRange(minH, maxH);
+    }
+    public HTargetRange withMaxH(double maxH) {
+        return new HTargetRange(minH, maxH);
+    }
+    public HTargetRange copy() {
+        return this; // immutable!
+    }
+    @Override
+    public String toString() {
+        return "HTargetRange{" +
+                minH + ".." + maxH +
+                '}';
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        HTargetRange that = (HTargetRange) o;
+        return Double.compare(that.minH, minH) == 0 && Double.compare(that.maxH, maxH) == 0;
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(minH, maxH);
+    }
+}
+class HsvRange {
+    double hLower;
+    boolean adjustH;
+    double minH;
+    double minS;
+    double minV;
+    double maxH;
+    double maxS;
+    double maxV;
+
+    private HsvRange(double hLower, boolean adjustH, double minH, double minS, double minV, double maxH, double maxS, double maxV) {
+        this.hLower = hLower;
+        this.adjustH = adjustH;
+        this.minH = minH;
+        this.minS = minS;
+        this.minV = minV;
+        this.maxH = maxH;
+        this.maxS = maxS;
+        this.maxV = maxV;
+    }
+//    private HsvRange(float minH, float minS, float minV, float maxH, float maxS, float maxV) {
+//
+//    }
+//    public double getMinH() {
+//        return minH + hLower;
+//    }
+//    public double getMaxH() {
+//        return maxH + hLower;
+//    }
+    public HsvRange copy() {
+        return new HsvRange(hLower, adjustH, minH, minS, minV, maxH, maxS, maxV);
+    }
+
+    public static HsvRange newFullRange() {
+        var res = new HsvRange(0., false, 0., 0., 0., 1., 1., 1.);
+        return res;
+    }
+//    public static HsvRange newEmptyRange() {
+//        var res = newEmptyRangeFrom(0.);
+//        return res;
+//    }
+    public static HsvRange newEmptyRangeFrom(double hLower) {
+        hLower = MyMath.frac(hLower);
+        var res = new HsvRange(
+                hLower, hLower != 0.,
+                Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY
+        );
+        return res;
+    }
+    boolean isEmpty() {
+        return minH >= maxH || minS >= maxS || minV >= maxV;
+    }
+    boolean isFullRange() {
+        return minH == 0. && maxH == 1.
+            && minS == 0. && maxS == 1.
+            && minV == 0. && maxV == 1.;
+    }
+//    void setEmpty() {
+//        minH = minS = minV = Float.MAX_VALUE;
+//        maxH = maxS = maxV = Float.MIN_VALUE;
+//    }
+    void update(float[] hsv) {
+        double h = adjustH ? MyMath.unfrac(hLower, hsv[0]) : hsv[0];
+        minH = Math.min(minH, h);
+        minS = Math.min(minS, hsv[1]);
+        minV = Math.min(minV, hsv[2]);
+        maxH = Math.max(maxH, h);
+        maxS = Math.max(maxS, hsv[1]);
+        maxV = Math.max(maxV, hsv[2]);
+    }
+    HsvRange merge(HsvRange other) {
+        minH = Math.min(minH, other.minH);
+        minS = Math.min(minS, other.minS);
+        minV = Math.min(minV, other.minV);
+        maxH = Math.max(maxH, other.maxH);
+        maxS = Math.max(maxS, other.maxS);
+        maxV = Math.max(maxV, other.maxV);
+        return this;
+    }
+//    static double frac(double x) {
+//        return x - Math.floor(x);
+//    }
+//    double changeRangeH(double h) {
+//        return h<hLower ? h+1. : h;
+//    }
+//    double scaleH(double h, double dh) {
+//        var bottom = hLower + minH;
+//        return frac((h - bottom) / dh + hLower);
+//    }
+//    ColorRange merge(ColorRange other) {
+//        minH = Math.min(minH, other.minR);
+//        maxH = Math.max(maxH, other.maxR);
+//        minS = Math.min(minS, other.minG);
+//        maxS = Math.max(maxS, other.maxG);
+//        minV = Math.min(minV, other.minB);
+//        maxV = Math.max(maxV, other.maxB);
+//        return this;
+//    }
+//    boolean contains(int rgb) {
+//        int c;
+//        return minH <= (c = 0xff & (rgb >> 16)) && c <= maxH
+//                && minS <= (c = 0xff & (rgb >> 8))  && c <= maxS
+//                && minV <= (c = 0xff & (rgb))       && c <= maxV;
+//    }
+//    boolean almostContains(int rgb, int d) {
+//        int c;
+//        return minH -d <= (c = 0xff & (rgb >> 16)) && c <= maxH +d
+//                && minS -d <= (c = 0xff & (rgb >> 8))  && c <= maxS +d
+//                && minV -d <= (c = 0xff & (rgb))       && c <= maxV +d;
+//    }
+    @Override
+    public String toString() {
+        return "HsvRange{" +
+                minH + ".." + maxH + ", " +
+                minS + ".." + maxS + ", " +
+                minV + ".." + maxV +
+                (isEmpty() ? " (empty)" : "") +
+                (isFullRange() ? " (full-range)" : "") +
+                " hLower=" + hLower +
+                " adjustH=" + adjustH +
+                '}';
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        HsvRange that = (HsvRange) o;
+        return minH == that.minH &&
+               minS == that.minS &&
+               minV == that.minV &&
+               maxH == that.maxH &&
+               maxS == that.maxS &&
+               maxV == that.maxV;
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(minH, minS, minV, maxH, maxS, maxV);
+    }
+}
+class CustomStretchHsvParameters {
+    HsvRange hsvRange;
+    HTargetRange hTargetRange;
+    boolean stretchH, stretchS, stretchV;
+    boolean saturatedH, saturatedS, saturatedV;
+
+    public CustomStretchHsvParameters(HsvRange hsvRange, HTargetRange hTargetRange, boolean stretchH, boolean stretchS, boolean stretchV, boolean saturatedH, boolean saturatedS, boolean saturatedV) {
+        this.hsvRange = hsvRange.copy();
+        this.stretchH = stretchH;
+        this.stretchS = stretchS;
+        this.stretchV = stretchV;
+        this.hTargetRange = hTargetRange.copy();
+        this.saturatedH = saturatedH;
+        this.saturatedS = saturatedS;
+        this.saturatedV = saturatedV;
+    }
+    public CustomStretchHsvParameters copy() {
+        return new CustomStretchHsvParameters(
+                hsvRange, hTargetRange,
+                stretchH, stretchS, stretchV,
+                saturatedH, saturatedS, saturatedV
+        );
+    }
+//    public static CustomStretchHsvParameters newEmpty() {
+//        return new CustomStretchHsvParameters(HsvRange.newEmptyRange(), HTargetRange.newFullRange(), true);
+//    }
+    public static CustomStretchHsvParameters newFullRange() { // TODO: provide HTargetRange?
+        return new CustomStretchHsvParameters(
+                HsvRange.newFullRange(), HTargetRange.newFullRange(),
+                false, false, false,
+                true, true, true
+        );
+    }
+    @Override
+    public String toString() {
+        return "CustomStretchHsvParameters{" +
+                "hsvRange=" + hsvRange +
+                ", hTargetRange=" + hTargetRange +
+                ", stretchH=" + stretchH +
+                ", stretchS=" + stretchS +
+                ", stretchV=" + stretchV +
+                ", saturatedH=" + saturatedH +
+                ", saturatedS=" + saturatedS +
+                ", saturatedV=" + saturatedV +
+                '}';
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CustomStretchHsvParameters that = (CustomStretchHsvParameters) o;
+        return stretchH == that.stretchH
+            && stretchS == that.stretchS
+            && stretchV == that.stretchV
+            && saturatedH == that.saturatedH
+            && saturatedS == that.saturatedS
+            && saturatedV == that.saturatedV
+            && Objects.equals(hsvRange, that.hsvRange)
+            && Objects.equals(hTargetRange, that.hTargetRange);
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+                hsvRange, hTargetRange,
+                stretchH, stretchS, stretchV,
+                saturatedH, saturatedS, saturatedV
+        );
+    }
+}
 class BehavioralOptions {
     boolean saveGif = true;
     boolean saveLeftRightImages = true;
@@ -452,7 +703,11 @@ class DisplayParameters {
         debayerL = debayerR = DebayerMode.getUiDefault();
         preFilterL = preFilterR = ColorCorrectionAlgo.DO_NOTHING;
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
-        lColorCorrection = rColorCorrection = new ColorCorrection(Collections.EMPTY_LIST, CustomStretchRgbParameters.newFullRange());
+        lColorCorrection = rColorCorrection = new ColorCorrection(
+                Collections.EMPTY_LIST,
+                CustomStretchRgbParameters.newFullRange(),
+                CustomStretchHsvParameters.newFullRange())
+        ;
         lFisheyeCorrection = rFisheyeCorrection = FisheyeCorrection.defaultValue();
     }
     void setDefaultsMrMl() {
@@ -1285,10 +1540,12 @@ class UiController implements UiEventListener {
             case RED_CYAN_ANAGLYPH_GRAY:
                 newDp = displayParameters.withColorCorrection(
                         new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_BLUE),
-                                CustomStretchRgbParameters.newFullRange()
+                                CustomStretchRgbParameters.newFullRange(),
+                                CustomStretchHsvParameters.newFullRange()
                         ),
                         new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_RED),
-                                CustomStretchRgbParameters.newFullRange()
+                                CustomStretchRgbParameters.newFullRange(),
+                                CustomStretchHsvParameters.newFullRange()
                         )
                 );
                 newDp.offsetY = newDp.offsetX = 0;
@@ -1296,10 +1553,12 @@ class UiController implements UiEventListener {
             case RED_CYAN_ANAGLYPH_COLOR:
                 newDp = displayParameters.withColorCorrection(
                         new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_BLUE_GREEN_COLOR),
-                                CustomStretchRgbParameters.newFullRange()
+                                CustomStretchRgbParameters.newFullRange(),
+                                CustomStretchHsvParameters.newFullRange()
                         ),
                         new ColorCorrection(Arrays.asList(ColorCorrectionAlgo.FILTER_RED_COLOR),
-                                CustomStretchRgbParameters.newFullRange()
+                                CustomStretchRgbParameters.newFullRange(),
+                                CustomStretchHsvParameters.newFullRange()
                         )
                 );
                 newDp.offsetY = newDp.offsetX = 0;
@@ -1307,10 +1566,12 @@ class UiController implements UiEventListener {
             case LR_STEREO_PAIR:
                 newDp = displayParameters.withColorCorrection(
                         new ColorCorrection(Collections.EMPTY_LIST,
-                                CustomStretchRgbParameters.newFullRange()
+                                CustomStretchRgbParameters.newFullRange(),
+                                CustomStretchHsvParameters.newFullRange()
                         ),
                         new ColorCorrection(Collections.EMPTY_LIST,
-                                CustomStretchRgbParameters.newFullRange()
+                                CustomStretchRgbParameters.newFullRange(),
+                                CustomStretchHsvParameters.newFullRange()
                         )
                 );
                 newDp.offsetY = 0;
@@ -1851,27 +2112,52 @@ class UiController implements UiEventListener {
         }
     }
     private ColorCorrection insertSrgb3IfNotThere(ColorCorrection cc) {
-        if (!cc.getAlgos().contains(ColorCorrectionAlgo.STRETCH_CONTRAST_RGB_RGB3)) {
-            cc = cc.copyWith(Arrays.asList(ColorCorrectionAlgo.STRETCH_CONTRAST_RGB_RGB3));
+        return insertEffectUnlessAlreadyThere(cc, ColorCorrectionAlgo.STRETCH_CONTRAST_RGB_RGB3);
+    }
+    private ColorCorrection insertHsvcIfNotThere(ColorCorrection cc) {
+        return insertEffectUnlessAlreadyThere(cc, ColorCorrectionAlgo.STRETCH_CONTRAST_HSV_CUSTOM);
+    }
+    private static ColorCorrection insertEffectUnlessAlreadyThere(ColorCorrection cc, ColorCorrectionAlgo colorCorrectionAlgo) {
+        if (!cc.getAlgos().contains(colorCorrectionAlgo)) {
+            cc = cc.copyWith(Arrays.asList(colorCorrectionAlgo));
         }
         return cc;
     }
+
     @Override
-    public ColorRange getViewportColorRange(boolean isRight, boolean ignoreBroken) {
+    public ColorRange getViewportRgbRange(boolean isRight, boolean ignoreBroken) {
         Rectangle visibleArea = x3dViewer.getViewportRectangle(isRight);
         ColorCorrection lcc = insertSrgb3IfNotThere(displayParameters.lColorCorrection);
         ColorCorrection rcc = insertSrgb3IfNotThere(displayParameters.rColorCorrection);
         var dp = displayParameters
                 .withColorCorrection(lcc, rcc);
-        var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE);
+        var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE_RGB);
         var bi = bis.get(isRight ? 1 : 0);
-        int d = (int) Math.round(displayParameters.getFullZoom(isRight));
-        var cr = ColorBalancer.getColorRangeFromImage(visibleArea, bi, ignoreBroken, d);
+        int d = (int) Math.round(displayParameters.getFullZoom(isRight)); // TODO: BUG: this code is invoked BEFORE zoom(). d should be 1 or 2
+        var cr = RgbColorBalancer.getColorRangeFromImage(visibleArea, bi, ignoreBroken, d);
+        return cr;
+    }
+    @Override
+    public HsvRange getViewportHsvRange(boolean isRight, boolean ignoreBroken, double hLower) {
+        Rectangle visibleArea = x3dViewer.getViewportRectangle(isRight);
+        ColorCorrection lcc = insertHsvcIfNotThere(displayParameters.lColorCorrection);
+        ColorCorrection rcc = insertHsvcIfNotThere(displayParameters.rColorCorrection);
+        var dp = displayParameters
+                .withColorCorrection(lcc, rcc);
+        var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE_HSV);
+        var bi = bis.get(isRight ? 1 : 0);
+        int d = (int) Math.round(displayParameters.getFullZoom(isRight)); // TODO: BUG: this code is invoked BEFORE zoom().  d should be 1 or 2
+//        double hLower = displayParameters.getColorCorrection(isRight).customStretchHsvParameters.hsvRange.hLower;
+        var cr = HsvColorBalancer.getHsvRangeFromImage(visibleArea, bi, ignoreBroken, d, hLower);
         return cr;
     }
     @Override
     public CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight) {
         return displayParameters.getColorCorrection(isRight).customStretchRgbParameters;
+    }
+    @Override
+    public CustomStretchHsvParameters getCurrentCustomStretchHsvParameters(boolean isRight) {
+        return displayParameters.getColorCorrection(isRight).customStretchHsvParameters;
     }
     @Override
     public FisheyeCorrection getFisheyeCorrection(boolean isRight) {
@@ -1906,6 +2192,14 @@ class UiController implements UiEventListener {
         ColorCorrection cc = displayParameters
                 .getColorCorrection(isRight)
                 .copyWith(customStretchRgbParameters);
+        var newDp = displayParameters.withColorCorrection(isRight, cc);
+        x3dViewer.updateViews(rawData, displayParameters=newDp, measurementStatus);
+    }
+    @Override
+    public void setCustomStretchHsvParameters(CustomStretchHsvParameters customStretchHsvParameters, boolean isRight) {
+        ColorCorrection cc = displayParameters
+                .getColorCorrection(isRight)
+                .copyWith(customStretchHsvParameters);
         var newDp = displayParameters.withColorCorrection(isRight, cc);
         x3dViewer.updateViews(rawData, displayParameters=newDp, measurementStatus);
     }
@@ -2145,9 +2439,9 @@ class X3DViewer {
 //        }
             .cUpdate(
                     dp.preFilterL.notNothing(),
-                    imgL -> ColorBalancer.interpolateBrokenPixels(imgL),
+                    imgL -> RgbColorBalancer.interpolateBrokenPixels(imgL),
                     dp.preFilterR.notNothing(),
-                    imgR -> ColorBalancer.interpolateBrokenPixels(imgR)
+                    imgR -> RgbColorBalancer.interpolateBrokenPixels(imgR)
             )
             // barrel distortion correction
 //        imgL = dp.lFisheyeCorrection.doFisheyeCorrection(imgL);
@@ -3590,7 +3884,9 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         this.setLayout(fl);
         {
             label = new JLabel(labelText);
-            this.add(label);
+            if (labelText != null) {
+                this.add(label);
+            }
         }
         {
             buttonMinus2 = new JButton();
@@ -3598,7 +3894,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonMinus2.addActionListener(e -> {
                 valueWrapper.decrement(1 + getGroupIndex(e));
                 setTextFieldFromValue();
-                valueListener.accept(valueWrapper.getSafeValue());
+                valueListener.accept(valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue()));
             });
             buttonMinus2.setToolTipText(valueWrapper.getButtonToolTip(-1, 1, 1+GROUP_LENGTH));
             this.add(buttonMinus2);
@@ -3609,7 +3905,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonMinus.addActionListener(e -> {
                 valueWrapper.decrement(0 + getGroupIndex(e));
                 setTextFieldFromValue();
-                valueListener.accept(valueWrapper.getSafeValue());
+                valueListener.accept(valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue()));
             });
             buttonMinus.setToolTipText(valueWrapper.getButtonToolTip(-1, 0, 0+GROUP_LENGTH));
             this.add(buttonMinus);
@@ -3620,7 +3916,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             textField.addActionListener(e -> {
                 if (valueWrapper.setFromString(e.getActionCommand())) {
                     this.textField.setForeground(Color.BLACK);
-                    valueListener.accept(valueWrapper.getSafeValue());
+                    valueListener.accept(valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue()));
                 } else {
                     this.textField.setForeground(Color.RED);
                 }
@@ -3633,7 +3929,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonPlus.addActionListener(e -> {
                 valueWrapper.increment(0 + getGroupIndex(e));
                 setTextFieldFromValue();
-                valueListener.accept(valueWrapper.getSafeValue());
+                valueListener.accept(valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue()));
             });
             buttonPlus.setToolTipText(valueWrapper.getButtonToolTip(+1, 0, 0+GROUP_LENGTH));
             this.add(buttonPlus);
@@ -3644,7 +3940,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonPlus2.addActionListener(e -> {
                 valueWrapper.increment(1 + getGroupIndex(e));
                 setTextFieldFromValue();
-                valueListener.accept(valueWrapper.getSafeValue());
+                valueListener.accept(valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue()));
             });
             buttonPlus2.setToolTipText(valueWrapper.getButtonToolTip(+1, 1, 1+GROUP_LENGTH));
             this.add(buttonPlus2);
@@ -3655,7 +3951,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonDefault.addActionListener(e -> {
                 valueWrapper.reset();
                 setTextFieldFromValue();
-                valueListener.accept(valueWrapper.getSafeValue());
+                valueListener.accept(valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue()));
             });
             buttonDefault.setToolTipText("Reset to default");
             this.add(buttonDefault);
@@ -3679,15 +3975,16 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     DigitalZoomControl setTextFieldFromValue() {
         this.textField.setForeground(Color.BLACK);
         this.textField.setText(valueWrapper.getAsString());
+        this.textField.setCaretPosition(0);
         return this;
     }
     DigitalZoomControl setValueAndText(T v) {
-        valueWrapper.setValue(v);
+        valueWrapper.setValue(valueWrapper.toUserFriendlyValue(v));
         setTextFieldFromValue();
         return this;
     }
     T getSafeValue() {
-        return valueWrapper.getSafeValue();
+        return valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue());
     }
     @Override
     public String toString() {
@@ -3717,6 +4014,8 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         T getSafeValue() { return value; }
         ValueWrapper setValue(T v) { value = v; return this; }
         abstract String getButtonToolTip(int sign, int index1, int index2);
+        T toUserFriendlyValue(T v) { return v; }
+        T toComputationFriendlyValue(T v) { return v; }
     }
 }
 class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
@@ -3771,6 +4070,20 @@ class OffsetWrapper2 extends RotationAngleWrapper {
     static final double[] INCREMENTS = {1, 3, 30, 100};
     {
         increments = INCREMENTS;
+    }
+}
+class HsvAngleWrapper extends RotationAngleWrapper {
+    static final double[] INCREMENTS = {1, 3, 30, 100};
+    {
+        increments = INCREMENTS;
+    }
+    @Override
+    Double toUserFriendlyValue(Double v) {
+        return v*360.;
+    }
+    @Override
+    Double toComputationFriendlyValue(Double v) {
+        return v/360.;
     }
 }
 class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
@@ -7145,18 +7458,23 @@ class DistortionCenterLocationImpl implements DistortionCenterLocation {
 class ColorCorrection {
     final List<ColorCorrectionAlgo> algos;
     final CustomStretchRgbParameters customStretchRgbParameters;
+    final CustomStretchHsvParameters customStretchHsvParameters;
 
-    public enum Command{SHOW, GET_RANGE}
+    public enum Command{SHOW, GET_RANGE_RGB, GET_RANGE_HSV}
 
     public ColorCorrection copyWith(List<ColorCorrectionAlgo> algos) {
-        return new ColorCorrection(algos, this.customStretchRgbParameters);
+        return new ColorCorrection(algos, this.customStretchRgbParameters, this.customStretchHsvParameters);
     }
     public ColorCorrection copyWith(CustomStretchRgbParameters customStretchRgbParameters) {
-        return new ColorCorrection(this.algos, customStretchRgbParameters);
+        return new ColorCorrection(this.algos, customStretchRgbParameters, this.customStretchHsvParameters);
     }
-    public ColorCorrection(List<ColorCorrectionAlgo> algos, CustomStretchRgbParameters customStretchRgbParameters) {
+    public ColorCorrection copyWith(CustomStretchHsvParameters customStretchHsvParameters) {
+        return new ColorCorrection(this.algos, this.customStretchRgbParameters, customStretchHsvParameters);
+    }
+    public ColorCorrection(List<ColorCorrectionAlgo> algos, CustomStretchRgbParameters customStretchRgbParameters, CustomStretchHsvParameters customStretchHsvParameters) {
         this.algos = Collections.unmodifiableList(new ArrayList<>(algos));
         this.customStretchRgbParameters = customStretchRgbParameters.copy();
+        this.customStretchHsvParameters = customStretchHsvParameters.copy();
     }
     public List<ColorCorrectionAlgo> getAlgos() {
         return algos;
@@ -7193,53 +7511,60 @@ class ColorCorrection {
                 case DO_NOTHING:
                     break;
                 case STRETCH_CONTRAST_RGB_RGB:
-                    res = ColorBalancer.stretchColorsRgb(res, true, false);
+                    res = RgbColorBalancer.stretchColorsRgb(res, true, false);
                     break;
 //                case STRETCH_CONTRAST_RGB_RGB_I:
 //                    res = ColorBalancer.stretchColorsRgb(res, true, true);
 //                    break;
                 case STRETCH_CONTRAST_RGB_V:
-                    res = ColorBalancer.stretchColorsRgb(res, false, false);
+                    res = RgbColorBalancer.stretchColorsRgb(res, false, false);
                     break;
 //                case STRETCH_CONTRAST_RGB_V_I:
 //                    res = ColorBalancer.stretchColorsRgb(res, false, true);
 //                    break;
                 case STRETCH_CONTRAST_RGB_RGB3:
-                    if (command == Command.GET_RANGE) {
+                    if (command == Command.GET_RANGE_RGB) {
                         break loop;
                     } else {
-                        res = ColorBalancer.stretchColorsRgb(res, customStretchRgbParameters);
+                        res = RgbColorBalancer.stretchColorsRgb(res, customStretchRgbParameters);
+                    }
+                    break;
+                case STRETCH_CONTRAST_HSV_CUSTOM:
+                    if (command == Command.GET_RANGE_HSV) {
+                        break loop;
+                    } else {
+                        res = HsvColorBalancer.stretchColorsHsv(res, customStretchHsvParameters);
                     }
                     break;
                 case STRETCH_CONTRAST_HSV_S:
-                    res = HSVColorBalancer.balanceColors(res, -1, true, false);
+                    res = HsvColorBalancer.balanceColors(res, -1, true, false);
                     break;
                 case STRETCH_CONTRAST_HSV_V:
-                    res = HSVColorBalancer.balanceColors(res, -1, false, true);
+                    res = HsvColorBalancer.balanceColors(res, -1, false, true);
                     break;
                 case STRETCH_CONTRAST_HSV_SV:
-                    res = HSVColorBalancer.balanceColors(res, -1, true, true);
+                    res = HsvColorBalancer.balanceColors(res, -1, true, true);
                     break;
                 case STRETCH_CONTRAST_HSV_H000:
-                    res = HSVColorBalancer.balanceColors(res, 0, false, false);
+                    res = HsvColorBalancer.balanceColors(res, 0, false, false);
                     break;
                 case STRETCH_CONTRAST_HSV_H060:
-                    res = HSVColorBalancer.balanceColors(res, 60, false, false);
+                    res = HsvColorBalancer.balanceColors(res, 60, false, false);
                     break;
                 case STRETCH_CONTRAST_HSV_H120:
-                    res = HSVColorBalancer.balanceColors(res, 120, false, false);
+                    res = HsvColorBalancer.balanceColors(res, 120, false, false);
                     break;
                 case STRETCH_CONTRAST_HSV_H180:
-                    res = HSVColorBalancer.balanceColors(res, 180, false, false);
+                    res = HsvColorBalancer.balanceColors(res, 180, false, false);
                     break;
                 case STRETCH_CONTRAST_HSV_H240:
-                    res = HSVColorBalancer.balanceColors(res, 240, false, false);
+                    res = HsvColorBalancer.balanceColors(res, 240, false, false);
                     break;
                 case STRETCH_CONTRAST_HSV_H300:
-                    res = HSVColorBalancer.balanceColors(res, 300, false, false);
+                    res = HsvColorBalancer.balanceColors(res, 300, false, false);
                     break;
                 case INTERPOLATE_BROKEN_PIXELS:
-                    res = ColorBalancer.interpolateBrokenPixels(res);
+                    res = RgbColorBalancer.interpolateBrokenPixels(res);
                     break;
                 case GAMMA_DECODE_2_4:
                     res = GammaColorBalancer.balanceColors(res, 2.4);
@@ -7320,12 +7645,13 @@ enum ColorCorrectionAlgo implements ImageEffect {
     STRETCH_CONTRAST_HSV_V("stretch V in HSV space", "sHSVv"),
     STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
     STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space", "sHSV"),
-    STRETCH_CONTRAST_HSV_H000("stretch H in HSV space (change color), 0°, R", "sHSVh0"),
-    STRETCH_CONTRAST_HSV_H060("stretch H in HSV space (change color), 60°, Y", "sHSVh0"),
-    STRETCH_CONTRAST_HSV_H120("stretch H in HSV space (change color), 120°, G", "sHSVh1"),
-    STRETCH_CONTRAST_HSV_H180("stretch H in HSV space (change color), 180°, C", "sHSVh1"),
-    STRETCH_CONTRAST_HSV_H240("stretch H in HSV space (change color), 240°, B", "sHSVh2"),
-    STRETCH_CONTRAST_HSV_H300("stretch H in HSV space (change color), 300°, M", "sHSVh2"),
+    STRETCH_CONTRAST_HSV_H000("stretch H in HSV space (change color), 0°, R", "sHSVh000"),
+    STRETCH_CONTRAST_HSV_H060("stretch H in HSV space (change color), 60°, Y", "sHSVh060"),
+    STRETCH_CONTRAST_HSV_H120("stretch H in HSV space (change color), 120°, G", "sHSVh120"),
+    STRETCH_CONTRAST_HSV_H180("stretch H in HSV space (change color), 180°, C", "sHSVh180"),
+    STRETCH_CONTRAST_HSV_H240("stretch H in HSV space (change color), 240°, B", "sHSVh240"),
+    STRETCH_CONTRAST_HSV_H300("stretch H in HSV space (change color), 300°, M", "sHSVh300"),
+    STRETCH_CONTRAST_HSV_CUSTOM("stretch H,S,V in HSV space, custom parameters", "sHSVc"),
     INTERPOLATE_BROKEN_PIXELS("interpolate broken pixels", "ib"),
     //  γ<1 is sometimes called an encoding gamma (γ-compression), γ>1 is called a decoding gamma (γ-expansion)
     GAMMA_DECODE_2_4("gamma decode, γ=2.4", "gd24"),
@@ -7381,6 +7707,334 @@ class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {
     }
 }
 
+class HsvRangeAndFlagsChooser extends JPanel {
+    final UiEventListener uiEventListener;
+    final boolean isRight;
+    CustomStretchHsvParameters old;
+    CustomStretchHsvParameters usedNow;
+    CustomStretchHsvParameters proposed;
+    final JLabel lblPleaseSelectSrgb3;
+    final DigitalZoomControl<Double, HsvAngleWrapper> dcHDetectFrom;
+    final JLabel lblHDetectTo;
+    final DigitalZoomControl<Double, HsvAngleWrapper> dcH0;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcS0;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcV0;
+    final DigitalZoomControl<Double, HsvAngleWrapper> dcH1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcS1;
+    final DigitalZoomControl<Double, OffsetWrapper2> dcV1;
+    final DigitalZoomControl<Double, HsvAngleWrapper> dcH0a;
+    final DigitalZoomControl<Double, HsvAngleWrapper> dcH1a;
+    final JCheckBox cbStretchH;
+    final JCheckBox cbStretchS;
+    final JCheckBox cbStretchV;
+    final String stretchHNorm, stretchHHili, stretchSNorm, stretchSHili, stretchVNorm, stretchVHili;
+//    final JCheckBox cbPerChannel;
+    final JCheckBox cbHSaturation;
+    final JCheckBox cbSSaturation;
+    final JCheckBox cbVSaturation;
+//    final JCheckBox cbSaturateToBlack;
+    final JButton buttonSet;
+
+    final Color normalButtonColor;
+    final Color highlightedButtonColor = new Color(250,127,127);
+    private final String pleaseSelectShsv3Norm;
+    private final String pleaseSelectShsv3Hili;
+
+//    private static final String ALL3 = "RGB";
+//    private static final String ALL3_TOOLTOP = "Set all 3 channels to this value";
+//    private JButton makeAll3Button(Consumer<ColorRange> updater) {
+//        JButton all3 = new JButton();
+//        DigitalZoomControl.loadIcon(all3,"icons/rgb24.png",ALL3);
+//        all3.setToolTipText(ALL3_TOOLTOP);
+//        all3.addActionListener(e -> {
+//            updater.accept(proposed.colorRange);
+//            customStretchRgbParametersToControls(proposed);
+//            whenUpdated();
+//        });
+//        return all3;
+//    }
+
+    HsvRangeAndFlagsChooser(UiEventListener uiEventListener, boolean isRight) {
+        this.uiEventListener = uiEventListener;
+        this.isRight = isRight;
+        this.proposed = CustomStretchHsvParameters.newFullRange();
+//        this.proposed.stretchS = this.proposed.stretchV = true;
+        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        {
+            JLabel title = new JLabel("<html><center><h3>Custom HSV Range</h3></center></html>", SwingConstants.CENTER);
+            title.setAlignmentX(Component.CENTER_ALIGNMENT);
+            this.add(title);
+            title.setToolTipText("Parameters for the sHSVc effect");
+        }
+        {
+            pleaseSelectShsv3Norm = "<html><center>To use these, please select<br/>the sHSVc effect in the list above</center></html>";
+            pleaseSelectShsv3Hili = "<html><center><font color='red'>To use these, please select<br/>the sHSVc effect in the list above</font></center></html>";
+            lblPleaseSelectSrgb3 = new JLabel(pleaseSelectShsv3Norm, SwingConstants.CENTER);
+            lblPleaseSelectSrgb3.setAlignmentX(Component.CENTER_ALIGNMENT);
+            this.add(lblPleaseSelectSrgb3);
+        }
+        {
+            JPanel row = new JPanel();
+            ((FlowLayout)row.getLayout()).setVgap(0);
+            row.add(dcHDetectFrom = new DigitalZoomControl<Double, HsvAngleWrapper>().init("detect H from:", 4, new HsvAngleWrapper(), i -> {
+                proposed.hsvRange.hLower = i;
+                whenUpdated();
+            }));
+            row.add(lblHDetectTo = new JLabel(getDetectToText(dcHDetectFrom.getSafeValue())));
+            this.add(row);
+        }
+        {
+            JButton button = new JButton("Get Ranges for H, S, V from Viewport");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionCalculateViewportColorRange(false));
+            button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
+            this.add(button);
+        }
+        {
+            JButton button = new JButton("Get Ranges for H, S, V from Viewport, Ignore Broken Pixels");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionCalculateViewportColorRange(true));
+            button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
+            this.add(button);
+        }
+        {
+            JButton button = new JButton("Reset to Original");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionResetToOriginal());
+            button.setToolTipText("The \"original\" values are saved when this dialog opens");
+            this.add(button);
+        }
+        {
+            stretchHNorm = norm("Stretch H");
+            stretchSNorm = norm("Stretch S");
+            stretchVNorm = norm("Stretch V");
+            stretchHHili = hili("Stretch H");
+            stretchSHili = hili("Stretch S");
+            stretchVHili = hili("Stretch V");
+            this.add(
+                makeThinRow(
+                    cbStretchH = new JCheckBox(stretchHNorm),
+                        cbStretchS = new JCheckBox(norm(stretchSNorm)),
+                        cbStretchV = new JCheckBox(stretchVNorm)
+                )
+            );
+            cbStretchH.setSelected(proposed.stretchH);
+            cbStretchS.setSelected(proposed.stretchS);
+            cbStretchV.setSelected(proposed.stretchV);
+            cbStretchH.addActionListener(e -> { proposed.stretchH = cbStretchH.isSelected(); whenUpdated(); });
+            cbStretchS.addActionListener(e -> { proposed.stretchS = cbStretchS.isSelected(); whenUpdated(); });
+            cbStretchV.addActionListener(e -> { proposed.stretchV = cbStretchV.isSelected(); whenUpdated(); });
+            cbStretchH.setToolTipText("<html>Transform Hue. This changes the color! <br/>The checkbox title becomes red when there are parameters <br/>for changing H, but this checkbox is not checked.</html>");
+            cbStretchS.setToolTipText("<html>Stretch Saturation. <br/>The checkbox title becomes red when there are parameters <br/>for changing S, but this checkbox is not checked.</html>");
+            cbStretchV.setToolTipText("<html>Stretch Volume (Brightness). <br/>The checkbox title becomes red when there are parameters <br/>for changing V, but this checkbox is not checked.</html>");
+        }
+
+        this.add(
+            makeThinRow(
+                new JLabel("Map from H range:"),
+                dcH0 = new DigitalZoomControl<Double, HsvAngleWrapper>().init(null, 4, new HsvAngleWrapper(), i -> {
+                    proposed.hsvRange.minH=i; whenUpdated();}),
+                new JLabel("…"),
+                dcH1 = new DigitalZoomControl<Double, HsvAngleWrapper>().init(null, 4, new HsvAngleWrapper(), i -> {
+                    proposed.hsvRange.maxH=i; whenUpdated();})
+            )
+        );
+        this.add(
+            makeThinRow(
+                new JLabel("to H range:"),
+                dcH0a = new DigitalZoomControl<Double, HsvAngleWrapper>().init(null, 4, new HsvAngleWrapper(), i -> {
+                    proposed.hTargetRange = proposed.hTargetRange.withMaxH(i); whenUpdated();}),
+                new JLabel("…"),
+                dcH1a = new DigitalZoomControl<Double, HsvAngleWrapper>().init(null, 4, new HsvAngleWrapper(), i -> {
+                    proposed.hTargetRange = proposed.hTargetRange.withMaxH(i); whenUpdated();})
+            )
+        );
+        this.add(
+            makeThinRow(
+                new JLabel("Stretch S:"),
+                dcS0 = new DigitalZoomControl<Double, OffsetWrapper2>().init(null, 4, new OffsetWrapper2(), i -> {
+                    proposed.hsvRange.minS=i; whenUpdated();}),
+                new JLabel("…"),
+                dcS1 = new DigitalZoomControl<Double, OffsetWrapper2>().init(null, 4, new OffsetWrapper2(), i -> {
+                    proposed.hsvRange.maxS=i; whenUpdated();}),
+                new JLabel("to [0, 1]")
+            ));
+        this.add(
+            makeThinRow(
+                new JLabel("Stretch V:"),
+                dcV0 = new DigitalZoomControl<Double, OffsetWrapper2>().init(null, 4, new OffsetWrapper2(), i -> {
+                    proposed.hsvRange.minV=i; whenUpdated();}),
+                new JLabel("…"),
+                dcV1 = new DigitalZoomControl<Double, OffsetWrapper2>().init(null, 4, new OffsetWrapper2(), i -> {
+                    proposed.hsvRange.maxV=i; whenUpdated();}),
+                new JLabel("to [0, 1]")
+        ));
+
+        this.addAncestorListener(new AncestorListener() {
+            @Override
+            public void ancestorAdded(AncestorEvent ancestorEvent) {
+                whenShown();
+            }
+            @Override
+            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+            }
+            @Override
+            public void ancestorMoved(AncestorEvent ancestorEvent) {
+            }
+        });
+//        {
+//            cbPerChannel = new JCheckBox("Per Channel");
+//            this.add(cbPerChannel);
+//            cbPerChannel.addActionListener(
+//                    e -> { proposed.isPerChannel = cbPerChannel.isSelected(); whenUpdated(); }
+//            );
+//            cbPerChannel.setToolTipText("Stretch Red/Green/Blue channels independently");
+//        }
+        this.add(
+            makeThinRow(
+                    new JLabel("Use Saturation Arithmetic For:"),
+                also(cbHSaturation = new JCheckBox("H"), it -> {
+                    it.addActionListener(
+                        e -> { proposed.saturatedH = cbHSaturation.isSelected(); whenUpdated(); }
+                    );
+                    it.setToolTipText("<html>Uncheck to allow <strong><em>hue</em></strong> to \"wrap around\" beyond the target range</html>");
+                }),
+                also(cbSSaturation = new JCheckBox("S"), it -> {
+                    it.addActionListener(
+                        e -> { proposed.saturatedS = cbSSaturation.isSelected(); whenUpdated(); }
+                    );
+                    it.setToolTipText("<html>Uncheck to allow <strong><em>too colorful</em></strong> to \"wrap around\" to <strong><em>colorless</em></strong></html>");
+                }),
+                also(cbVSaturation = new JCheckBox("V"), it -> {
+                    it.addActionListener(
+                            e -> { proposed.saturatedV = cbVSaturation.isSelected(); whenUpdated(); }
+                    );
+                    it.setToolTipText("<html>Uncheck to allow <strong><em>too bright</em></strong> to \"wrap around\" to <strong><em>dark</em></strong></html>");
+                })
+            )
+        );
+        {
+            buttonSet = new JButton("Set Custom Color Range");
+            buttonSet.setAlignmentX(Component.CENTER_ALIGNMENT);
+            buttonSet.addActionListener(e -> actionSetCustomStretchHsvParameters());
+            this.add(buttonSet);
+            normalButtonColor = buttonSet.getBackground();
+            buttonSet.setToolTipText("Applying incomplete changes is meaningless, so first choose parameters, then click this");
+        }
+    }
+    private JPanel makeThinRow(Component... components) {
+        JPanel panel = new JPanel();
+        ((FlowLayout)panel.getLayout()).setVgap(0);
+        for (var component : components) {
+            panel.add(component);
+        }
+        return panel;
+    }
+    private String norm(String text) {
+        return "<html>" + text + "</html>";
+    }
+    private String hili(String text) {
+        return "<html><font color='red'>" + text + "</font></html>";
+    }
+    private void whenShown() {
+        usedNow = uiEventListener.getCurrentCustomStretchHsvParameters(isRight).copy();
+        old = usedNow.copy();
+        copyAndUseProposedFrom(old);
+    }
+    private void whenUpdated() {
+        var isChanged = !usedNow.equals(proposed);
+        System.out.println("\n\n\n============================================");
+        System.out.println("isChanged="+isChanged);
+        System.out.println(" usedNow="+usedNow);
+        System.out.println("proposed="+proposed);
+        buttonSet.setBackground(isChanged ? highlightedButtonColor : normalButtonColor);
+        buttonSet.setOpaque(true);
+//        System.out.println("whenUpdated: isChanged="+isChanged+";");
+//        System.out.println("     old="+old);
+//        System.out.println(" usedNow="+usedNow);
+//        System.out.println("proposed="+proposed);
+//        System.out.println(" from_ui="+uiEventListener.getCurrentCustomStretchRgbParameters(isRight));
+        var isHsvcUsed = uiEventListener
+                .getDisplayParameters()
+                .getColorCorrection(isRight).getAlgos()
+                .contains(ColorCorrectionAlgo.STRETCH_CONTRAST_HSV_CUSTOM);
+        var isTrivial = proposed.hsvRange.isFullRange()
+                || proposed.hsvRange.isEmpty();
+        lblPleaseSelectSrgb3.setText(
+                isHsvcUsed || isTrivial
+                        ? pleaseSelectShsv3Norm
+                        : pleaseSelectShsv3Hili
+        );
+        lblHDetectTo.setText(getDetectToText(dcHDetectFrom.getSafeValue()));
+        cbStretchH.setText(
+                cbStretchH.isSelected() != (dcH0.getSafeValue() == 0. && dcH1.getSafeValue() == 1.
+                                         && dcH0a.getSafeValue() == 0. && dcH1a.getSafeValue() == 1.)
+                ? stretchHNorm
+                : stretchHHili
+        );
+        cbStretchS.setText(
+                cbStretchS.isSelected() != (dcS0.getSafeValue() == 0. && dcS1.getSafeValue() == 1.)
+                ? stretchSNorm
+                : stretchSHili
+        );
+        cbStretchV.setText(
+                cbStretchV.isSelected() != (dcV0.getSafeValue() == 0. && dcV1.getSafeValue() == 1.)
+                ? stretchVNorm
+                : stretchVHili
+        );
+    }
+    static String getDetectToText(double value){
+        return "to " + safeSubstring(String.format("%8f", (1+value) * 360.), 0, 8) + "°";
+    }
+    public void notifyOfUpdates() {
+        usedNow = uiEventListener.getCurrentCustomStretchHsvParameters(isRight).copy();
+        whenUpdated();
+    }
+    private void actionCalculateViewportColorRange(boolean ignoreBroken) {
+        double hLower = proposed.hsvRange.hLower;
+        HsvRange hr = uiEventListener.getViewportHsvRange(isRight, ignoreBroken, hLower);
+        hsvRangeToControls(hr);
+        proposed.hsvRange = hr.copy();
+        whenUpdated();
+    }
+    private void customStretchHsvParametersToControls(CustomStretchHsvParameters param) {
+        hsvRangeToControls(param.hsvRange);
+        hTargetRangeToControls(param.hTargetRange);
+        cbHSaturation.setSelected(param.saturatedH);
+        cbSSaturation.setSelected(param.saturatedS);
+        cbVSaturation.setSelected(param.saturatedV);
+    }
+    private void hsvRangeToControls(HsvRange hr) {
+        dcH0.setValueAndText(hr.minH);
+        dcS0.setValueAndText(hr.minS);
+        dcV0.setValueAndText(hr.minV);
+        dcH1.setValueAndText(hr.maxH);
+        dcS1.setValueAndText(hr.maxS);
+        dcV1.setValueAndText(hr.maxV);
+        dcHDetectFrom.setValueAndText(hr.hLower);
+    }
+    private void hTargetRangeToControls(HTargetRange hr) {
+        dcH0a.setValueAndText(hr.minH);
+        dcH1a.setValueAndText(hr.maxH);
+    }
+    void copyAndUseProposedFrom(CustomStretchHsvParameters toCopyAndUse) {
+        proposed = toCopyAndUse.copy();
+        customStretchHsvParametersToControls(proposed);
+        whenUpdated();
+    }
+    private void actionResetToOriginal() {
+        copyAndUseProposedFrom(old);
+    }
+    private void actionSetCustomStretchHsvParameters() {
+        uiEventListener.setCustomStretchHsvParameters(proposed.copy(), isRight);
+        usedNow = proposed.copy();
+        whenUpdated();
+    }
+    CustomStretchHsvParameters getCustomStretchHsvParameters() {
+        return proposed.copy();
+    }
+}
+
 class ColorRangeAndFlagsChooser extends JPanel {
     final UiEventListener uiEventListener;
     final boolean isRight;
@@ -7408,7 +8062,7 @@ class ColorRangeAndFlagsChooser extends JPanel {
     private static final String ALL3_TOOLTOP = "Set all 3 channels to this value";
     private JButton makeAll3Button(Consumer<ColorRange> updater) {
         JButton all3 = new JButton();
-        DigitalZoomControl.loadIcon(all3,"icons/rgb24.png",ALL3);
+        DigitalZoomControl.loadIcon(all3,"icons/rgbeq24.png",ALL3);
         all3.setToolTipText(ALL3_TOOLTOP);
         all3.addActionListener(e -> {
             updater.accept(proposed.colorRange);
@@ -7551,7 +8205,7 @@ class ColorRangeAndFlagsChooser extends JPanel {
         whenUpdated();
     }
     private void actionCalculateViewportColorRange(boolean ignoreBroken) {
-        ColorRange cr = uiEventListener.getViewportColorRange(isRight, ignoreBroken);
+        ColorRange cr = uiEventListener.getViewportRgbRange(isRight, ignoreBroken);
         colorRangeToControls(cr);
         proposed.colorRange = cr.copy();
         whenUpdated();
@@ -7598,11 +8252,15 @@ class ColorCorrectionPane extends JPanel {
     final ImageResamplingModeChooser rImageResamplingModeChooser;
     final ColorRangeAndFlagsChooser lColorRangeChooser;
     final ColorRangeAndFlagsChooser rColorRangeChooser;
+    final HsvRangeAndFlagsChooser lHsvRangeChooser;
+    final HsvRangeAndFlagsChooser rHsvRangeChooser;
 
     public ColorCorrectionPane(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
         lColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, false);
         rColorRangeChooser = new ColorRangeAndFlagsChooser(uiEventListener, true);
+        lHsvRangeChooser = new HsvRangeAndFlagsChooser(uiEventListener, false);
+        rHsvRangeChooser = new HsvRangeAndFlagsChooser(uiEventListener, true);
         {
             JButton button = new JButton("Copy ->");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -7621,7 +8279,24 @@ class ColorCorrectionPane extends JPanel {
             );
             rColorRangeChooser.add(button);
         }
-
+        {
+            JButton button = new JButton("Copy ->");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.setToolTipText("Copy all parameters to the right");
+            button.addActionListener(e ->
+                    rHsvRangeChooser.copyAndUseProposedFrom(lHsvRangeChooser.proposed)
+            );
+            lHsvRangeChooser.add(button);
+        }
+        {
+            JButton button = new JButton("<- Copy");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.setToolTipText("Copy all parameters to the left");
+            button.addActionListener(e ->
+                    lHsvRangeChooser.copyAndUseProposedFrom(rHsvRangeChooser.proposed)
+            );
+            rHsvRangeChooser.add(button);
+        }
         GridBagLayout gbl = new GridBagLayout();
 
         int rowNumber = 0;
@@ -7641,13 +8316,15 @@ class ColorCorrectionPane extends JPanel {
                 ColorCorrectionModeChooser chooser = new ColorCorrectionModeChooser(x -> {
                     if (isLeft) {
                         javax.swing.SwingUtilities.invokeLater( () -> {
-                            uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers, lColorRangeChooser));
+                            uiEventListener.lColorCorrectionChanged(getColorCorrection(lChoosers, lColorRangeChooser, lHsvRangeChooser));
                             lColorRangeChooser.notifyOfUpdates();
+                            lHsvRangeChooser.notifyOfUpdates();
                         });
                     } else {
                         javax.swing.SwingUtilities.invokeLater( () -> {
-                            uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers, rColorRangeChooser));
+                            uiEventListener.rColorCorrectionChanged(getColorCorrection(rChoosers, rColorRangeChooser, rHsvRangeChooser));
                             rColorRangeChooser.notifyOfUpdates();
+                            rHsvRangeChooser.notifyOfUpdates();
                         });
                     }
                 });
@@ -7687,6 +8364,16 @@ class ColorCorrectionPane extends JPanel {
             gbl.setConstraints(lColorRangeChooser, gbc);
             this.add(lColorRangeChooser);
         }
+//        {
+//            GridBagConstraints gbc = new GridBagConstraints();
+//            gbc.fill = GridBagConstraints.BOTH;
+//            gbc.weightx = 1.0;
+//            gbc.weighty = 1.0;
+//            gbc.gridx = 3;
+//            gbc.gridy = rowNumber;
+//            gbl.setConstraints(rColorRangeChooser, gbc);
+//            this.add(rColorRangeChooser);
+//        }
         {
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.fill = GridBagConstraints.BOTH;
@@ -7694,8 +8381,18 @@ class ColorCorrectionPane extends JPanel {
             gbc.weighty = 1.0;
             gbc.gridx = 3;
             gbc.gridy = rowNumber;
-            gbl.setConstraints(rColorRangeChooser, gbc);
-            this.add(rColorRangeChooser);
+
+            JTabbedPane tabbedPane = new JTabbedPane();
+            int iconSize = 12;
+            var rgbIcon = MySwing.loadIcon("icons/rgb24.png", iconSize);
+            tabbedPane.addTab("Custom RGB Stretching", rgbIcon, rColorRangeChooser,
+                    "sRGB3 stretches the ranges of Red, Green, Blue values to the maximal possible range, 0..255");
+            //JComponent panel2 = new JPanel();
+            var hsvIcon = MySwing.loadIcon("icons/hsv24.png", iconSize);
+            tabbedPane.addTab("Custom HSV Stretching", hsvIcon, rHsvRangeChooser,
+                    "sHSV3 stretches the ranges of Hue, Saturation, Volume values to the maximal possible range [0.0, 1.0]");
+            gbl.setConstraints(tabbedPane, gbc);
+            this.add(tabbedPane);
         }
         rowNumber++;
         this.setLayout(gbl);
@@ -7706,9 +8403,13 @@ class ColorCorrectionPane extends JPanel {
 //        JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
     }
 
-    ColorCorrection getColorCorrection(List<ColorCorrectionModeChooser> choosers, ColorRangeAndFlagsChooser colorRangeChooser) {
+    ColorCorrection getColorCorrection(
+            List<ColorCorrectionModeChooser> choosers,
+            ColorRangeAndFlagsChooser colorRangeChooser,
+            HsvRangeAndFlagsChooser hsvRangeAndFlagsChooser
+    ) {
         var algos = choosers.stream().map(c -> (ColorCorrectionAlgo)c.getSelectedItem()).collect(Collectors.toList());
-        return new ColorCorrection(algos, colorRangeChooser.getCustomStretchRgbParameters());
+        return new ColorCorrection(algos, colorRangeChooser.getCustomStretchRgbParameters(), hsvRangeAndFlagsChooser.getCustomStretchHsvParameters());
     }
     ColorCorrectionPane setColorCorrectionValue(boolean isRight, ColorCorrection colorCorrection) {
         var algos = colorCorrection.getAlgos();
@@ -7731,7 +8432,7 @@ class ColorCorrectionPane extends JPanel {
     }
 }
 
-class ColorBalancer {
+class RgbColorBalancer {
     static ColorRange getColorRangeFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d) {
         int iStart = (int) rectangle.getX();
         int iFinal = (int) rectangle.getMaxX();
@@ -8000,113 +8701,287 @@ class ColorBalancer {
     }
 }
 
-class HSVColorBalancer {
+class HsvColorBalancer {
     final static int M = 16;
-    public static BufferedImage balanceColors(BufferedImage src, int stretchHAround, boolean stretchS, boolean stretchV) {
+    static HsvRange getHsvRangeFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d, double hLower) {
+        int iStart = (int) rectangle.getX();
+        int iFinal = (int) rectangle.getMaxX();
+        int jStart = (int) rectangle.getY();
+        int jFinal = (int) rectangle.getMaxY();
+        return getHsvRangeFromImage(iStart, iFinal, jStart, jFinal, src, ignoreBroken, d, hLower);
+    }
+    static HsvRange getHsvRangeFromImage(
+            int iStart, int iFinal, int jStart, int jFinal,
+            BufferedImage src,
+            boolean ignoreBroken, int d, double hLower
+    ) {
+        // if the viewport rectangle is wider/higher than the image,
+        // we take the whole width/height of the image.
+        // We assume that either the viewport is somewhere within the image,
+        // or the image is somewhere within the viewport.
+        int M = 16*d;
+        iStart = Math.max(iStart, M);
+        jStart = Math.max(jStart, M);
+        iFinal = Math.min(iFinal, src.getWidth()-M);
+        jFinal = Math.min(jFinal, src.getHeight()-M);
+        if (ignoreBroken) { // TODO ??
+            iStart+=d;
+            iFinal-=d;
+            jStart+=d;
+            jFinal-=d;
+        }
+        System.out.println("====getHsvRangeFromImage hLower="+hLower);
+        int finalIStart = iStart;
+        int finalIFinal = iFinal;
+        HsvRange res = Par.splitFor(jStart, jFinal, (from, to) -> {
+                    HsvRange hr = HsvRange.newEmptyRangeFrom(hLower);
+                    ColorRange around = ColorRange.newEmptyRange();
+                    float[] hsv = {0.f, 0.f, 0.f};
+                    int dd = d + d / 2;
+                    for (int j = from; j < to; j++) {
+                        for (int i = finalIStart; i < finalIFinal; i++) {
+                            int color = src.getRGB(i, j);
+                            if (ignoreBroken) {
+                                // TODO: hsv analog?
+                                if (RgbColorBalancer.pixelLooksNotBroken(color, RgbColorBalancer.setToMinMaxRgbDiag(around, src, i, j, dd))
+                                 && RgbColorBalancer.pixelLooksNotBroken(color, RgbColorBalancer.setToMinMaxRgbHorVer(around, src, i, j, dd))
+                                ) {
+                                    if ((color&0xff_ff_ff)==0xff_ff_ff) {
+                                        System.out.println("not broken 255: (" + i + "," + j + ")");
+                                    }
+                                    hr.update(Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv));
+                                }
+                            } else {
+                                hr.update(Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv));
+                            }
+                        }
+                    }
+                    return hr;
+                }, stream ->
+                    stream.collect(Collector.of(
+                        () -> HsvRange.newEmptyRangeFrom(hLower),
+                        HsvRange::merge,
+                        HsvRange::merge
+                    ))
+        );
+        return res;
+    }
+    public static BufferedImage balanceColors(BufferedImage src, int hLowerDeg, boolean stretchS, boolean stretchV) {
         if (ImageAndPath.isDummyImage(src)) {
             return src;
         }
         try {
-            boolean stretchH = stretchHAround >= 0;
-            int width = src.getWidth();
-            int height = src.getHeight();
-            HsvMinMax h =
-                Par.splitFor(M, height - M, (from, to) ->
-                {
-                    var hsvHSV = new HsvMinMax(stretchHAround);
-                    float[] hsv = {0.f, 0.f, 0.f};
-                    for (int j = from; j < to; j++) {
-                        for (int i = M; i < width - M; i++) {
-                            int color = src.getRGB(i, j);
-                            hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
-                            hsvHSV.update(hsv);
-                        }
-                    }
-                    return hsvHSV;
-                }, stream ->
-                    stream.collect(Collector.of(
-                        () -> new HsvMinMax(stretchHAround),
-                        HsvMinMax::merge,
-                        HsvMinMax::merge
-                    ))
-                );
-            float dh = h.maxH - h.minH;
-            float ds = h.maxS - h.minS;
-            float dv = h.maxV - h.minV;
-            System.out.println("HSV stretch: " + stretchH + "(" + stretchHAround + " -> " + h.hAround + ") " + stretchS + " " + stretchV);
-            System.out.println("HSV min:  " + h.minH + " " + h.minS + " " + h.minV);
-            System.out.println("HSV max:  " + h.maxH + " " + h.maxS + " " + h.maxV);
-            System.out.println("HSV   d:  " + dh + " " + ds + " " + dv);
-            var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            Par.splitFor(0, height, (from, to) -> {
-                float[] hsv = { 0.f, 0.f, 0.f };
-                for (int j = from; j < to; j++) {
-                    for (int i = 0; i < width; i++) {
-                        int color = src.getRGB(i, j);
-                        hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
-                        // s ∈ [0, 1], v ∈ [0, 1]; h ∈ [0, 1] and what is >1 is ignored
-                        // ds ∈ [0, 1], dv ∈ [0, 1]
-                        // no need to multiply by 1.0f
-                        float h1 = stretchH ? h.scaleH(hsv[0], dh) : hsv[0];
-                        float s1 = stretchS ? (hsv[1] - h.minS) / ds : hsv[1];
-                        float v1 = stretchV ? (hsv[2] - h.minV) / dv : hsv[2];
-                        int color1 = Color.HSBtoRGB(h1, s1, v1);
-                        res.setRGB(i, j, color1);
-                    }
-                }
-            });
-            return res;
+            boolean stretchH = hLowerDeg >= 0;
+            HsvRange h = getHsvRange(src, hLowerDeg);
+            return stretchHsv(src, hLowerDeg, stretchS, stretchV, stretchH, h);
         } catch (ArithmeticException e) {
             e.printStackTrace();
             return src;
         }
     }
-    static class HsvMinMax {
-        float hAround;
-        boolean adjustH;
-        float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE,
-                maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
-        public HsvMinMax(int hAround) {
-            if (hAround >= 0) {
-                this.hAround = (float) (hAround/360.);
-                this.adjustH = true;
-            } else {
-                this.hAround = 0.f;
-                this.adjustH = false;
-            }
+    private static BufferedImage stretchHsv(BufferedImage src, int hLowerDeg,
+                                            boolean stretchS, boolean stretchV, boolean stretchH,
+                                            HsvRange h
+    ) {
+        return stretchColorsUsingHsvRange(
+                h, HTargetRange.newFullRange(), src,
+                stretchH, stretchS, stretchV,
+                false, false, false
+        );
+    }
+//        int width = src.getWidth();
+//        int height = src.getHeight();
+//        double dh = h.maxH - h.minH;
+//        double ds = h.maxS - h.minS;
+//        double dv = h.maxV - h.minV;
+//        System.out.println("\n\n#################\nstretchColorsUsingHsvRange");
+//        System.out.println("" + h );
+//        System.out.println(
+//                "stretch(" + MyStrings.flagsList("H S V", stretchH, stretchS, stretchV)
+////                        + ") saturate(" + MyStrings.flagsList("H S V", saturateH, saturateS, saturateV)
+//                        + ")"
+//        );
+//        System.out.println("HSV stretch: " + stretchH + "(" + hLowerDeg + " -> " + h.hLower + ") " + stretchS + " " + stretchV);
+//        System.out.println("HSV min:  " + h.minH + " " + h.minS + " " + h.minV);
+//        System.out.println("HSV max:  " + h.maxH + " " + h.maxS + " " + h.maxV);
+//        System.out.println("HSV   d:  " + dh + " " + ds + " " + dv);
+//        var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+//        Par.splitFor(0, height, (from, to) -> {
+//            float[] hsv = { 0.f, 0.f, 0.f };
+//            for (int j = from; j < to; j++) {
+//                for (int i = 0; i < width; i++) {
+//                    int color = src.getRGB(i, j);
+//                    hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+//                    // s ∈ [0, 1], v ∈ [0, 1]; h ∈ [0, 1] and what is >1 is ignored
+//                    // ds ∈ [0, 1], dv ∈ [0, 1]
+//                    // no need to multiply by 1.0f
+//                    float h1 = stretchH ? (float) ((hsv[0] - h.minH) / dh) : hsv[0];
+//                    float s1 = stretchS ? (float) ((hsv[1] - h.minS) / ds) : hsv[1];
+//                    float v1 = stretchV ? (float) ((hsv[2] - h.minV) / dv) : hsv[2];
+//                    int color1 = Color.HSBtoRGB(h1, s1, v1);
+//                    res.setRGB(i, j, color1);
+//                }
+//            }
+//        });
+//        return res;
+//    }
+    static HsvRange getHsvRange(BufferedImage src, int hLowerDeg) {
+        return getHsvRangeFromImage(
+                0, src.getWidth(), 0, src.getHeight(),
+                src,
+                false, 1, hLowerDeg/360.
+        );
+    }
+////        boolean stretchH = hLower >= 0;
+//        int width = src.getWidth();
+//        int height = src.getHeight();
+//        return
+//                Par.splitFor(M, height - M, (from, to) ->
+//                {
+//                    var hsvHSV = new HsvMinMax(hLower);
+//                    float[] hsv = {0.f, 0.f, 0.f};
+//                    for (int j = from; j < to; j++) {
+//                        for (int i = M; i < width - M; i++) {
+//                            int color = src.getRGB(i, j);
+//                            hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+//                            hsvHSV.update(hsv);
+//                        }
+//                    }
+//                    return hsvHSV;
+//                }, stream ->
+//                    stream.collect(Collector.of(
+//                            () -> new HsvMinMax(hLower),
+//                            HsvMinMax::merge,
+//                            HsvMinMax::merge
+//                    ))
+//                );
+//    }
+    // TODO all copied
+    public static BufferedImage stretchColorsHsv(BufferedImage src, CustomStretchHsvParameters customStretchHsvParameters) {
+        if (ImageAndPath.isDummyImage(src)) {
+            return src;
         }
-        void update(float[] hsv) {
-            float h = adjustH ? encodeH(hsv[0]) : hsv[0];
-            minH = Math.min(minH, h);
-            minS = Math.min(minS, hsv[1]);
-            minV = Math.min(minV, hsv[2]);
-            maxH = Math.max(maxH, h);
-            maxS = Math.max(maxS, hsv[1]);
-            maxV = Math.max(maxV, hsv[2]);
+        if (customStretchHsvParameters.hsvRange.isEmpty()
+        || (customStretchHsvParameters.hsvRange.isFullRange() && customStretchHsvParameters.hTargetRange.isFullRange())
+        ) {
+            System.out.println("stretchColorsRgb: full or empty range");
+            return src;
         }
-        static float frac(float x) {
-            return (float) (x - Math.floor(x));
-        }
-        //        float diffH(float h) {
-//            return frac(h - hAround + 0.5f) - 0.5f;
-//        }
-        HsvMinMax merge(HsvMinMax other) {
-            minH = Math.min(minH, other.minH);
-            minS = Math.min(minS, other.minS);
-            minV = Math.min(minV, other.minV);
-            maxH = Math.max(maxH, other.maxH);
-            maxS = Math.max(maxS, other.maxS);
-            maxV = Math.max(maxV, other.maxV);
-            return this;
-        }
-        float encodeH(float h) {
-            return frac(h - hAround);
-        }
-        float scaleH(float h, float dh) {
-            var center = hAround + minH;
-            return frac((h - center) / dh + hAround);
+        HsvRange cr = customStretchHsvParameters.hsvRange;
+        HTargetRange tr = customStretchHsvParameters.hTargetRange;
+        boolean stretchH = customStretchHsvParameters.stretchH;
+        boolean stretchS = customStretchHsvParameters.stretchS;
+        boolean stretchV = customStretchHsvParameters.stretchV;
+        boolean saturateH = customStretchHsvParameters.saturatedH;
+        boolean saturateS = customStretchHsvParameters.saturatedS;
+        boolean saturateV = customStretchHsvParameters.saturatedV;
+        try {
+            return stretchColorsUsingHsvRange(
+                    cr, tr, src,
+                    stretchH, stretchS, stretchV,
+                    saturateH, saturateS, saturateV
+            );
+        } catch (ArithmeticException e) {
+            e.printStackTrace();
+            return src;
         }
     }
+
+    static BufferedImage stretchColorsUsingHsvRange(
+            HsvRange cr, HTargetRange tr, BufferedImage src,
+            boolean stretchH, boolean stretchS, boolean stretchV,
+            boolean saturateH, boolean saturateS, boolean saturateV
+    ) {
+        int width = src.getWidth();
+        int height = src.getHeight();
+        double minH = cr.minH, minS = cr.minS, minV = cr.minV;//, maxH = cr.maxH, maxS = cr.maxS, maxV = cr.maxV;
+
+        System.out.println("\n\n\n\n---------------\nstretchColorsUsingHsvRange");
+        System.out.println("" + cr + " " + tr );
+        System.out.println(
+                "stretch(" + MyStrings.flagsList("H S V", stretchH, stretchS, stretchV)
+                + ") saturate(" + MyStrings.flagsList("H S V", saturateH, saturateS, saturateV) + ")"
+        );
+        double mh = (tr.maxH - tr.minH) / (cr.maxH - cr.minH);
+        DoubleUnaryOperator transformH = !stretchH ? DoubleUnaryOperator.identity()
+                                       : !saturateH ? h -> MyMath.frac((h - minH)*mh)
+                                       : h -> MyMath.saturate(tr.minH, tr.maxH, (h - minH)*mh);
+
+        double ms = 1. / (cr.maxS - cr.minS);
+        DoubleUnaryOperator transformS = !stretchS ? DoubleUnaryOperator.identity()
+                                       : !saturateS ? s -> MyMath.frac((s - minS)*ms)
+                                       : s -> MyMath.saturate01((s - minS)*ms);
+
+        double mv = 1. / (cr.maxV - cr.minV);
+        DoubleUnaryOperator transformV = !stretchV ? DoubleUnaryOperator.identity()
+                                       : !saturateV ? v -> MyMath.frac((v - minV)*mv)
+                                       : v -> MyMath.saturate01((v - minV)*mv);
+
+        var res = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+        Par.splitFor(0, height, (from, to) -> {
+            float[] hsv = { 0.f, 0.f, 0.f };
+            for (int j = from; j < to; j++) {
+                for (int i = 0; i < width; i++) {
+                    int color = src.getRGB(i, j);
+                    hsv = Color.RGBtoHSB(0xff & (color >> 16), 0xff & (color >> 8), 0xff & (color), hsv);
+                    // s ∈ [0, 1], v ∈ [0, 1]; h ∈ [0, 1] and what is >1 is ignored
+                    // ds ∈ [0, 1], dv ∈ [0, 1]
+                    // no need to multiply by 1.0f
+                    float h1 = stretchH ? (float) transformH.applyAsDouble(hsv[0]) : hsv[0];
+                    float s1 = stretchS ? (float) transformS.applyAsDouble(hsv[1]) : hsv[1];
+                    float v1 = stretchV ? (float) transformV.applyAsDouble(hsv[2]) : hsv[2];
+                    int color1 = Color.HSBtoRGB(h1, s1, v1);
+                    res.setRGB(i, j, color1);
+                }
+            }
+        });
+        return res;
+    }
+//    static class HsvMinMax_ {
+//        float hLower;
+//        boolean adjustH;
+//        float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE,
+//                maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
+//        public HsvMinMax_(int hLower) {
+//            if (hLower >= 0) {
+//                this.hLower = (float) (hLower/360.); // TODO remove 360
+//                this.adjustH = true;
+//            } else {
+//                this.hLower = 0.f;
+//                this.adjustH = false;
+//            }
+//        }
+//        void update(float[] hsv) {
+//            float h = adjustH ? encodeH(hsv[0]) : hsv[0];
+//            minH = Math.min(minH, h);
+//            minS = Math.min(minS, hsv[1]);
+//            minV = Math.min(minV, hsv[2]);
+//            maxH = Math.max(maxH, h);
+//            maxS = Math.max(maxS, hsv[1]);
+//            maxV = Math.max(maxV, hsv[2]);
+//        }
+//
+//        //        float diffH(float h) {
+////            return frac(h - hAround + 0.5f) - 0.5f;
+////        }
+//        HsvMinMax merge(HsvMinMax other) {
+//            minH = Math.min(minH, other.minH);
+//            minS = Math.min(minS, other.minS);
+//            minV = Math.min(minV, other.minV);
+//            maxH = Math.max(maxH, other.maxH);
+//            maxS = Math.max(maxS, other.maxS);
+//            maxV = Math.max(maxV, other.maxV);
+//            return this;
+//        }
+//        float encodeH(float h) {
+//            return MyMath.frac(h - hLower);
+//        }
+//        float scaleH(float h, float dh) {
+//            var center = hLower + minH;
+//            return MyMath.frac((h - center) / dh + hLower);
+//        }
+//    }
 }
 
 class GammaColorBalancer {
@@ -12664,6 +13539,17 @@ class MySwing {
     static boolean isShiftPressed(ActionEvent e) {
         return 0 != (e.getModifiers() & ActionEvent.SHIFT_MASK);
     }
+    static ImageIcon loadIcon(String resourcePath, int scaleToSize) {
+        try {
+            var icon =
+                    ImageIO
+                    .read(ClassLoader.getSystemResource(resourcePath))
+                    .getScaledInstance(scaleToSize,scaleToSize, SCALE_SMOOTH);
+            return new ImageIcon(icon);
+        } catch (Throwable e) {
+            return null;
+        }
+    }
 }
 class MyStrings {
 //    static boolean startsWithIgnoreCase(String str, String prefix)
@@ -12685,6 +13571,32 @@ class MyStrings {
         return obj != null
              ? obj.getClass().getSimpleName() + "@" + Integer.toHexString(obj.hashCode())
              : "null";
+    }
+    static String flagsList(String spaceDelimitedNames, boolean... flags) {
+        String[] names = spaceDelimitedNames.split("\\s+");
+        String res = "";
+        for (int i=0; i<names.length; i++) {
+            if (i != 0) {
+                res += ' ';
+            }
+            res += names[i];
+            res += flags[i] ? '+' : '-';
+        }
+        return res;
+    }
+}
+class MyMath {
+    public static double frac(double x) {
+        return x - Math.floor(x);
+    }
+    public static double unfrac(double min, double x) {
+        return x<min ? x+1. : x;
+    }
+    public static double saturate(double min, double max, double val) {
+        return Math.max(min, Math.min(max, val));
+    }
+    public static double saturate01(double val) {
+        return Math.max(0., Math.min(1., val));
     }
 }
 class MyOps {
@@ -12720,6 +13632,11 @@ class MyOps {
             return first;
         }
         return () -> { first.run(); second.run(); };
+    }
+    /** Kotlin-like also(). Return obj, also run action. */
+    public static<T> T also(T obj, Consumer<T> action) {
+        action.accept(obj);
+        return obj;
     }
 }
 
