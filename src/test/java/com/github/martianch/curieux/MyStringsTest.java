@@ -19,5 +19,12 @@ public class MyStringsTest {
         assertEquals(false, MyStrings.endsWithIgnoreCase("f.jpg",".jpppg"));
         assertEquals(false, MyStrings.endsWithIgnoreCase("f.jpg",".jppg"));
     }
+    @Test
+    public void testPercentage() {
+        assertEquals("2.50%", MyStrings.percentage(0.025));
+        assertEquals("25.00%", MyStrings.percentage(0.25));
+        assertEquals("125.00%", MyStrings.percentage(1.25));
+        assertEquals("0.39%", MyStrings.percentage(1./256.));
+    }
 
 }
