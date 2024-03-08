@@ -6,7 +6,7 @@ package com.github.martianch.curieux;
 /*
 Curious: an X3D Viewer
 Designed to view the Curiosity Rover images from Mars in X3D, but can be used to view any stereo pairs (both LR and X3D).
-It opens images from Internet or local drive, supports drag-and-drop, for example, you can drag-n-drop the red DOWNLOAD
+Opens images from Internet or local drive, supports drag-and-drop, for example, you can drag-n-drop the red DOWNLOAD
 button from the raw images index on the NASA site.
 This software is Public Domain
 */
@@ -300,7 +300,7 @@ class StatsPlotter {
             g.setColor(MyColors.TRANSPARENT);
             g.fillRect(0, 0, width, height0);
         }
-        // 3 lines in the bottom that explain the color
+        // Legend: 3 lines in the bottom that explain the color
         for (int ch=stats.channels-1; ch>=0 ; ch--) {
             IntUnaryOperator channelColor = legendColor.get(ch);
             int currentColor = channelColor.applyAsInt(0);
@@ -328,6 +328,7 @@ class StatsPlotter {
         if (MyMath.frac(xScale) != 0.) {
             System.out.println("=== StatsPlotter === bug: xScale="+xScale);
         }
+        // The graph
         for (int ch=stats.channels-1; ch>=0 ; ch--) {
             IntUnaryOperator channelColor = toColor.get(ch);
             int currentColor = channelColor.applyAsInt(0);
@@ -361,9 +362,9 @@ class StatsPlotter {
     static int mapX(int x, double xScale) {
         return (int) Math.round(x * xScale);
     }
-    static int mapY(int y, double yScale) {
-        return (int) Math.round(y * yScale);
-    }
+//    static int mapY(int y, double yScale) {
+//        return (int) Math.round(y * yScale);
+//    }
 }
 abstract class AbstractRangeStats {
     final int channels, channelSize;
@@ -657,7 +658,7 @@ class HsvRangeWithStats extends HsvRange {
     }
     @Override
     HsvRange merge(HsvRange other) {
-        // throws an exception if other is not a HsvRangeWithStats! intentionally!
+        // We deliberately throw an exception if `other` is not a HsvRangeWithStats!
         stats.merge(((HsvRangeWithStats)other).stats); // must be HsvRangeWithStats, otherwise there's a bug
         super.merge(other);
         return this;
@@ -1068,10 +1069,10 @@ class ImageAndPath {
         BufferedImage res;
         if(isSpecialPath(path)) {
             Color color = IN_PROGRESS_PATH.equals(path)
-                        ? new Color(0, 128, 255)
+                        ? MyColors.READ_STATUS_LIGHTBLUE
                         : NO_PATH.equals(path)
-                        ? new Color(0, 0, 0)
-                        : new Color(80, 20, 20);
+                        ? MyColors.READ_STATUS_BLACK
+                        : MyColors.READ_STATUS_RED;
             res = dummyImage(color);
         } else if(FileLocations.isCuriousLRUrn(path)) {
             String path1 = FileLocations.uncuriousUri(path);
@@ -1142,13 +1143,13 @@ class ImageAndPath {
                     e.printStackTrace();
                     System.out.println("could not download "+path);
                     System.out.println("Per-thread successes and failures:\n" + SUCCESS_FAILURE_COUNTER);
-                    res = dummyImage(new Color(80,20,20));
+                    res = dummyImage(MyColors.READ_STATUS_RED);
                     NasaReader.cleanupReading();
                 }
             } catch (Throwable t) {
                 t.printStackTrace();
                 System.out.println("could not download "+path);
-                res = dummyImage(new Color(80,20,20));
+                res = dummyImage(MyColors.READ_STATUS_RED);
             }
         } else {
             try {
@@ -1156,7 +1157,7 @@ class ImageAndPath {
                 res.getWidth(); // throw an exception if null
             } catch (Throwable t) {
                 System.out.println("could not read file "+path);
-                res = dummyImage(new Color(80,20,20));
+                res = dummyImage(MyColors.READ_STATUS_RED);
             }
         }
         return new ImageAndPath(res, path, pathToLoad);
@@ -2361,6 +2362,7 @@ class UiController implements UiEventListener {
     }
     private static ColorCorrection insertEffectUnlessAlreadyThere(ColorCorrection cc, ColorCorrectionAlgo colorCorrectionAlgo) {
         if (!cc.getAlgos().contains(colorCorrectionAlgo)) {
+            // TODO: do we need to append this rather than replace everything with this?
             cc = cc.copyWith(Arrays.asList(colorCorrectionAlgo));
         }
         return cc;
@@ -2388,7 +2390,6 @@ class UiController implements UiEventListener {
         var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE_HSV);
         var bi = bis.get(isRight ? 1 : 0);
         int d = (int) Math.round(displayParameters.getFullZoom(isRight)); // TODO: BUG: this code is invoked BEFORE zoom().  d should be 1 or 2
-//        double hLower = displayParameters.getColorCorrection(isRight).customStretchHsvParameters.hsvRange.hLower;
         var cr = HsvColorBalancer.getHsvRangeFromImage(visibleArea, bi, ignoreBroken, d, hLower);
         return cr;
     }
@@ -8022,7 +8023,7 @@ class HsvRangeAndFlagsChooser extends JPanel {
     final JButton buttonSet;
 
     final Color normalButtonColor;
-    final Color highlightedButtonColor = new Color(250,127,127);
+    final Color highlightedButtonColor = MyColors.HILI_BTN_BGCOLOR;
     final Color normalBackgroundColor;
     final Color highlightedBackgroundColor = MyColors.HILI_BGCOLOR;
     private final String pleaseSelectShsvcNorm;
@@ -8190,14 +8191,6 @@ class HsvRangeAndFlagsChooser extends JPanel {
             public void ancestorMoved(AncestorEvent ancestorEvent) {
             }
         });
-//        {
-//            cbPerChannel = new JCheckBox("Per Channel");
-//            this.add(cbPerChannel);
-//            cbPerChannel.addActionListener(
-//                    e -> { proposed.isPerChannel = cbPerChannel.isSelected(); whenUpdated(); }
-//            );
-//            cbPerChannel.setToolTipText("Stretch Red/Green/Blue channels independently");
-//        }
         this.add(
             MySwing.makeThinRow(
                     new JLabel("Use Saturation Arithmetic For:"),
@@ -8436,7 +8429,7 @@ class RgbRangeAndFlagsChooser extends JPanel {
     final JButton buttonSet;
 
     final Color normalButtonColor;
-    final Color highlightedButtonColor = new Color(250,127,127);
+    final Color highlightedButtonColor = MyColors.HILI_BTN_BGCOLOR;
     final Color normalBackgroundColor;
     final Color highlightedBackgroundColor = MyColors.HILI_BGCOLOR;
     private final String pleaseSelectSrgb3Norm;
@@ -8876,7 +8869,6 @@ class ColorCorrectionPane extends JPanel {
                 var rgbIcon = MySwing.loadAndScaleIcon("icons/rgb24.png", iconSize);
                 tabbedPane.addTab("Custom RGB Stretching", rgbIcon, (isLeft? lColorRangeChooser : rColorRangeChooser),
                         "sRGB3 stretches the ranges of Red, Green, Blue values to the maximal possible range, 0..255");
-                //JComponent panel2 = new JPanel();
                 var hsvIcon = MySwing.loadAndScaleIcon("icons/hsv24.png", iconSize);
                 tabbedPane.addTab("Custom HSV Stretching", hsvIcon, (isLeft? lHsvRangeChooser : rHsvRangeChooser),
                         "sHSV3 stretches the ranges of Hue, Saturation, Volume values to the maximal possible range [0.0, 1.0]");
@@ -8894,7 +8886,6 @@ class ColorCorrectionPane extends JPanel {
     }
     void showDialogIn(JFrame mainFrame) {
         JustDialog.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
-//        JOptionPane.showMessageDialog(mainFrame, this,"Color Correction", JOptionPane.PLAIN_MESSAGE);
     }
 
     ColorCorrection getColorCorrection(
@@ -9242,7 +9233,7 @@ class HsvColorBalancer {
                         for (int i = finalIStart; i < finalIFinal; i++) {
                             int color = src.getRGB(i, j);
                             if (ignoreBroken) {
-                                // TODO: hsv analog?
+                                // TODO: hsv analog for broken pixel detection?
                                 if (RgbColorBalancer.pixelLooksNotBroken(color, RgbColorBalancer.setToMinMaxRgbDiag(around, src, i, j, dd))
                                  && RgbColorBalancer.pixelLooksNotBroken(color, RgbColorBalancer.setToMinMaxRgbHorVer(around, src, i, j, dd))
                                 ) {
@@ -9344,7 +9335,7 @@ class HsvColorBalancer {
         int height = src.getHeight();
         double minH = cr.minH, minS = cr.minS, minV = cr.minV;//, maxH = cr.maxH, maxS = cr.maxS, maxV = cr.maxV;
 
-        System.out.println("\n\n\n\n---------------\nstretchColorsUsingHsvRange");
+        System.out.println("\n\n\n\n---------------\nstretchColorsUsingHsvRange"); // TODO: remove
         System.out.println("" + cr + " " + tr );
         System.out.println(
                 "stretch(" + MyStrings.flagsList("H S V", stretchH, stretchS, stretchV)
@@ -9386,50 +9377,6 @@ class HsvColorBalancer {
         });
         return res;
     }
-//    static class HsvMinMax_ {
-//        float hLower;
-//        boolean adjustH;
-//        float minH = Float.MAX_VALUE, minS = Float.MAX_VALUE, minV = Float.MAX_VALUE,
-//                maxH = Float.MIN_VALUE, maxS = Float.MIN_VALUE, maxV = Float.MIN_VALUE;
-//        public HsvMinMax_(int hLower) {
-//            if (hLower >= 0) {
-//                this.hLower = (float) (hLower/360.); // TODO remove 360
-//                this.adjustH = true;
-//            } else {
-//                this.hLower = 0.f;
-//                this.adjustH = false;
-//            }
-//        }
-//        void update(float[] hsv) {
-//            float h = adjustH ? encodeH(hsv[0]) : hsv[0];
-//            minH = Math.min(minH, h);
-//            minS = Math.min(minS, hsv[1]);
-//            minV = Math.min(minV, hsv[2]);
-//            maxH = Math.max(maxH, h);
-//            maxS = Math.max(maxS, hsv[1]);
-//            maxV = Math.max(maxV, hsv[2]);
-//        }
-//
-//        //        float diffH(float h) {
-////            return frac(h - hAround + 0.5f) - 0.5f;
-////        }
-//        HsvMinMax merge(HsvMinMax other) {
-//            minH = Math.min(minH, other.minH);
-//            minS = Math.min(minS, other.minS);
-//            minV = Math.min(minV, other.minV);
-//            maxH = Math.max(maxH, other.maxH);
-//            maxS = Math.max(maxS, other.maxS);
-//            maxV = Math.max(maxV, other.maxV);
-//            return this;
-//        }
-//        float encodeH(float h) {
-//            return MyMath.frac(h - hLower);
-//        }
-//        float scaleH(float h, float dh) {
-//            var center = hLower + minH;
-//            return MyMath.frac((h - center) / dh + hLower);
-//        }
-//    }
 }
 
 class GammaColorBalancer {
@@ -14030,11 +13977,15 @@ class MySwing {
         tm.setInitialDelay(delaysForDismissInitialReshow[1]);
         tm.setReshowDelay(delaysForDismissInitialReshow[2]);
     }
-}
+} // MySwing
 class MyColors {
     static final Color HILI_BGCOLOR = new Color(0xffff80);
     static final Color TRANSPARENT = new Color(0, true);
-}
+    static final Color HILI_BTN_BGCOLOR = new Color(250, 127, 127);
+    static final Color READ_STATUS_RED = new Color(80, 20, 20);
+    static final Color READ_STATUS_BLACK = Color.BLACK;
+    static final Color READ_STATUS_LIGHTBLUE = new Color(0, 128, 255);
+} // MyColors
 class MyStrings {
 //    static boolean startsWithIgnoreCase(String str, String prefix)
 //    {
@@ -14077,7 +14028,7 @@ class MyStrings {
     static String fraction(double fraction) {
         return String.format("%.3f", fraction);
     }
-}
+} // MyStrings
 class MyMath {
     public static double frac(double x) {
         return x - Math.floor(x);
@@ -14091,7 +14042,7 @@ class MyMath {
     public static double saturate01(double val) {
         return Math.max(0., Math.min(1., val));
     }
-}
+} // MyMath
 class MyOps {
     public static<T,TT> TT oAnd (T first, Supplier<TT> second) {
         if (first == null) {
@@ -14131,7 +14082,7 @@ class MyOps {
         action.accept(obj);
         return obj;
     }
-}
+} // MyOps
 interface ScopeFunctions {
     default<T> T also(Consumer<T> action) {
         action.accept((T)this);
