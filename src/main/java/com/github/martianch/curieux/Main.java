@@ -159,6 +159,7 @@ public class Main {
     public enum ParallelImageLoading {PARALLEL,DELAYED,SEQUENTIAL}
 
     public static int[] DEFAULT_TOOLTIP_DELAYS;
+    public static int[] FREQ_GPAPH_TOOLTIP_DELAYS = {8000, 20, 20};
 
     public static void main(String[] args) throws Exception {
         System.out.println("args: "+ Arrays.toString(args));
@@ -258,6 +259,7 @@ interface UiEventListener {
     DisplayParameters getDisplayParameters();
     RgbRange getViewportRgbRange(boolean isRight, boolean ignoreBroken);
     HsvRange getViewportHsvRange(boolean isRight, boolean ignoreBroken, double hLower);
+    List<Object> getViewportStats(boolean isRight, boolean ignoreBroken);
     CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight);
     CustomStretchHsvParameters getCurrentCustomStretchHsvParameters(boolean isRight);
     FisheyeCorrection getFisheyeCorrection(boolean isRight);
@@ -2360,10 +2362,12 @@ class UiController implements UiEventListener {
     private ColorCorrection insertHsvcIfNotThere(ColorCorrection cc) {
         return insertEffectUnlessAlreadyThere(cc, ColorCorrectionAlgo.STRETCH_CONTRAST_HSV_CUSTOM);
     }
+    private ColorCorrection insertGetStatsIfNotThere(ColorCorrection cc) {
+        return insertEffectUnlessAlreadyThere(cc, ColorCorrectionAlgo.GET_STATS);
+    }
     private static ColorCorrection insertEffectUnlessAlreadyThere(ColorCorrection cc, ColorCorrectionAlgo colorCorrectionAlgo) {
         if (!cc.getAlgos().contains(colorCorrectionAlgo)) {
-            // TODO: do we need to append this rather than replace everything with this?
-            cc = cc.copyWith(Arrays.asList(colorCorrectionAlgo));
+            cc = cc.copyWith(MyOps.also(new ArrayList<>(cc.getAlgos()), it -> it.add(colorCorrectionAlgo)));
         }
         return cc;
     }
@@ -2377,7 +2381,7 @@ class UiController implements UiEventListener {
         var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE_RGB);
         var bi = bis.get(isRight ? 1 : 0);
         int d = (int) Math.round(displayParameters.getFullZoom(isRight)); // TODO: BUG: this code is invoked BEFORE zoom(). d should be 1 or 2
-        var cr = RgbColorBalancer.getRgbRangeFromImage(visibleArea, bi, ignoreBroken, d);
+        var cr = RgbColorBalancer.getRgbRangeWithStatsFromImage(visibleArea, bi, ignoreBroken, d);
         return cr;
     }
     @Override
@@ -2390,8 +2394,23 @@ class UiController implements UiEventListener {
         var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGE_HSV);
         var bi = bis.get(isRight ? 1 : 0);
         int d = (int) Math.round(displayParameters.getFullZoom(isRight)); // TODO: BUG: this code is invoked BEFORE zoom().  d should be 1 or 2
-        var cr = HsvColorBalancer.getHsvRangeFromImage(visibleArea, bi, ignoreBroken, d, hLower);
-        return cr;
+        var hr = HsvColorBalancer.getHsvRangeWithStatsFromImage(visibleArea, bi, ignoreBroken, d, hLower);
+        return hr;
+    }
+    public List<Object> getViewportStats(boolean isRight, boolean ignoreBroken) {
+        Rectangle visibleArea = x3dViewer.getViewportRectangle(isRight);
+        ColorCorrection lcc = insertGetStatsIfNotThere(displayParameters.lColorCorrection);
+        ColorCorrection rcc = insertGetStatsIfNotThere(displayParameters.rColorCorrection);
+        var dp = displayParameters
+                .withColorCorrection(lcc, rcc);
+        var bis = x3dViewer.processBothImages(rawData, dp, measurementStatus, ColorCorrection.Command.GET_RANGES_FOR_STATS);
+        var bi = bis.get(isRight ? 1 : 0);
+        int d = (int) Math.round(displayParameters.getFullZoom(isRight)); // TODO: BUG: this code is invoked BEFORE zoom(). d should be 1 or 2
+        var res = ParallelPair.<Object>creator().of(
+            () -> RgbColorBalancer.getRgbRangeWithStatsFromImage(visibleArea, bi, ignoreBroken, d),
+            () -> HsvColorBalancer.getHsvRangeWithStatsFromImage(visibleArea, bi, ignoreBroken, d, 0.)
+        ).toParallelPair().asList();
+        return res;
     }
     @Override
     public CustomStretchRgbParameters getCurrentCustomStretchRgbParameters(boolean isRight) {
@@ -7722,7 +7741,7 @@ class ColorCorrection {
     final CustomStretchRgbParameters customStretchRgbParameters;
     final CustomStretchHsvParameters customStretchHsvParameters;
 
-    public enum Command{SHOW, GET_RANGE_RGB, GET_RANGE_HSV}
+    public enum Command{SHOW, GET_RANGE_RGB, GET_RANGE_HSV, GET_RANGES_FOR_STATS}
 
     public ColorCorrection copyWith(List<ColorCorrectionAlgo> algos) {
         return new ColorCorrection(algos, this.customStretchRgbParameters, this.customStretchHsvParameters);
@@ -7797,6 +7816,12 @@ class ColorCorrection {
                     } else {
                         res = HsvColorBalancer.stretchColorsHsv(res, customStretchHsvParameters);
                     }
+                    break;
+                case GET_STATS:
+                    if (command == Command.GET_RANGES_FOR_STATS) {
+                        break loop;
+                    }
+                    // else do nothing
                     break;
                 case STRETCH_CONTRAST_HSV_S:
                     res = HsvColorBalancer.balanceColorsSimple(res, -1, true, false);
@@ -7923,6 +7948,7 @@ enum ColorCorrectionAlgo implements ImageEffect {
     STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
     STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space", "sHSV"),
     STRETCH_CONTRAST_HSV_CUSTOM("stretch H,S,V in HSV space, custom parameters", "sHSVc"),
+    GET_STATS("get stats here (see the \"Stats\" tab)", ""),
     INTERPOLATE_BROKEN_PIXELS("interpolate broken pixels", "ib"),
     //  γ<1 is sometimes called an encoding gamma (γ-compression), γ>1 is called a decoding gamma (γ-expansion)
     GAMMA_DECODE_2_4("gamma decode, γ=2.4", "gd24"),
@@ -7989,6 +8015,176 @@ class ColorCorrectionModeChooser extends JComboBox<ColorCorrectionAlgo> {
     }
 }
 
+class RgbHsvStatsPanel extends JPanel {
+    final static int STATS_WIDTH = 512;
+    final static int STATS_PX_PER_ONE = 2;
+    final static int STATS_HEIGHT = 80*2;
+
+    final boolean isRight;
+    final UiEventListener uiEventListener;
+    final JLabel lblRgbStats;
+    final JLabel lblHsvStats;
+
+    RgbStats rgbStats;
+    RgbStats.DistributionStats rgbDistStats;
+    HsvStats hsvStats;
+    HsvStats.DistributionStats hsvDistStats;
+
+    RgbHsvStatsPanel(UiEventListener uiEventListener, boolean isRight) {
+        this.uiEventListener = uiEventListener;
+        this.isRight = isRight;
+        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        {
+            this.add(MySwing.makeThinRow(new JLabel(
+                    "<html>"
+                    + "The two other tabs show frequency distribution graphs for their inputs.<br/>"
+                    + "This tab shows the frequency distribution graphs for the resulting image<br/>"
+                    + " (or at any other point of interest if you select the \"get stats\" effect in<br/>"
+                    + "the list above). For details, hover the mouse above the graph."
+                    + "</html>"
+            )));
+        }
+        {
+            ImageIcon emptyIcon = MySwing.getEmptyGraphIcon(STATS_WIDTH, STATS_HEIGHT);
+            lblRgbStats = new JLabel(emptyIcon);
+            lblRgbStats.setAlignmentX(Component.CENTER_ALIGNMENT);
+            lblRgbStats.addMouseMotionListener(new MouseMotionAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    super.mouseMoved(e);
+                    lblRgbStats.setToolTipText(RgbRangeAndFlagsChooser.makeStatsTooltip(rgbDistStats, rgbStats, e.getX()/2, "Get Statistics..."));
+                }
+            });
+            lblRgbStats.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    super.mouseEntered(e);
+                    MySwing.setToolTipDelays(Main.FREQ_GPAPH_TOOLTIP_DELAYS);
+                }
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    super.mouseExited(e);
+                    MySwing.setToolTipDelays(Main.DEFAULT_TOOLTIP_DELAYS);
+                }
+            });
+            this.add(lblRgbStats);
+        }
+        {
+            this.add(Box.createVerticalStrut(1));
+        }
+        {
+            ImageIcon emptyIcon = MySwing.getEmptyGraphIcon(STATS_WIDTH, STATS_HEIGHT);
+            lblHsvStats = new JLabel(emptyIcon);
+            lblHsvStats.setAlignmentX(Component.CENTER_ALIGNMENT);
+            lblHsvStats.addMouseMotionListener(new MouseMotionAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    super.mouseMoved(e);
+                    lblHsvStats.setToolTipText(HsvRangeAndFlagsChooser.makeStatsTooltip(hsvDistStats, hsvStats, e.getX()/STATS_PX_PER_ONE, "Get Statistics..."));
+                }
+            });
+            lblHsvStats.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    super.mouseEntered(e);
+                    MySwing.setToolTipDelays(Main.FREQ_GPAPH_TOOLTIP_DELAYS);
+                }
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    super.mouseExited(e);
+                    MySwing.setToolTipDelays(Main.DEFAULT_TOOLTIP_DELAYS);
+                }
+            });
+            this.add(lblHsvStats);
+        }
+        {
+            JButton button = new JButton("Get Statistics from Viewport");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionCalculateViewportRgbHsvRanges(false));
+            button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
+            this.add(button);
+        }
+        {
+            JButton button = new JButton("Get Statistics from Viewport, Ignore Broken Pixels");
+            button.setAlignmentX(Component.CENTER_ALIGNMENT);
+            button.addActionListener(e -> actionCalculateViewportRgbHsvRanges(true));
+            button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
+            this.add(button);
+        }
+
+//        this.addAncestorListener(new AncestorListener() {
+//            @Override
+//            public void ancestorAdded(AncestorEvent ancestorEvent) {
+//                whenShown();
+//            }
+//            @Override
+//            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+//            }
+//            @Override
+//            public void ancestorMoved(AncestorEvent ancestorEvent) {
+//            }
+//        });
+    }
+    void whenShown() {
+    }
+    private void whenUpdated() {
+    }
+    private void actionCalculateViewportRgbHsvRanges(boolean ignoreBroken) {
+        List<?> rgbHsv = uiEventListener.getViewportStats(isRight, ignoreBroken);
+        RgbRange cr = (RgbRange) rgbHsv.get(0);
+        HsvRange hr = (HsvRange) rgbHsv.get(1);
+        updateHsvStats(hr);
+        updateRgbStats(cr);
+        whenUpdated();
+    }
+    private void updateHsvStats(HsvRange hr) {
+        if (hr instanceof HsvRangeWithStats) {
+            hsvStats = ((HsvRangeWithStats) hr).stats;
+            hsvDistStats = hsvStats.getDistributionStats();
+            lblHsvStats.setIcon(new ImageIcon(
+                    StatsPlotter.plot(
+                            STATS_WIDTH, STATS_HEIGHT, hsvStats,
+                            Arrays.asList(
+                                    i -> 0xFF4040,
+                                    i -> 0x40FF40,
+                                    i -> 0x4040FF
+                            ),
+                            5,
+                            Arrays.asList(
+                                    i -> Color.HSBtoRGB(i/255.f,1.f,1.f), //0xFF4040,
+                                    i -> Color.HSBtoRGB(120/360.f, i/255.f, 1.f),//0x40FF40,
+                                    i -> Color.HSBtoRGB(120/360.f, 1.f, i/255.f)//0x4040FF
+                            )
+                    )));
+        } else {
+            System.out.println("**************************** bug in updateHsvStats");
+        }
+    }
+    private void updateRgbStats(RgbRange cr) {
+        if (cr instanceof RgbRangeWithStats) {
+            rgbStats = ((RgbRangeWithStats) cr).stats;
+            rgbDistStats = rgbStats.getDistributionStats();
+            lblRgbStats.setIcon(new ImageIcon(
+                    StatsPlotter.plot(
+                            STATS_WIDTH, STATS_HEIGHT, rgbStats,
+                            Arrays.asList(
+                                    i -> 0xFF4040,
+                                    i -> 0x40FF40,
+                                    i -> 0x4040FF
+                            ),
+                            5,
+                            Arrays.asList(
+                                    i -> i << 16 & 0xFF0000,
+                                    i -> (i << 8) & 0xFF00,
+                                    i -> i & 0xFF
+                            )
+                    )));
+        } else {
+            System.out.println("**************************** bug in updateRgbStats");
+        }
+    }
+} // RgbHsvStatsPanel
+
 class HsvRangeAndFlagsChooser extends JPanel {
     final static int STATS_WIDTH = 512;
     final static int STATS_PX_PER_ONE = 2;
@@ -8036,33 +8232,21 @@ class HsvRangeAndFlagsChooser extends JPanel {
 //        this.proposed.stretchS = this.proposed.stretchV = true;
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         {
-            ImageIcon emptyIcon = new ImageIcon(
-                    new BufferedImage(STATS_WIDTH, STATS_HEIGHT, BufferedImage.TYPE_INT_ARGB)
-            );
+            ImageIcon emptyIcon = MySwing.getEmptyGraphIcon(STATS_WIDTH, STATS_HEIGHT);
             lblStats = new JLabel(emptyIcon);
             lblStats.setAlignmentX(Component.CENTER_ALIGNMENT);
             lblStats.addMouseMotionListener(new MouseMotionAdapter() {
                 @Override
                 public void mouseMoved(MouseEvent e) {
                     super.mouseMoved(e);
-                    lblStats.setToolTipText(makeStatsTooltip(e.getX()/STATS_PX_PER_ONE));
+                    lblStats.setToolTipText(makeStatsTooltip(distStats, stats, e.getX()/STATS_PX_PER_ONE, "Get Ranges..."));
                 }
             });
             lblStats.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
                     super.mouseEntered(e);
-                    System.out.println( "Dismiss, Initial,  Reshow: "
-                            + ToolTipManager.sharedInstance().getDismissDelay() + " "
-                            + ToolTipManager.sharedInstance().getInitialDelay() + " "
-                            + ToolTipManager.sharedInstance().getReshowDelay()
-                    );
-                    MySwing.setToolTipDelays(8000, 20, 20);
-                    System.out.println( "Dismiss, Initial,  Reshow: "
-                            + ToolTipManager.sharedInstance().getDismissDelay() + " "
-                            + ToolTipManager.sharedInstance().getInitialDelay() + " "
-                            + ToolTipManager.sharedInstance().getReshowDelay()
-                    );
+                    MySwing.setToolTipDelays(Main.FREQ_GPAPH_TOOLTIP_DELAYS);
                 }
                 @Override
                 public void mouseExited(MouseEvent e) {
@@ -8092,14 +8276,14 @@ class HsvRangeAndFlagsChooser extends JPanel {
         {
             JButton button = new JButton("Get Ranges for H, S, V from Viewport");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
-            button.addActionListener(e -> actionCalculateViewportColorRange(false));
+            button.addActionListener(e -> actionCalculateViewportHsvRange(false));
             button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
             this.add(button);
         }
         {
             JButton button = new JButton("Get Ranges for H, S, V from Viewport, Ignore Broken Pixels");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
-            button.addActionListener(e -> actionCalculateViewportColorRange(true));
+            button.addActionListener(e -> actionCalculateViewportHsvRange(true));
             button.setToolTipText("Viewport is the part of image that you see. First zoom/resize/scroll the window to exclude pixels that are too dark/too bright, then press this.");
             this.add(button);
         }
@@ -8151,7 +8335,7 @@ class HsvRangeAndFlagsChooser extends JPanel {
             MySwing.makeThinRow(
                 new JLabel("to H range:"),
                 dcH0a = new DigitalZoomControl<Double, HsvAngleWrapper>().init(null, 4, new HsvAngleWrapper(), i -> {
-                    proposed.hTargetRange = proposed.hTargetRange.withMaxH(i); whenUpdated();}),
+                    proposed.hTargetRange = proposed.hTargetRange.withMinH(i); whenUpdated();}),
                 new JLabel("…"),
                 dcH1a = new DigitalZoomControl<Double, HsvAngleWrapper1>().init(null, 4, new HsvAngleWrapper1(), i -> {
                     proposed.hTargetRange = proposed.hTargetRange.withMaxH(i); whenUpdated();})
@@ -8179,18 +8363,18 @@ class HsvRangeAndFlagsChooser extends JPanel {
                 new JLabel("to [0, 1]")
         ));
 
-        this.addAncestorListener(new AncestorListener() {
-            @Override
-            public void ancestorAdded(AncestorEvent ancestorEvent) {
-                whenShown();
-            }
-            @Override
-            public void ancestorRemoved(AncestorEvent ancestorEvent) {
-            }
-            @Override
-            public void ancestorMoved(AncestorEvent ancestorEvent) {
-            }
-        });
+//        this.addAncestorListener(new AncestorListener() {
+//            @Override
+//            public void ancestorAdded(AncestorEvent ancestorEvent) {
+//                whenShown();
+//            }
+//            @Override
+//            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+//            }
+//            @Override
+//            public void ancestorMoved(AncestorEvent ancestorEvent) {
+//            }
+//        });
         this.add(
             MySwing.makeThinRow(
                     new JLabel("Use Saturation Arithmetic For:"),
@@ -8223,41 +8407,46 @@ class HsvRangeAndFlagsChooser extends JPanel {
             buttonSet.setToolTipText("Applying incomplete changes is meaningless, so first choose parameters, then click this");
         }
     }
-    private String makeStatsTooltip(int x) {
+    static String makeStatsTooltip(HsvStats.DistributionStats distStats, HsvStats stats, int x, String firstButtonText) {
         if (stats != null) {
             if (stats.hasCountFor(x)) {
                 final double N = 255.;
                 final double N1 = N+1.;
                 final String SLASH_N = "/255";
 //                final String SLASH_N1 = "/256";
-                return "<html>hue [" + MyStrings.degrees(x/N1) + ", " + MyStrings.degrees((x+1)/N1) + "),"
-                        + " saturation/value " + fraction(x/N) + " (" + x + SLASH_N + ")"
-                        + "<br/>found: H:" + stats.getCount(0, x)
-                        + ", S:" + stats.getCount(1, x)
-                        + ", V:" + stats.getCount(2, x)
+                return "<html>"
+                        + MyColors.FONT_H + "hue" + MyColors.E_FONT
+                        + " [" + MyStrings.degrees(x/N1) + ", " + MyStrings.degrees((x+1)/N1) + "),"
+                        + " " + MyColors.FONT_S + "saturation" + MyColors.E_FONT
+                        + "/" + MyColors.FONT_V + "value" + MyColors.E_FONT
+                        + " " + fraction(x/N) + " (" + x + SLASH_N + ")"
+                        + "<br/>found:"
+                        + " "  + MyColors.FONT_H + "H:" + stats.getCount(0, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_S + "S:" + stats.getCount(1, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_V + "V:" + stats.getCount(2, x) + MyColors.E_FONT
                         + " times<br/>"
                         + "this value and below:"
-                        + " H:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(0, x))
-                        + ", S:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(1, x))
-                        + ", V:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(2, x))
-                        + " (H:" + distStats.getTotalBelowOrEqual(0, x)
-                        + ", S:" + distStats.getTotalBelowOrEqual(1, x)
-                        + ", V:" + distStats.getTotalBelowOrEqual(2, x)
+                        + " "  + MyColors.FONT_H + "H:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(0, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_S + "S:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(1, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_V + "V:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(2, x)) + MyColors.E_FONT
+                        + " (" + MyColors.FONT_H + "H:" + distStats.getTotalBelowOrEqual(0, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_S + "S:" + distStats.getTotalBelowOrEqual(1, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_V + "V:" + distStats.getTotalBelowOrEqual(2, x) + MyColors.E_FONT
                         + " of total " + distStats.getTotal(2) + " each)"
                         + "<br/>above this value:"
-                        + " H:" + MyStrings.percentage(distStats.getPercentageAbove(0, x))
-                        + ", S:" + MyStrings.percentage(distStats.getPercentageAbove(1, x))
-                        + ", V:" + MyStrings.percentage(distStats.getPercentageAbove(2, x))
-                        + " (H:" + distStats.getTotalAbove(0, x)
-                        + ", S:" + distStats.getTotalAbove(1, x)
-                        + ", V:" + distStats.getTotalAbove(2, x)
+                        + " "  + MyColors.FONT_H + "H:" + MyStrings.percentage(distStats.getPercentageAbove(0, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_S + "S:" + MyStrings.percentage(distStats.getPercentageAbove(1, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_V + "V:" + MyStrings.percentage(distStats.getPercentageAbove(2, x)) + MyColors.E_FONT
+                        + " (" + MyColors.FONT_H + "H:" + distStats.getTotalAbove(0, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_S + "S:" + distStats.getTotalAbove(1, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_V + "V:" + distStats.getTotalAbove(2, x) + MyColors.E_FONT
                         + " of total " + distStats.getTotal(2) + " each)"
                         + "</html>";
             } else {
                 return "intensity " + x + " is out of range";
             }
         } else {
-            return "This graph will show frequencies of R, G, B values after you press \"Get Color Range\"";
+            return "Press any of the two \"" + firstButtonText + "\" buttons to see the graph";
         }
     }
     private String norm(String text) {
@@ -8275,7 +8464,7 @@ class HsvRangeAndFlagsChooser extends JPanel {
         });
         return plus360;
     }
-    private void whenShown() {
+    void whenShown() {
         usedNow = uiEventListener.getCurrentCustomStretchHsvParameters(isRight).copy();
         old = usedNow.copy();
         copyAndUseProposedFrom(old);
@@ -8336,7 +8525,7 @@ class HsvRangeAndFlagsChooser extends JPanel {
         usedNow = uiEventListener.getCurrentCustomStretchHsvParameters(isRight).copy();
         whenUpdated();
     }
-    private void actionCalculateViewportColorRange(boolean ignoreBroken) {
+    private void actionCalculateViewportHsvRange(boolean ignoreBroken) {
         double hLower = proposed.hsvRange.hLower;
         HsvRange hr = uiEventListener.getViewportHsvRange(isRight, ignoreBroken, hLower);
         hsvRangeToControls(hr);
@@ -8455,33 +8644,21 @@ class RgbRangeAndFlagsChooser extends JPanel {
         this.proposed = CustomStretchRgbParameters.newFullRange();
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         {
-            ImageIcon emptyIcon = new ImageIcon(
-                    new BufferedImage(STATS_WIDTH, STATS_HEIGHT, BufferedImage.TYPE_INT_ARGB)
-            );
+            ImageIcon emptyIcon = MySwing.getEmptyGraphIcon(STATS_WIDTH, STATS_HEIGHT);
             lblStats = new JLabel(emptyIcon);
             lblStats.setAlignmentX(Component.CENTER_ALIGNMENT);
             lblStats.addMouseMotionListener(new MouseMotionAdapter() {
                 @Override
                 public void mouseMoved(MouseEvent e) {
                     super.mouseMoved(e);
-                    lblStats.setToolTipText(makeStatsTooltip(e.getX()/2));
+                    lblStats.setToolTipText(makeStatsTooltip(distStats, stats, e.getX()/2, "Get Color Range..."));
                 }
             });
             lblStats.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
                     super.mouseEntered(e);
-                    System.out.println( "Dismiss, Initial,  Reshow: "
-                            + ToolTipManager.sharedInstance().getDismissDelay() + " "
-                            + ToolTipManager.sharedInstance().getInitialDelay() + " "
-                            + ToolTipManager.sharedInstance().getReshowDelay()
-                    );
-                    MySwing.setToolTipDelays(8000, 20, 20);
-                    System.out.println( "Dismiss, Initial,  Reshow: "
-                            + ToolTipManager.sharedInstance().getDismissDelay() + " "
-                            + ToolTipManager.sharedInstance().getInitialDelay() + " "
-                            + ToolTipManager.sharedInstance().getReshowDelay()
-                    );
+                    MySwing.setToolTipDelays(Main.FREQ_GPAPH_TOOLTIP_DELAYS);
                 }
                 @Override
                 public void mouseExited(MouseEvent e) {
@@ -8517,18 +8694,18 @@ class RgbRangeAndFlagsChooser extends JPanel {
         this.add(dcB1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.maxB=i; whenUpdated();}));
         dcB1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxB)));
-        this.addAncestorListener(new AncestorListener() {
-            @Override
-            public void ancestorAdded(AncestorEvent ancestorEvent) {
-                whenShown();
-            }
-            @Override
-            public void ancestorRemoved(AncestorEvent ancestorEvent) {
-            }
-            @Override
-            public void ancestorMoved(AncestorEvent ancestorEvent) {
-            }
-        });
+//        this.addAncestorListener(new AncestorListener() {
+//            @Override
+//            public void ancestorAdded(AncestorEvent ancestorEvent) {
+//                whenShown();
+//            }
+//            @Override
+//            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+//            }
+//            @Override
+//            public void ancestorMoved(AncestorEvent ancestorEvent) {
+//            }
+//        });
         {
             this.add(
                 MySwing.makeThinRow(
@@ -8585,39 +8762,40 @@ class RgbRangeAndFlagsChooser extends JPanel {
             buttonSet.setToolTipText("Applying incomplete changes is meaningless, so first choose parameters, then click this");
         }
     }
-    private String makeStatsTooltip(int x) {
+    static String makeStatsTooltip(RgbStats.DistributionStats distStats, RgbStats stats, int x, String firstButtonText) {
         if (stats != null) {
             if (stats.hasCountFor(x)) {
                 return "<html>intensity " + x
-                        + " found: R:" + stats.getCount(0, x)
-                        + ", G:" + stats.getCount(1, x)
-                        + ", B:" + stats.getCount(2, x)
+                        + " found:"
+                        + " "  + MyColors.FONT_R + "R:" + stats.getCount(0, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_G + "G:" + stats.getCount(1, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_B + "B:" + stats.getCount(2, x) + MyColors.E_FONT
                         + " times<br/>"
                         + x + " and below:"
-                        + " R:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(0, x))
-                        + ", G:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(1, x))
-                        + ", B:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(2, x))
-                        + "(R:" + distStats.getTotalBelowOrEqual(0, x)
-                        + ", G:" + distStats.getTotalBelowOrEqual(1, x)
-                        + ", B:" + distStats.getTotalBelowOrEqual(2, x)
+                        + " "  + MyColors.FONT_R + "R:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(0, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_G + "G:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(1, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_B + "B:" + MyStrings.percentage(distStats.getPercentageBelowOrEqual(2, x)) + MyColors.E_FONT
+                        + "("  + MyColors.FONT_R + "R:" + distStats.getTotalBelowOrEqual(0, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_G + "G:" + distStats.getTotalBelowOrEqual(1, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_B + "B:" + distStats.getTotalBelowOrEqual(2, x) + MyColors.E_FONT
                         + " of total " + distStats.getTotal(2) + " each)"
                         + "<br/>above " + x + ":"
-                        + " R:" + MyStrings.percentage(distStats.getPercentageAbove(0, x))
-                        + ", G:" + MyStrings.percentage(distStats.getPercentageAbove(1, x))
-                        + ", B:" + MyStrings.percentage(distStats.getPercentageAbove(2, x))
-                        + "(R:" + distStats.getTotalAbove(0, x)
-                        + ", G:" + distStats.getTotalAbove(1, x)
-                        + ", B:" + distStats.getTotalAbove(2, x)
+                        + " "  + MyColors.FONT_R + "R:" + MyStrings.percentage(distStats.getPercentageAbove(0, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_G + "G:" + MyStrings.percentage(distStats.getPercentageAbove(1, x)) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_B + "B:" + MyStrings.percentage(distStats.getPercentageAbove(2, x)) + MyColors.E_FONT
+                        + "("  + MyColors.FONT_R + "R:" + distStats.getTotalAbove(0, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_G + "G:" + distStats.getTotalAbove(1, x) + MyColors.E_FONT
+                        + ", " + MyColors.FONT_B + "B:" + distStats.getTotalAbove(2, x) + MyColors.E_FONT
                         + " of total " + distStats.getTotal(2) + " each)"
                         + "</html>";
             } else {
                 return "intensity " + x + " is out of range";
             }
         } else {
-            return "This graph will show frequencies of R, G, B values after you press \"Get Color Range\"";
+            return "Press any of the two \"" + firstButtonText + "\" buttons to see the graph";
         }
     }
-    private void whenShown() {
+    void whenShown() {
         usedNow = uiEventListener.getCurrentCustomStretchRgbParameters(isRight).copy();
         old = usedNow.copy();
         copyAndUseProposedFrom(old);
@@ -8720,6 +8898,8 @@ class ColorCorrectionPane extends JPanel {
     final RgbRangeAndFlagsChooser rColorRangeChooser;
     final HsvRangeAndFlagsChooser lHsvRangeChooser;
     final HsvRangeAndFlagsChooser rHsvRangeChooser;
+    final RgbHsvStatsPanel lRgbHsvStatsPanel;
+    final RgbHsvStatsPanel rRgbHsvStatsPanel;
 
     public ColorCorrectionPane(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
@@ -8727,6 +8907,8 @@ class ColorCorrectionPane extends JPanel {
         rColorRangeChooser = new RgbRangeAndFlagsChooser(uiEventListener, true);
         lHsvRangeChooser = new HsvRangeAndFlagsChooser(uiEventListener, false);
         rHsvRangeChooser = new HsvRangeAndFlagsChooser(uiEventListener, true);
+        lRgbHsvStatsPanel = new RgbHsvStatsPanel(uiEventListener, false);
+        rRgbHsvStatsPanel = new RgbHsvStatsPanel(uiEventListener, true);
         {
             JButton button = new JButton("Copy ->");
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -8872,12 +9054,35 @@ class ColorCorrectionPane extends JPanel {
                 var hsvIcon = MySwing.loadAndScaleIcon("icons/hsv24.png", iconSize);
                 tabbedPane.addTab("Custom HSV Stretching", hsvIcon, (isLeft? lHsvRangeChooser : rHsvRangeChooser),
                         "sHSV3 stretches the ranges of Hue, Saturation, Volume values to the maximal possible range [0.0, 1.0]");
+                var statsIcon = MySwing.loadAndScaleIcon("icons/graphs12.png", iconSize);
+                tabbedPane.addTab("Stats", statsIcon, (isLeft? lRgbHsvStatsPanel : rRgbHsvStatsPanel),
+                        "Show distribution of Red, Green, Blue / Hue, Saturation, Volume values in the image");
                 gbl.setConstraints(tabbedPane, gbc);
                 this.add(tabbedPane);
             }
         }
         rowNumber++;
         this.setLayout(gbl);
+        this.addAncestorListener(new AncestorListener() { // invoke whenShown() for all tabs
+            @Override
+            public void ancestorAdded(AncestorEvent ancestorEvent) {
+                whenShown();
+            }
+            @Override
+            public void ancestorRemoved(AncestorEvent ancestorEvent) {
+            }
+            @Override
+            public void ancestorMoved(AncestorEvent ancestorEvent) {
+            }
+        });
+    }
+    void whenShown() {
+        lColorRangeChooser.whenShown();
+        rColorRangeChooser.whenShown();
+        lHsvRangeChooser.whenShown();
+        rHsvRangeChooser.whenShown();
+        lRgbHsvStatsPanel.whenShown();
+        rRgbHsvStatsPanel.whenShown();
     }
     void swapChoices(ColorCorrectionModeChooser current, ColorCorrectionModeChooser other) {
         int curSel = current.getSelectedIndex();
@@ -8918,7 +9123,7 @@ class ColorCorrectionPane extends JPanel {
 }
 
 class RgbColorBalancer {
-    static RgbRange getRgbRangeFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d) {
+    static RgbRange getRgbRangeWithStatsFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d) {
         int iStart = (int) rectangle.getX();
         int iFinal = (int) rectangle.getMaxX();
         int jStart = (int) rectangle.getY();
@@ -9191,7 +9396,7 @@ class RgbColorBalancer {
 }
 
 class HsvColorBalancer {
-    static HsvRange getHsvRangeFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d, double hLower) {
+    static HsvRange getHsvRangeWithStatsFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d, double hLower) {
         int iStart = (int) rectangle.getX();
         int iFinal = (int) rectangle.getMaxX();
         int jStart = (int) rectangle.getY();
@@ -11220,9 +11425,7 @@ class FisheyeCorrectionPane extends JPanel {
         }
         {
             {
-                ImageIcon emptyIcon = new ImageIcon(
-                    new BufferedImage(GRAPH_WIDTH, GRAPH_HEIGHT, BufferedImage.TYPE_INT_ARGB)
-                );
+                ImageIcon emptyIcon = MySwing.getEmptyGraphIcon(GRAPH_WIDTH, GRAPH_HEIGHT);
                 lblGraphL = new JLabel(emptyIcon);
                 lblGraphR = new JLabel(emptyIcon);
             }
@@ -13977,6 +14180,20 @@ class MySwing {
         tm.setInitialDelay(delaysForDismissInitialReshow[1]);
         tm.setReshowDelay(delaysForDismissInitialReshow[2]);
     }
+    static ImageIcon getEmptyGraphIcon(int statsWidth, int statsHeight) {
+        return new ImageIcon(
+            also(
+                new BufferedImage(statsWidth, statsHeight, BufferedImage.TYPE_INT_ARGB),
+                    it -> {
+                        var g = it.getGraphics();
+                        g.setColor(Color.GRAY);
+                        g.fillRect(0, 0, statsWidth, statsHeight);
+//                        g.drawRect(0, 0, statsWidth-1, statsHeight-1);
+                        g.dispose();
+                    }
+            )
+        );
+    }
 } // MySwing
 class MyColors {
     static final Color HILI_BGCOLOR = new Color(0xffff80);
@@ -13985,6 +14202,13 @@ class MyColors {
     static final Color READ_STATUS_RED = new Color(80, 20, 20);
     static final Color READ_STATUS_BLACK = Color.BLACK;
     static final Color READ_STATUS_LIGHTBLUE = new Color(0, 128, 255);
+    static final String FONT_R = "<font color=\"#FF0000\">";
+    static final String FONT_G = "<font color=\"#00A000\">";
+    static final String FONT_B = "<font color=\"#0000FF\">";
+    static final String FONT_H = FONT_R;
+    static final String FONT_S = FONT_G;
+    static final String FONT_V = FONT_B;
+    static final String E_FONT = "</font>";
 } // MyColors
 class MyStrings {
 //    static boolean startsWithIgnoreCase(String str, String prefix)
