@@ -118,6 +118,7 @@ import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
+import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Predicate;
@@ -7948,7 +7949,7 @@ enum ColorCorrectionAlgo implements ImageEffect {
     STRETCH_CONTRAST_HSV_S("stretch S in HSV space", "sHSVs"),
     STRETCH_CONTRAST_HSV_SV("stretch S & V in HSV space", "sHSV"),
     STRETCH_CONTRAST_HSV_CUSTOM("stretch H,S,V in HSV space, custom parameters", "sHSVc"),
-    GET_STATS("get stats here (see the \"Stats\" tab)", ""),
+    GET_STATS("get stats at this point (see the \"Stats\" tab)", "stats") { @Override public boolean notNothing() { return false; } },
     INTERPOLATE_BROKEN_PIXELS("interpolate broken pixels", "ib"),
     //  γ<1 is sometimes called an encoding gamma (γ-compression), γ>1 is called a decoding gamma (γ-expansion)
     GAMMA_DECODE_2_4("gamma decode, γ=2.4", "gd24"),
@@ -8184,7 +8185,45 @@ class RgbHsvStatsPanel extends JPanel {
         }
     }
 } // RgbHsvStatsPanel
-
+class GraphPopupMenu extends JPopupMenu {
+    int x = 0;
+    int nItems;
+    List<IntConsumer> actions;
+    List<Function<Integer, String>> formatters;
+    List<JMenuItem> menuItems;
+    public GraphPopupMenu(List<IntConsumer> actions, List<Function<Integer, String>> formatters) {
+        this.actions = actions;
+        this.formatters = formatters;
+        if (actions.size() != formatters.size()) {
+            throw new IllegalArgumentException(String.format("BUG: %d actions vs %d formatters", actions.size(), formatters.size()));
+        }
+        nItems = actions.size();
+        menuItems = new ArrayList<>(nItems);
+        buildMenu();
+    }
+    void buildMenu() {
+        for (int i=0; i<nItems; i++) {
+            JMenuItem mi = new JMenuItem("");
+            menuItems.add(mi);
+            this.add(mi);
+            IntConsumer action = actions.get(i);
+            mi.addActionListener(e -> action.accept(x));
+        }
+    }
+    void updateText(int x) {
+        for (int i=0; i<nItems; i++) {
+            menuItems.get(i).setText(formatters.get(i).apply(x));
+        }
+    }
+    void updateX(int x) {
+        this.x = x;
+    }
+    @Override
+    public void show(Component invoker, int x, int y) {
+        updateText(this.x);
+        super.show(invoker, x, y);
+    }
+} // GraphPopupMenu
 class HsvRangeAndFlagsChooser extends JPanel {
     final static int STATS_WIDTH = 512;
     final static int STATS_PX_PER_ONE = 2;
@@ -8217,6 +8256,7 @@ class HsvRangeAndFlagsChooser extends JPanel {
     final JCheckBox cbSSaturation;
     final JCheckBox cbVSaturation;
     final JButton buttonSet;
+    final GraphPopupMenu popupMenu;
 
     final Color normalButtonColor;
     final Color highlightedButtonColor = MyColors.HILI_BTN_BGCOLOR;
@@ -8239,7 +8279,9 @@ class HsvRangeAndFlagsChooser extends JPanel {
                 @Override
                 public void mouseMoved(MouseEvent e) {
                     super.mouseMoved(e);
-                    lblStats.setToolTipText(makeStatsTooltip(distStats, stats, e.getX()/STATS_PX_PER_ONE, "Get Ranges..."));
+                    int x = e.getX() / STATS_PX_PER_ONE;
+                    lblStats.setToolTipText(makeStatsTooltip(distStats, stats, x, "Get Ranges..."));
+                    popupMenu.updateX(x);
                 }
             });
             lblStats.addMouseListener(new MouseAdapter() {
@@ -8362,7 +8404,33 @@ class HsvRangeAndFlagsChooser extends JPanel {
                     proposed.hsvRange.maxV=i; whenUpdated();}),
                 new JLabel("to [0, 1]")
         ));
-
+        {
+            final double N = 255.;
+            final double N1 = N+1.;
+            popupMenu = new GraphPopupMenu(
+                    Arrays.asList(
+                            i -> dcH0.setValueAndText(i/N1),
+                            i -> dcH1.setValueAndText(i/N1),
+                            i -> dcH0a.setValueAndText(i/N1),
+                            i -> dcH1a.setValueAndText(i/N1),
+                            i -> dcS0.setValueAndText(i/N),
+                            i -> dcS1.setValueAndText(i/N),
+                            i -> dcV0.setValueAndText(i/N),
+                            i -> dcV1.setValueAndText(i/N)
+                            ),
+                    Arrays.asList(
+                            i -> "Set low H to " + MyStrings.degrees(i/N1),
+                            i -> "Set high H to " + MyStrings.degrees(i/N1),
+                            i -> "Set low target H to " + MyStrings.degrees(i/N1),
+                            i -> "Set high target H to " + MyStrings.degrees(i/N1),
+                            i -> "Set low S to " + MyStrings.fraction(i/N),
+                            i -> "Set high S to " + MyStrings.fraction(i/N),
+                            i -> "Set low V to " + MyStrings.fraction(i/N),
+                            i -> "Set high V to " + MyStrings.fraction(i/N)
+                    )
+            );
+            lblStats.setComponentPopupMenu(popupMenu);
+        }
 //        this.addAncestorListener(new AncestorListener() {
 //            @Override
 //            public void ancestorAdded(AncestorEvent ancestorEvent) {
@@ -8592,10 +8660,11 @@ class HsvRangeAndFlagsChooser extends JPanel {
     CustomStretchHsvParameters getCustomStretchHsvParameters() {
         return proposed.copy();
     }
-}
+} // HsvRangeAndFlagsChooser
 
 class RgbRangeAndFlagsChooser extends JPanel {
     final static int STATS_WIDTH = 512;
+    final static int STATS_PX_PER_ONE = 2;
     final static int STATS_HEIGHT = 80;
     final UiEventListener uiEventListener;
     final boolean isRight;
@@ -8616,6 +8685,7 @@ class RgbRangeAndFlagsChooser extends JPanel {
     final JCheckBox cbSaturation;
     final JCheckBox cbSaturateToBlack;
     final JButton buttonSet;
+    final GraphPopupMenu popupMenu;
 
     final Color normalButtonColor;
     final Color highlightedButtonColor = MyColors.HILI_BTN_BGCOLOR;
@@ -8651,7 +8721,9 @@ class RgbRangeAndFlagsChooser extends JPanel {
                 @Override
                 public void mouseMoved(MouseEvent e) {
                     super.mouseMoved(e);
-                    lblStats.setToolTipText(makeStatsTooltip(distStats, stats, e.getX()/2, "Get Color Range..."));
+                    int x = e.getX() / STATS_PX_PER_ONE;
+                    lblStats.setToolTipText(makeStatsTooltip(distStats, stats, x, "Get Color Range..."));
+                    popupMenu.updateX(x);
                 }
             });
             lblStats.addMouseListener(new MouseAdapter() {
@@ -8694,6 +8766,27 @@ class RgbRangeAndFlagsChooser extends JPanel {
         this.add(dcB1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.maxB=i; whenUpdated();}));
         dcB1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxB)));
+        {
+            popupMenu = new GraphPopupMenu(
+                    Arrays.asList(
+                            i -> dcR0.setValueAndText(i),
+                            i -> dcR1.setValueAndText(i),
+                            i -> dcG0.setValueAndText(i),
+                            i -> dcG1.setValueAndText(i),
+                            i -> dcB0.setValueAndText(i),
+                            i -> dcB1.setValueAndText(i)
+                    ),
+                    Arrays.asList(
+                            i -> "Set low R to " + i,
+                            i -> "Set high R to " + i,
+                            i -> "Set low G to " + i,
+                            i -> "Set high G to " + i,
+                            i -> "Set low B to " + i,
+                            i -> "Set high B to " + i
+                    )
+            );
+            lblStats.setComponentPopupMenu(popupMenu);
+        }
 //        this.addAncestorListener(new AncestorListener() {
 //            @Override
 //            public void ancestorAdded(AncestorEvent ancestorEvent) {
@@ -8885,7 +8978,7 @@ class RgbRangeAndFlagsChooser extends JPanel {
     CustomStretchRgbParameters getCustomStretchRgbParameters() {
         return proposed.copy();
     }
-}
+} // RgbRangeAndFlagsChooser
 class ColorCorrectionPane extends JPanel {
     public static final int N_EFFECTS = 8;
 
@@ -9120,7 +9213,7 @@ class ColorCorrectionPane extends JPanel {
         }
         return this;
     }
-}
+} // ColorCorrectionPane
 
 class RgbColorBalancer {
     static RgbRange getRgbRangeWithStatsFromImage(Rectangle rectangle, BufferedImage src, boolean ignoreBroken, int d) {
@@ -13619,15 +13712,18 @@ class JustDialog {
         closeButton.requestFocus();
         dialog.setVisible(true);
     }
-}
+} // JustDialog
 
 class ImageMerger
 {
     static BufferedImage assembleBigImageFromImagesLike(String fname0, Function<String, BufferedImage> imageReader) {
         List<String> smallImageNameList = ImageMerger.getSmallImageNames(fname0);
+        System.out.println("assembleBigImageFromImagesLike() -- Small images:");
         System.out.println(smallImageNameList);
         var idl = filterOutUniqueSizes(getSmallImages(smallImageNameList, imageReader));
-        final int rowSize = idl.size() == 4 ? 2
+        System.out.println("filtered small images: "+idl);
+        final int rowSize = idl.size() == 2 ? 2
+                          : idl.size() == 4 ? 2
                           : idl.size() <= 9 ? 3 : 4;
 
         System.out.println("number of images: " + idl.size() + ", row size: " + rowSize);
