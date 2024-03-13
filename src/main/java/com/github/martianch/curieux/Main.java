@@ -25,10 +25,13 @@ import javax.imageio.stream.ImageOutputStream;
 import javax.swing.*;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.MouseInputAdapter;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultFormatterFactory;
+import javax.swing.text.Document;
 import javax.swing.text.Element;
 import javax.swing.text.NumberFormatter;
 import javax.swing.text.SimpleAttributeSet;
@@ -40,6 +43,7 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -4139,6 +4143,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     JButton buttonPlus2;
     JButton buttonDefault;
     JTextField textField;
+    boolean textIsBeingEdited;
     static final int GROUP_LENGTH = 2;
     DigitalZoomControl<T,TT> init(String labelText, int nColumns, TT valueWrapper0, Consumer<T> valueListener0) {
         valueWrapper = valueWrapper0;
@@ -4155,22 +4160,22 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         {
             buttonMinus2 = new JButton();
             MySwing.loadButtonIcon(buttonMinus2,"icons/minus12.png","––");
-            buttonMinus2.addActionListener(e -> {
+            buttonMinus2.addActionListener(endEditingOr(e -> {
                 valueWrapper.decrement(1 + getGroupIndex(e));
                 setTextFieldFromValue();
                 fireValueListener();
-            });
+            }));
             buttonMinus2.setToolTipText(valueWrapper.getButtonToolTip(-1, 1, 1+GROUP_LENGTH));
             this.add(buttonMinus2);
         }
         {
             buttonMinus = new JButton();
             MySwing.loadButtonIcon(buttonMinus,"icons/minusa12.png","–");
-            buttonMinus.addActionListener(e -> {
+            buttonMinus.addActionListener(endEditingOr(e -> {
                 valueWrapper.decrement(0 + getGroupIndex(e));
                 setTextFieldFromValue();
                 fireValueListener();
-            });
+            }));
             buttonMinus.setToolTipText(valueWrapper.getButtonToolTip(-1, 0, 0+GROUP_LENGTH));
             this.add(buttonMinus);
         }
@@ -4178,34 +4183,45 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             textField = new JTextField(valueWrapper.getAsString(),nColumns);
             textField.setMinimumSize(textField.getPreferredSize());
             textField.addActionListener(e -> {
-                if (valueWrapper.setFromString(e.getActionCommand())) {
-                    this.textField.setForeground(Color.BLACK);
-                    fireValueListener();
-                } else {
-                    this.textField.setForeground(Color.RED);
-                }
+                String s = e.getActionCommand();
+                tryAcceptText(s);
             });
+            textField.getDocument().addDocumentListener((DocumentChangeListener)
+                e -> {
+                    String s = documentText(e.getDocument());
+//                    System.out.println("DocumentChangeListener: s='"+s+"'");
+//                    System.out.println("valueWrapper.canSetFromString(s) "+valueWrapper.canSetFromString(s));
+                    if (valueWrapper.canSetFromString(s)) {
+                        this.textField.setForeground(MyColors.DARK_GREEN);
+                    } else {
+                        this.textField.setForeground(Color.RED);
+                    }
+                    updateUi(textIsBeingEdited = true);
+                }
+            );
+            textField.setToolTipText("<html>Edit this value and "
+                                   + "<strong><em>press ENTER</em></strong> to commit changes</html>");
             this.add(textField);
         }
         {
             buttonPlus = new JButton();
             MySwing.loadButtonIcon(buttonPlus,"icons/plusa12.png","+");
-            buttonPlus.addActionListener(e -> {
+            buttonPlus.addActionListener(endEditingOr(e -> {
                 valueWrapper.increment(0 + getGroupIndex(e));
                 setTextFieldFromValue();
                 fireValueListener();
-            });
+            }));
             buttonPlus.setToolTipText(valueWrapper.getButtonToolTip(+1, 0, 0+GROUP_LENGTH));
             this.add(buttonPlus);
         }
         {
             buttonPlus2 = new JButton();
             MySwing.loadButtonIcon(buttonPlus2,"icons/plus12.png","++");
-            buttonPlus2.addActionListener(e -> {
+            buttonPlus2.addActionListener(endEditingOr(e -> {
                 valueWrapper.increment(1 + getGroupIndex(e));
                 setTextFieldFromValue();
                 fireValueListener();
-            });
+            }));
             buttonPlus2.setToolTipText(valueWrapper.getButtonToolTip(+1, 1, 1+GROUP_LENGTH));
             this.add(buttonPlus2);
         }
@@ -4221,6 +4237,54 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             this.add(buttonDefault);
         }
         return this;
+    }
+    ActionListener endEditingOr(ActionListener l) {
+        return e -> {
+            if (textIsBeingEdited) {
+                tryAcceptText(documentText(textField.getDocument()));
+            } else {
+                l.actionPerformed(e);
+            }
+        };
+    }
+    ActionListener endEditingAnd(ActionListener l) {
+        return e -> {
+            if (textIsBeingEdited) {
+                if (tryAcceptText(documentText(textField.getDocument()))) {
+                    l.actionPerformed(e);
+                }
+            } else {
+                l.actionPerformed(e);
+            }
+        };
+    }
+    String documentText(Document doc) {
+        try {
+            return doc.getText(0, doc.getEndPosition().getOffset()).trim();
+        } catch (BadLocationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    private boolean tryAcceptText(String s) {
+        if (valueWrapper.setFromString(s)) {
+            updateUi(textIsBeingEdited = false);
+            fireValueListener();
+            return true;
+        } else {
+            this.textField.setForeground(Color.RED);
+            updateUi(textIsBeingEdited = true);
+            return false;
+        }
+    }
+    void updateUi(boolean editingInProgress) {
+        Stream.of(buttonMinus2, buttonMinus, buttonPlus, buttonPlus2)
+        .forEach(b -> {
+            b.setBackground(editingInProgress ? MyColors.HILI_BTN_BGCOLOR : MyColors.TRANSPARENT);
+            b.setOpaque(editingInProgress);
+        });
+        if (!editingInProgress) {
+            this.textField.setForeground(Color.BLACK);
+        }
     }
     void fireValueListener() {
         valueListener.accept(valueWrapper.toComputationFriendlyValue(valueWrapper.getSafeValue()));
@@ -4242,6 +4306,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         this.textField.setForeground(Color.BLACK);
         this.textField.setText(valueWrapper.getAsString());
         this.textField.setCaretPosition(0);
+        updateUi(textIsBeingEdited = false);
         return this;
     }
     /** @param v value in the program-friendly representation
@@ -4265,7 +4330,23 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         ValueWrapper() {
             reset();
         }
-        abstract boolean setFromString(String s);
+        abstract T valueFromString(String s) throws NumberFormatException;
+        boolean setFromString(String s) {
+            try {
+                value = valueFromString(s);
+            } catch (NumberFormatException nfe) {
+                return false;
+            }
+            return true;
+        }
+        boolean canSetFromString(String s) {
+            try {
+                valueFromString(s);
+            } catch (NumberFormatException nfe) {
+                return false;
+            }
+            return true;
+        }
         abstract void increment(int incrementIndex);
         abstract void decrement(int decrementIndex);
         abstract void reset();
@@ -4279,7 +4360,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         T toUserFriendlyValue(T v) { return v; }
         T toComputationFriendlyValue(T v) { return v; }
     }
-}
+} // DigitalZoomControl
 class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
     int[] increments = {3,30,1,100}; // [+] [++] [shift+] [shift++]
     final String tooltipPrefixForMinus, tooltipPrefixForPlus;
@@ -4291,17 +4372,10 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
         tooltipPrefixForMinus = forMinus;
         tooltipPrefixForPlus = forPlus;
     }
-
     @Override
-    boolean setFromString(String s) {
-        try {
-            value = Integer.parseInt(s);
-        } catch (NumberFormatException nfe) {
-            return false;
-        }
-        return true;
+    Integer valueFromString(String s) throws NumberFormatException {
+        return Integer.parseInt(s);
     }
-
     @Override
     void increment(int incrementIndex) {
         value += increments[incrementIndex];
@@ -4327,13 +4401,13 @@ class OffsetWrapper extends DigitalZoomControl.ValueWrapper<Integer> {
         String pref = sign < 0 ? tooltipPrefixForMinus : tooltipPrefixForPlus;
         return String.format("%s%+d, Shift: %+d", pref, sign*increments[index1], sign*increments[index2]);
     }
-}
+} // OffsetWrapper
 class OffsetWrapper2 extends RotationAngleWrapper {
     static final double[] INCREMENTS = {1, 3, 30, 100};
     {
         increments = INCREMENTS;
     }
-}
+} // OffsetWrapper2
 class OffsetWrapperF extends RotationAngleWrapper {
     final Double defaultValue;
     static final double[] INCREMENTS = {.1, .3, .01, .03};
@@ -4347,7 +4421,7 @@ class OffsetWrapperF extends RotationAngleWrapper {
     void reset() {
         value = defaultValue;
     }
-}
+} // OffsetWrapperF
 class HsvAngleWrapper extends RotationAngleWrapper {
     static final double[] INCREMENTS = {1, 5, 15, 60};
     {
@@ -4361,7 +4435,7 @@ class HsvAngleWrapper extends RotationAngleWrapper {
     Double toComputationFriendlyValue(Double v) {
         return v/360.;
     }
-}
+} // HsvAngleWrapper
 class HsvAngleWrapper1 extends HsvAngleWrapper {
     @Override
     void reset() {
@@ -4371,13 +4445,8 @@ class HsvAngleWrapper1 extends HsvAngleWrapper {
 class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     double[] increments = {0.1, 1.0, 0.05, 5.0};
     @Override
-    boolean setFromString(String s) {
-        try {
-            value = Double.parseDouble(s);
-        } catch (NumberFormatException nfe) {
-            return false;
-        }
-        return true;
+    Double valueFromString(String s) throws NumberFormatException {
+        return Double.parseDouble(s);
     }
     @Override
     void increment(int incrementIndex) {
@@ -4400,51 +4469,40 @@ class RotationAngleWrapper extends DigitalZoomControl.ValueWrapper<Double> {
         DecimalFormat df = new DecimalFormat("+#.####;-#.####");
         return df.format(sign*increments[index1]) + ", Shift: " + df.format(sign*increments[index2]);
     }
-}
+} // RotationAngleWrapper
 class SizeChangeWrapper extends ZoomFactorWrapper {
     @Override
     void reset() {
         value = 2.0;
     }
-}
+} // SizeChangeWrapper
 class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
     double[] increments = {0.1, 1.0, 0.005, 2.0};
     final static double MIN_ZOOM_VALUE = 0.001;
     @Override
-    boolean setFromString(String s) {
-        try {
-            value = Double.parseDouble(s);
-        } catch (NumberFormatException nfe) {
-            return false;
-        }
-        return true;
+    Double valueFromString(String s) throws NumberFormatException {
+        return Double.parseDouble(s);
     }
-
     @Override
     Double getSafeValue() {
         return Math.max(MIN_ZOOM_VALUE, super.getSafeValue());
     }
-
     @Override
     void increment(int incrementIndex) {
         value = x2zoom( zoom2x(value) + increments[incrementIndex] );
     }
-
     @Override
     void decrement(int decrementIndex) {
         value = x2zoom( zoom2x(value) - increments[decrementIndex] );
     }
-
     @Override
     void reset() {
         value = 1.0;
     }
-
     @Override
     String getAsString() {
         return String.format ("%.3f", value);
     }
-
     @Override
     String getButtonToolTip(int sign, int index1, int index2) {
         DecimalFormat df = new DecimalFormat("+#.####;-#.####");
@@ -4484,7 +4542,7 @@ class ZoomFactorWrapper extends DigitalZoomControl.ValueWrapper<Double> {
         double fu = 1. / (1L<<(1-Math.round(xu)));
         return xl + (y-fl)/(fu-fl);
     }
-}
+} // ZoomFactorWrapper
 
 class DragMover extends MouseInputAdapter {
     private JComponent m_view            = null;
@@ -8696,15 +8754,15 @@ class RgbRangeAndFlagsChooser extends JPanel {
 
     private static final String ALL3 = "RGB";
     private static final String ALL3_TOOLTIP = "Set all 3 channels to this value";
-    private JButton makeAll3Button(Consumer<RgbRange> updater) {
+    private JButton makeAll3Button(DigitalZoomControl<?, ?> dc, Consumer<RgbRange> updater) {
         JButton all3 = new JButton();
         MySwing.loadButtonIcon(all3,"icons/rgbeq24.png",ALL3);
         all3.setToolTipText(ALL3_TOOLTIP);
-        all3.addActionListener(e -> {
+        all3.addActionListener(dc.endEditingAnd(e -> {
             updater.accept(proposed.rgbRange);
             customStretchRgbParametersToControls(proposed);
             whenUpdated();
-        });
+        }));
         return all3;
     }
 
@@ -8750,22 +8808,22 @@ class RgbRangeAndFlagsChooser extends JPanel {
         }
         this.add(dcR0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.minR=i; whenUpdated();}));
-        dcR0.add(makeAll3Button(cr -> cr.setMinAll(cr.minR)));
+        dcR0.add(makeAll3Button(dcR0, cr -> cr.setMinAll(cr.minR)));
         this.add(dcG0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.minG=i; whenUpdated();}));
-        dcG0.add(makeAll3Button(cr -> cr.setMinAll(cr.minG)));
+        dcG0.add(makeAll3Button(dcG0, cr -> cr.setMinAll(cr.minG)));
         this.add(dcB0 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.minB=i; whenUpdated();}));
-        dcB0.add(makeAll3Button(cr -> cr.setMinAll(cr.minB)));
+        dcB0.add(makeAll3Button(dcB0, cr -> cr.setMinAll(cr.minB)));
         this.add(dcR1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("R:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.maxR=i; whenUpdated();}));
-        dcR1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxR)));
+        dcR1.add(makeAll3Button(dcR1, cr -> cr.setMaxAll(cr.maxR)));
         this.add(dcG1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("G:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.maxG=i; whenUpdated();}));
-        dcG1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxG)));
+        dcG1.add(makeAll3Button(dcG1, cr -> cr.setMaxAll(cr.maxG)));
         this.add(dcB1 = new DigitalZoomControl<Integer, OffsetWrapper>().init("B:", 4, new OffsetWrapper(), i -> {
             proposed.rgbRange.maxB=i; whenUpdated();}));
-        dcB1.add(makeAll3Button(cr -> cr.setMaxAll(cr.maxB)));
+        dcB1.add(makeAll3Button(dcB1, cr -> cr.setMaxAll(cr.maxB)));
         {
             popupMenu = new GraphPopupMenu(
                     Arrays.asList(
@@ -14297,6 +14355,7 @@ class MyColors {
     static final Color HILI_BTN_BGCOLOR = new Color(250, 127, 127);
     static final Color READ_STATUS_RED = new Color(80, 20, 20);
     static final Color READ_STATUS_BLACK = Color.BLACK;
+    static final Color DARK_GREEN = new Color(0, 0x90, 0);
     static final Color READ_STATUS_LIGHTBLUE = new Color(0, 128, 255);
     static final String FONT_R = "<font color=\"#FF0000\">";
     static final String FONT_G = "<font color=\"#00A000\">";
@@ -14409,7 +14468,11 @@ interface ScopeFunctions {
         return (T)this;
     }
 }
-
+interface DocumentChangeListener extends Consumer<DocumentEvent>, DocumentListener {
+    @Override default void insertUpdate(DocumentEvent e) { accept(e); }
+    @Override default void removeUpdate(DocumentEvent e) { accept(e); }
+    @Override default void changedUpdate(DocumentEvent e) { accept(e); }
+}
 // ====== parallelism ======
 interface ParallelPairOps<T> {
     ParallelPairOps<T> update(Function<T,T> leftFunc, Function<T,T> rightFunc);
