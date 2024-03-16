@@ -3,7 +3,7 @@
 
 package com.github.martianch.curieux;
 
-/*
+/**
 Curious: an X3D Viewer
 Designed to view the Curiosity Rover images from Mars in X3D, but can be used to view any stereo pairs (both LR and X3D).
 Opens images from Internet or local drive, supports drag-and-drop, for example, you can drag-n-drop the red DOWNLOAD
@@ -11,6 +11,14 @@ button from the raw images index on the NASA site.
 This software is Public Domain
 */
 
+/*
+Folks, this is really unusual to have so much stuff in one file, so let me explain.
+At first, this has started as a script, always could be run as a script, and I do not want to drop this feature.
+At second, if you try to build this project, you will likely face some kind of dependency hell.
+Trust me, I had dependency hell for this very project. (Well, you could call it "system administration fun".)
+With only one source file, you have to compile only one this file to get the thing working.
+Well, there are also icons and unit tests, but the thing works even without them.
+*/
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -136,12 +144,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static com.github.martianch.curieux.MyOps.*;
-import static com.github.martianch.curieux.MyStrings.endsWithIgnoreCase;
-import static com.github.martianch.curieux.MyStrings.fraction;
-import static com.github.martianch.curieux.MyStrings.safeSubstring;
-import static com.github.martianch.curieux.MySwing.isShiftPressed;
-import static java.awt.Image.SCALE_SMOOTH;
+// import static ... -- unfortunately, shebang scripting does not work if there are static imports from local classes
 
 /** The app runner class */
 public class Main {
@@ -3650,28 +3653,28 @@ class X3DViewer {
             {
                 JButton bButton = new JButton();
                 MySwing.loadButtonIcon(bButton,"icons/twoearlier24.png","««"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, isShiftPressed(e)?4:2));
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, MySwing.isShiftPressed(e)?4:2));
                 bButton.setToolTipText("go two images earlier in each pane (shift: 4 images)");
                 statusPanel.add(bButton);
             }
             {
                 JButton bButton = new JButton();
                 MySwing.loadButtonIcon(bButton,"icons/oneearlier24.png","‹‹"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, isShiftPressed(e)?3:1));
+                bButton.addActionListener(e -> uiEventListener.navigate(true, true, false, MySwing.isShiftPressed(e)?3:1));
                 bButton.setToolTipText("go one image earlier in each pane (shift: 3 images)");
                 statusPanel.add(bButton);
             }
             {
                 JButton fButton = new JButton();
                 MySwing.loadButtonIcon(fButton,"icons/onelater24.png","››"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, isShiftPressed(e)?3:1));
+                fButton.addActionListener(e -> uiEventListener.navigate(true, true, true, MySwing.isShiftPressed(e)?3:1));
                 fButton.setToolTipText("go one image later in each pane (shift: 3 images)");
                 statusPanel.add(fButton);
             }
             {
                 JButton ffButton = new JButton();
                 MySwing.loadButtonIcon(ffButton,"icons/twolater24.png","»»"); // "<->" "<=>" "icons/swap12.png" « ‹ › » ⇉ ⇇ ↠ ↞ ↢ ↣
-                ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, isShiftPressed(e)?4:2));
+                ffButton.addActionListener(e -> uiEventListener.navigate(true, true, true, MySwing.isShiftPressed(e)?4:2));
                 ffButton.setToolTipText("go two images later in each pane (shift: 4 images)");
                 statusPanel.add(ffButton);
             }
@@ -4299,7 +4302,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
      * @return 2 if Shift is pressed, 0 otherwise
      */
     int getGroupIndex(ActionEvent e) {
-        if(isShiftPressed(e)) {
+        if(MySwing.isShiftPressed(e)) {
             return GROUP_LENGTH;
         } else {
             return 0;
@@ -4657,7 +4660,7 @@ abstract class FileLocations {
         return true;
     }
     static String replaceSuffix(String oldSuffix, String newSuffix, String orig) {
-        if (orig==null || !endsWithIgnoreCase(orig, oldSuffix)) {
+        if (orig==null || !MyStrings.endsWithIgnoreCase(orig, oldSuffix)) {
             return orig;
         }
         String base = orig.substring(0, orig.length()-oldSuffix.length());
@@ -5087,16 +5090,16 @@ class HttpLocations {
         }
     }
     static boolean isMerHtml(String url) {
-        return endsWithIgnoreCase(url, ".HTML")
+        return MyStrings.endsWithIgnoreCase(url, ".HTML")
             && FileLocations.isMerAny(FileLocations.getFileName(url));
     }
     static String unPage(String url) {
         if (!FileLocations.isUrl(url)) {
             return url;
         }
-        if (endsWithIgnoreCase(url, ".jpg")
-         || endsWithIgnoreCase(url, ".jpeg")
-         || endsWithIgnoreCase(url, ".png")
+        if (MyStrings.endsWithIgnoreCase(url, ".jpg")
+         || MyStrings.endsWithIgnoreCase(url, ".jpeg")
+         || MyStrings.endsWithIgnoreCase(url, ".png")
         ) {
             return url;
         }
@@ -5745,7 +5748,7 @@ class ProcessedImageSaver extends SaverBase {
         fileChooser.setSelectedFile(new File(FileLocations.getFileNameNoExt(urlOrPath)+".cc.png"));
         while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
             File imgFile = fileChooser.getSelectedFile();
-            if (!endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
+            if (!MyStrings.endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
                 JOptionPane.showMessageDialog(frame, "File name must end with \"png\"");
             } else if (checkAskOverwrite(frame, imgFile)
             ) {
@@ -5827,7 +5830,7 @@ class ScreenshotSaver extends SaverBase {
         fileChooser.setSelectedFile(new File(prefix+"stereo"+suffix+".png"));
         while (JFileChooser.APPROVE_OPTION == fileChooser.showSaveDialog(frame)) {
             File imgFile = fileChooser.getSelectedFile();
-            if (!endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
+            if (!MyStrings.endsWithIgnoreCase(imgFile.getAbsolutePath(),".png")) {
                 JOptionPane.showMessageDialog(frame, "File name must end with \"png\"");
             } else if (checkAskOverwrite(frame, imgFile)
                     && checkAskOverwrite(frame, toSrcFile(imgFile))
@@ -6915,7 +6918,7 @@ class NasaReaderMer extends NasaReaderBase {
                         m.put("url", e.getValue());
                         return m;
                         },
-                    (a,b) -> oMax(
+                    (a,b) -> MyOps.oMax(
                         a, b,
                         Comparator.comparing((Map<String, Object> x) ->
                                 x.get("url").toString()
@@ -6929,7 +6932,7 @@ class NasaReaderMer extends NasaReaderBase {
 class RemoteFileNavigatorMer extends FileNavigatorBase { // Opportunity, Spirit
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
-        return oApply(Objects::toString, JsonDiy.get(stringObjectMap, "url"));
+        return MyOps.oApply(Objects::toString, JsonDiy.get(stringObjectMap, "url"));
     }
     @Override
     public FileNavigator<Map<String, Object>> copy() {
@@ -7053,7 +7056,7 @@ class RemoteFileNavigatorV2 extends FileNavigatorBase { // Perseverance
     protected void _loadInitial(String whereFrom) {
         try {
             String fname = FileLocations.getFileNameNoExt(whereFrom);
-            String imageId = safeSubstring(fname, 0, 52);
+            String imageId = MyStrings.safeSubstring(fname, 0, 52);
             Object sol = solFromPerseveranceImageId(imageId);
             loadBySol(sol);
             currentKey = nmap.keySet().stream()
@@ -7159,9 +7162,9 @@ class RemoteFileNavigator extends FileNavigatorBase { // Curiosity
     }
     @Override
     public String getPath(Map<String, Object> stringObjectMap) {
-        return oApply(Object::toString,
-                      oAnd(stringObjectMap, ()->
-                           oOr(stringObjectMap.get("https_url"), ()->
+        return MyOps.oApply(Object::toString,
+                      MyOps.oAnd(stringObjectMap, ()->
+                           MyOps.oOr(stringObjectMap.get("https_url"), ()->
                                stringObjectMap.get("url")
                               )
                           )
@@ -7314,7 +7317,7 @@ class FisheyeCorrection {
     @Override
     public String toString() {
         return "FisheyeCorrection{" +
-                "algo=" + oApply(Enum::name, algo) +
+                "algo=" + MyOps.oApply(Enum::name, algo) +
                 ", distortionCenterLocation=" + distortionCenterLocation +
                 ", func=" + func +
                 ", sizeChange=" + sizeChange +
@@ -8507,19 +8510,19 @@ class HsvRangeAndFlagsChooser extends JPanel {
         this.add(
             MySwing.makeThinRow(
                     new JLabel("Use Saturation Arithmetic For:"),
-                also(cbHSaturation = new JCheckBox("H"), it -> {
+                MyOps.also(cbHSaturation = new JCheckBox("H"), it -> {
                     it.addActionListener(
                         e -> { proposed.saturatedH = cbHSaturation.isSelected(); whenUpdated(); }
                     );
                     it.setToolTipText("<html>Uncheck to allow <strong><em>hue</em></strong> to \"wrap around\" beyond the target range</html>");
                 }),
-                also(cbSSaturation = new JCheckBox("S"), it -> {
+                MyOps.also(cbSSaturation = new JCheckBox("S"), it -> {
                     it.addActionListener(
                         e -> { proposed.saturatedS = cbSSaturation.isSelected(); whenUpdated(); }
                     );
                     it.setToolTipText("<html>Uncheck to allow <strong><em>too colorful</em></strong> to \"wrap around\" to <strong><em>colorless</em></strong></html>");
                 }),
-                also(cbVSaturation = new JCheckBox("V"), it -> {
+                MyOps.also(cbVSaturation = new JCheckBox("V"), it -> {
                     it.addActionListener(
                             e -> { proposed.saturatedV = cbVSaturation.isSelected(); whenUpdated(); }
                     );
@@ -8548,7 +8551,7 @@ class HsvRangeAndFlagsChooser extends JPanel {
                         + " [" + MyStrings.degrees(x/N1) + ", " + MyStrings.degrees((x+1)/N1) + "),"
                         + " " + MyColors.FONT_S + "saturation" + MyColors.E_FONT
                         + "/" + MyColors.FONT_V + "value" + MyColors.E_FONT
-                        + " " + fraction(x/N) + " (" + x + SLASH_N + ")"
+                        + " " + MyStrings.fraction(x/N) + " (" + x + SLASH_N + ")"
                         + "<br/>found:"
                         + " "  + MyColors.FONT_H + "H:" + stats.getCount(0, x) + MyColors.E_FONT
                         + ", " + MyColors.FONT_S + "S:" + stats.getCount(1, x) + MyColors.E_FONT
@@ -8648,7 +8651,7 @@ class HsvRangeAndFlagsChooser extends JPanel {
         }
     }
     static String getDetectToText(double value){
-        return "to " + safeSubstring(String.format("%8f", (1+value) * 360.), 0, 8) + "°";
+        return "to " + MyStrings.safeSubstring(String.format("%8f", (1+value) * 360.), 0, 8) + "°";
     }
     public void notifyOfUpdates() {
         usedNow = uiEventListener.getCurrentCustomStretchHsvParameters(isRight).copy();
@@ -8863,21 +8866,21 @@ class RgbRangeAndFlagsChooser extends JPanel {
         {
             this.add(
                 MySwing.makeThinRow(
-                    also(cbPerChannel = new JCheckBox("Per Channel"), it -> {
+                    MyOps.also(cbPerChannel = new JCheckBox("Per Channel"), it -> {
                         it.addActionListener(e -> {
                             proposed.isPerChannel = cbPerChannel.isSelected();
                             whenUpdated();
                         });
                         it.setToolTipText("Stretch Red/Green/Blue channels independently");
                     }),
-                    also(cbSaturation = new JCheckBox("Saturation"), it -> {
+                    MyOps.also(cbSaturation = new JCheckBox("Saturation"), it -> {
                         it.addActionListener(e -> {
                             proposed.isSaturated = cbSaturation.isSelected();
                             whenUpdated();
                         });
                         it.setToolTipText("Too bright pixels must remain white or \"wrap around\" to dark?");
                     }),
-                    also(cbSaturateToBlack = new JCheckBox("Saturate to Black"), it -> {
+                    MyOps.also(cbSaturateToBlack = new JCheckBox("Saturate to Black"), it -> {
                         it.addActionListener(e -> {
                             proposed.isBlackSaturated = cbSaturateToBlack.isSelected();
                             whenUpdated();
@@ -14507,7 +14510,7 @@ class MySwing {
             var icon =
                     ImageIO
                     .read(ClassLoader.getSystemResource(resourcePath))
-                    .getScaledInstance(scaleToSize,scaleToSize, SCALE_SMOOTH);
+                    .getScaledInstance(scaleToSize,scaleToSize, Image.SCALE_SMOOTH);
             return new ImageIcon(icon);
         } catch (Throwable e) {
             return null;
@@ -14516,7 +14519,7 @@ class MySwing {
     static void loadButtonIcon(JButton button, String resourcePath, String altText) {
         button.setMargin(new Insets(0, 0, 0, 0));
         try {
-            var icon = ImageIO.read(ClassLoader.getSystemResource(resourcePath)).getScaledInstance(12,12, SCALE_SMOOTH);
+            var icon = ImageIO.read(ClassLoader.getSystemResource(resourcePath)).getScaledInstance(12,12, Image.SCALE_SMOOTH);
             button.setIcon(new ImageIcon(icon));
         } catch (Throwable e) {
             button.setText(altText);
@@ -14548,7 +14551,7 @@ class MySwing {
     }
     static ImageIcon getEmptyGraphIcon(int statsWidth, int statsHeight) {
         return new ImageIcon(
-            also(
+            MyOps.also(
                 new BufferedImage(statsWidth, statsHeight, BufferedImage.TYPE_INT_ARGB),
                     it -> {
                         var g = it.getGraphics();
