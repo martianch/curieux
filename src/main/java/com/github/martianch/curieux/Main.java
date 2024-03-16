@@ -144,7 +144,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-// import static ... -- unfortunately, shebang scripting does not work if there are static imports from local classes
+// import static ... -- unfortunately, shebang scripting does not work if there are static imports from local classes. It must be a bug in Java13-Java21
 
 /** The app runner class */
 public class Main {
