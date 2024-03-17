@@ -957,7 +957,7 @@ class DisplayParameters {
         preFilterL = preFilterR = ColorCorrectionAlgo.DO_NOTHING;
         imageResamplingModeL = imageResamplingModeR = ImageResamplingMode.getUiDefault();
         lColorCorrection = rColorCorrection = new ColorCorrection(
-                Collections.EMPTY_LIST,
+                Collections.emptyList(),
                 CustomStretchRgbParameters.newFullRange(),
                 CustomStretchHsvParameters.newFullRange())
         ;
@@ -1818,11 +1818,11 @@ class UiController implements UiEventListener {
                 break;
             case LR_STEREO_PAIR:
                 newDp = displayParameters.withColorCorrection(
-                        new ColorCorrection(Collections.EMPTY_LIST,
+                        new ColorCorrection(Collections.emptyList(),
                                 CustomStretchRgbParameters.newFullRange(),
                                 CustomStretchHsvParameters.newFullRange()
                         ),
-                        new ColorCorrection(Collections.EMPTY_LIST,
+                        new ColorCorrection(Collections.emptyList(),
                                 CustomStretchRgbParameters.newFullRange(),
                                 CustomStretchHsvParameters.newFullRange()
                         )
@@ -3869,16 +3869,14 @@ class X3DViewer {
     public boolean doImportData(boolean isRight, OneOrBothPanes oneOrBoth, Transferable t, UiEventListener uiEventListener) {
         System.out.println("importData(\n"+isRight+",\n"+oneOrBoth+",\n"+t+"\n)");
         try {
+            @SuppressWarnings("unchecked")
             String toImport
                     = t.isDataFlavorSupported(DataFlavor.stringFlavor)
                     ? (String) t.getTransferData(DataFlavor.stringFlavor)
-                    : String.join(
-                    "\n",
-                    ((List<File>) t.getTransferData(DataFlavor.javaFileListFlavor))
+                    : ((List<File>) t.getTransferData(DataFlavor.javaFileListFlavor))
                             .stream()
                             .map(x->x.toString())
-                            .collect(Collectors.toList())
-            );
+                            .collect(Collectors.joining("\n"));
             uiEventListener.dndImport(toImport, isRight, oneOrBoth);
         } catch (Throwable e) {
             e.printStackTrace();
@@ -4023,7 +4021,7 @@ class Spinners {
     }
 }
 
-enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX};
+enum OneOrBothPanes {JUST_THIS, BOTH_PANES, SEE_CHECKBOX}
 
 enum ImageResamplingMode {
     NEAREST(RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR, "\"Nearest Neighbor\" value interpolation"),
@@ -4043,7 +4041,7 @@ enum ImageResamplingMode {
     static ImageResamplingMode getUiDefault(){
         return BICUBIC;
     }
-};
+}
 class ImageResamplingModeChooser extends ComboBoxWithTooltips<ImageResamplingMode> {
     static ImageResamplingMode[] modes = ImageResamplingMode.values();
     public ImageResamplingModeChooser(Consumer<ImageResamplingMode> valueListener) {
@@ -4067,8 +4065,8 @@ enum DebayerMode implements ImageEffect {
     AUTO0(false,0), AUTO1(false,1), AUTO2(false,2), AUTO3(false,3), AUTO4(false,4), AUTO5(false,5),
     REDO5(true,6),
     FORCE0(true,0), FORCE1(true,1), FORCE2(true,2), FORCE3(true,3), FORCE4(true,4), FORCE5(true,5);
-    boolean force;
-    int algo;
+    final boolean force;
+    final int algo;
     DebayerMode(boolean force, int algo) {
         this.force = force;
         this.algo = algo;
@@ -5977,6 +5975,7 @@ class JsonDiy {
     static<T> T deleteAllKeysBut(T root, String... keys) {
         return deleteAllKeysBut(root, new HashSet<>(Arrays.asList(keys)));
     }
+    @SuppressWarnings("unchecked")
     static<TT> TT deleteAllKeysBut(TT root, Collection<String> keys) {
         if (root instanceof Map) {
             Map<String, ?> map = (Map) root;
@@ -5995,9 +5994,10 @@ class JsonDiy {
             return root;
         }
     }
+    @SuppressWarnings("unchecked")
     public static String toString(Object root) {
         if (root instanceof Map) {
-            Map<String, ?> map = new TreeMap((Map) root);
+            Map<String, ?> map = new TreeMap<>((Map) root);
             return "{"
                    + map.entrySet().stream()
                      .map(e -> '"' + e.getKey() + '"' + ":" + toString(e.getValue()))
@@ -6505,6 +6505,7 @@ abstract class FileNavigatorBase implements FileNavigator<Map<String, Object>> {
         }
         return obj.get("date_taken")+"^"+obj.get("imageid");
     }
+    @SuppressWarnings("unchecked")
     void _loadFromJsonReply(Object jsonObject, String index) {
         try {
             List<Object> list = (List<Object>) JsonDiy.get(jsonObject, index);
@@ -10137,6 +10138,7 @@ class MastcamPairFinder {
      * @return id of the corresponding other image, e.g. "1407MR0068890100702104C00_DXXX"
      * @throws IOException
      */
+    @SuppressWarnings("unchecked")
     public static Optional<String> findMrlMatch(String imageId) throws IOException {
         Object jsonObjectPairs = NasaReader.dataStructureMrlMatchesFromImageId(imageId);
         List<Map> items = (List) (
@@ -12274,6 +12276,7 @@ class RetangentWithFuncOfAnglePlusC<T extends HumanVisibleMathFunction> extends 
         return of(k, q, a, c-m, f);
     }
     @Override
+    @SuppressWarnings("unchecked")
     public RetangentWithFuncOfAnglePlusC<T> add(double m) {
         return (RetangentWithFuncOfAnglePlusC) super.add(m);
     }
@@ -12429,10 +12432,12 @@ class OfXSquared<T extends HumanVisibleMathFunction> extends HumanVisibleMathFun
     public double minInRange(double x1, double x2) {
         return f.minInRange(x1*x1, x2*x2);
     }
+    @SuppressWarnings("unchecked")
     @Override
     public OfXSquared<T> mul(double k) {
         return v_of((T)f.mul(k)); // mul() returns type_of(this)
     }
+    @SuppressWarnings("unchecked")
     @Override
     public OfXSquared<T> sub(double m) {
         return v_of((T)f.sub(m)); // sub() returns type_of(this)
@@ -13532,12 +13537,14 @@ class DebayerBicubic {
             return yy;
         }
 
+        @SuppressWarnings("unchecked")
         public T with(BufferedImage bi) {
             this.bi = bi;
             w = bi.getWidth();
             h = bi.getHeight();
             return (T) this;
         }
+        @SuppressWarnings("unchecked")
         public T at(int x, int y) {
             this.x = x;
             this.y = y;
@@ -14686,6 +14693,7 @@ class MyOps {
     }
 } // MyOps
 interface ScopeFunctions {
+    @SuppressWarnings("unchecked")
     default<T> T also(Consumer<T> action) {
         action.accept((T)this);
         return (T)this;
@@ -14978,7 +14986,7 @@ class FjpLoopSplitter implements LoopSplitter {
                 new RecursiveTask<List<T>>() {
                     @Override
                     protected List<T> compute() {
-                        ForkJoinTask<T>[] tasks = new ForkJoinTask[n];
+                        ForkJoinTask<T>[] tasks = newTasksArray(n);
                         IntStream.range(0, n)
                             .forEach(i -> {
                                 tasks[i] = ForkJoinTask.adapt(() ->
@@ -14991,6 +14999,10 @@ class FjpLoopSplitter implements LoopSplitter {
                         System.out.println("N tasks = "+tasks.length);
                         invokeAll(tasks);
                         return Stream.of(tasks).map(ForkJoinTask::join).collect(Collectors.toList());
+                    }
+                    @SuppressWarnings("unchecked")
+                    private ForkJoinTask<T>[] newTasksArray(int N) {
+                        return new ForkJoinTask[N];
                     }
                 });
         return merger.mergeStream(resultList.stream());
