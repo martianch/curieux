@@ -3,7 +3,7 @@
 
 package com.github.martianch.curieux;
 
-/**
+/*
 Curious: an X3D Viewer
 Designed to view the Curiosity Rover images from Mars in X3D, but can be used to view any stereo pairs (both LR and X3D).
 Opens images from Internet or local drive, supports drag-and-drop, for example, you can drag-n-drop the red DOWNLOAD
@@ -286,7 +286,7 @@ enum GoToImageOptions {
     CURIOSITY_FIRST_OF_SOL,
     CURIOSITY_LATEST,
     PERSEVERANCE_FIRST_OF_SOL,
-    PERSEVERANCE_LATEST;
+    PERSEVERANCE_LATEST,
 }
 enum WhichRover {
     SPIRIT, // MER-A, MER-2
@@ -4150,6 +4150,8 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     JButton buttonDefault;
     JTextField textField;
     boolean textIsBeingEdited;
+    Color defaultBackground;
+    boolean defaultIsOpaque;
     static final int GROUP_LENGTH = 2;
     DigitalZoomControl<T,TT> init(String labelText, int nColumns, TT valueWrapper0, Consumer<T> valueListener0) {
         valueWrapper = valueWrapper0;
@@ -4242,6 +4244,10 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             buttonDefault.setToolTipText("Reset to default");
             this.add(buttonDefault);
         }
+        { // this is the default look for all buttons, not just the "set default value" one
+            defaultBackground = buttonDefault.getBackground();
+            defaultIsOpaque = buttonDefault.isOpaque();
+        }
         return this;
     }
     ActionListener endEditingOr(ActionListener l) {
@@ -4285,8 +4291,8 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     void updateUi(boolean editingInProgress) {
         Stream.of(buttonMinus2, buttonMinus, buttonPlus, buttonPlus2)
         .forEach(b -> {
-            b.setBackground(editingInProgress ? MyColors.HILI_BTN_BGCOLOR : MyColors.TRANSPARENT);
-            b.setOpaque(editingInProgress);
+            b.setBackground(editingInProgress ? MyColors.HILI_BTN_BGCOLOR : defaultBackground);
+            b.setOpaque(editingInProgress ? true : defaultIsOpaque);
         });
         if (!editingInProgress) {
             this.textField.setForeground(Color.BLACK);
@@ -4308,7 +4314,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
             return 0;
         }
     }
-    DigitalZoomControl setTextFieldFromValue() {
+    DigitalZoomControl<T, TT> setTextFieldFromValue() {
         this.textField.setForeground(Color.BLACK);
         this.textField.setText(valueWrapper.getAsString());
         this.textField.setCaretPosition(0);
@@ -4317,7 +4323,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
     }
     /** @param v value in the program-friendly representation
      * @return this */
-    DigitalZoomControl setValueAndText(T v) {
+    DigitalZoomControl<T, TT> setValueAndText(T v) {
         valueWrapper.setValue(valueWrapper.toUserFriendlyValue(v));
         setTextFieldFromValue();
         return this;
@@ -4361,7 +4367,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         T getSafeValue() { return value; }
         /** @param v value in the user-friendly representation
          * @return this */
-        ValueWrapper setValue(T v) { value = v; return this; }
+        ValueWrapper<T> setValue(T v) { value = v; return this; }
         abstract String getButtonToolTip(int sign, int index1, int index2);
         T toUserFriendlyValue(T v) { return v; }
         T toComputationFriendlyValue(T v) { return v; }
@@ -13730,12 +13736,14 @@ class RedebayerBicubic {
             return yy;
         }
 
+        @SuppressWarnings("unchecked")
         public T with(BufferedImage bi) {
             this.bi = bi;
             w = bi.getWidth();
             h = bi.getHeight();
             return (T) this;
         }
+        @SuppressWarnings("unchecked")
         public T at(int x, int y) {
             this.x = x;
             this.y = y;
@@ -15202,9 +15210,13 @@ class Par {
             forkJoinPool = n > 0 ? createPool(n) : null;
             if (oldForkJoinPool != null) {
                 oldForkJoinPool.shutdown();
+                boolean beenShutDown = false;
                 try {
-                    oldForkJoinPool.awaitTermination(3, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
+                    beenShutDown = oldForkJoinPool.awaitTermination(3, TimeUnit.SECONDS);
+                } catch (InterruptedException checkedBelow) {
+                    // see below
+                }
+                if (!beenShutDown) {
                     System.out.println("FJP did not shut down, attempting shutdownNow()");
                     oldForkJoinPool.shutdownNow();
                 }
