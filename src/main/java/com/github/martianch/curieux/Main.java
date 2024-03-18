@@ -14,10 +14,15 @@ This software is Public Domain
 /*
 Folks, this is really unusual to have so much stuff in one file, so let me explain.
 At first, this has started as a script, always could be run as a script, and I do not want to drop this feature.
+This program may be run either as a script or from a .jar file.
 At second, if you try to build this project, you will likely face some kind of dependency hell.
 Trust me, I had dependency hell for this very project. (Well, you could call it "system administration fun".)
 With only one source file, you have to compile only one this file to get the thing working.
 Well, there are also icons and unit tests, but the thing works even without them.
+
+Note that a script must be able to run with any Java. This requirement is very unusual in the Java world since in most
+cases Java application run on dedicated servers or workstations, and the developers can require a particular version
+of Java to be there.
 */
 
 import javax.imageio.IIOImage;
