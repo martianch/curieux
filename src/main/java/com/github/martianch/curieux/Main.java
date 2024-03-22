@@ -4761,6 +4761,23 @@ abstract class FileLocations {
         String withoutFileName = urlOrPath.substring(0, urlOrPath.lastIndexOf(fileName0));
         return withoutFileName + newFileName;
     }
+    static String MARS_PERSEVERANCE_ = "Mars_Perseverance_";
+    static String MSL_RAW1 = "_mars.nasa.gov_msl-raw-images_proj_msl_redops_ods_surface_sol_";
+    static int MSL_RAW1_LEN = "_mars.nasa.gov_msl-raw-images_proj_msl_redops_ods_surface_sol_04130_opgs_edr_ncam_".length();
+    static String MSL_RAW2 = "_mars.nasa.gov_msl-raw-images_msss_";
+    static int MSL_RAW2_LEN = "_mars.nasa.gov_msl-raw-images_msss_04130_mcam_".length();
+    static String[] splitAtSillyPrefix(String fname) {
+        if (fname.startsWith(MARS_PERSEVERANCE_)) {
+            return new String[] {MARS_PERSEVERANCE_, fname.substring(MARS_PERSEVERANCE_.length())};
+        }
+        if (fname.startsWith(MSL_RAW1) && fname.length() > MSL_RAW1_LEN) {
+            return new String[] {fname.substring(0, MSL_RAW1_LEN), fname.substring(MSL_RAW1_LEN)};
+        }
+        if (fname.startsWith(MSL_RAW2) && fname.length() > MSL_RAW2_LEN) {
+            return new String[] {fname.substring(0, MSL_RAW2_LEN), fname.substring(MSL_RAW2_LEN)};
+        }
+        return new String[] {"", fname};
+    }
     static List<String> _twoPaths(String path0) {
         String fullPath1 = "", fullPath2 = "";
         var fullPath = Paths.get(path0);
@@ -4768,9 +4785,11 @@ abstract class FileLocations {
         if (dir == null) {
             dir = Paths.get(".");
         }
-        var file = fullPath.getFileName().toString();
+        var prefixAndFile = splitAtSillyPrefix(fullPath.getFileName().toString());
+        var prefix = prefixAndFile[0];
+        var file = prefixAndFile[1];
         if (isMarkedRL(file)) {
-            String otherFullPath = Paths.get(dir.toString(), toggleRL(file)).toString();
+            String otherFullPath = Paths.get(dir.toString(), prefix + toggleRL(file)).toString();
             if (file.charAt(1) == 'R') {
                 fullPath1 = path0;
                 fullPath2 = otherFullPath;
@@ -4779,6 +4798,7 @@ abstract class FileLocations {
                 fullPath2 = path0;
             }
         } else if (isMerMarkedRL(file)) {
+            // at the moment, prefix == "" for MER
             String otherFullPath = Paths.get(dir.toString(), merToggleRL(file)).toString();
             if (isMerMarkedR(file)) {
                 fullPath1 = path0;
