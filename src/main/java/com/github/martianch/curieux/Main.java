@@ -20,9 +20,9 @@ Trust me, I had dependency hell for this very project. (Well, you could call it 
 With only one source file, you have to compile only one this file to get the thing working.
 Well, there are also icons and unit tests, but the thing works even without them.
 
-Note that a script must be able to run with any Java. This requirement is very unusual in the Java world since in most
-cases Java application run on dedicated servers or workstations, and the developers can require a particular version
-of Java to be there.
+Note that any script (in particular, this one) must be able to run with any Java. This requirement is very unusual
+in the Java world since in most cases Java application run on dedicated servers or workstations, and the developers
+can require a particular version of Java to be there.
 */
 
 import javax.imageio.IIOImage;
@@ -1701,6 +1701,8 @@ class UiController implements UiEventListener {
     @Override
     public void dndImport(String s, boolean isRight, OneOrBothPanes oneOrBoth) {
         List<String> urls = Arrays.asList(s.trim().split("[\\r\\n]+"));
+        System.out.println("dndImport("+s+")");
+        System.out.println("urls="+urls);
         if (oneOrBoth == OneOrBothPanes.JUST_THIS) {
             urls = Arrays.asList(urls.get(0)); // ignore others
         }
@@ -1953,7 +1955,7 @@ class UiController implements UiEventListener {
     public void resetToDefaults() {
         System.out.println(rawData.left.path);
         System.out.println(rawData.right.path);
-        if (MastcamPairFinder.areMrMlMatch(rawData.left.path, rawData.right.path)) {
+        if (MastcamPairFinder.areMrMlPair(rawData.left.path, rawData.right.path)) {
             displayParameters.setDefaultsMrMl();
         } else {
             displayParameters.setDefaults();
@@ -2631,6 +2633,8 @@ class X3DViewer {
     JLabel urlR;
     JLabel colorCorrectionDescriptionL;
     JLabel colorCorrectionDescriptionR;
+    JLabel sizeDescriptionL;
+    JLabel sizeDescriptionR;
     ColorCorrectionPane colorCorrectionPane;
     FisheyeCorrectionPane fisheyeCorrectionPane;
     MeasurementPanel measurementPanel;
@@ -2866,6 +2870,13 @@ class X3DViewer {
                 colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription(rd.left.path, dp.getImageEffects(false)));
                 colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription(rd.right.path, dp.getImageEffects(true)));
             }
+            {
+                sizeDescriptionL.setText(""+rd.left.image.getWidth()+"x"+rd.left.image.getHeight());
+                sizeDescriptionR.setText(""+rd.right.image.getWidth()+"x"+rd.right.image.getHeight());
+            }
+            if (showMeasurementCbMenuItem != null) {
+                showMeasurementCbMenuItem.setState(ms.measurementShown);
+            }
         }
     }
     public void createViews(RawData rd, DisplayParameters dp, MeasurementStatus ms, UiEventListener uiEventListener)
@@ -2878,6 +2889,8 @@ class X3DViewer {
         urlR = new JLabel("url2");
         colorCorrectionDescriptionL = new JLabel("....");
         colorCorrectionDescriptionR = new JLabel("....");
+        sizeDescriptionL = new JLabel("..");
+        sizeDescriptionR = new JLabel("..");
         colorCorrectionPane = new ColorCorrectionPane(uiEventListener);
         fisheyeCorrectionPane = new FisheyeCorrectionPane(uiEventListener);
         measurementPanel = new MeasurementPanel(uiEventListener);
@@ -2913,6 +2926,14 @@ class X3DViewer {
             final double HEAVYWEIGHT = 100.;
             {
                 GridBagConstraints gridBagConstraints = new GridBagConstraints();
+                gridBagConstraints.gridx = LEFT;
+                gridBagConstraints.gridy = 0;
+                gridBagConstraints.anchor = GridBagConstraints.WEST;
+                gridBagConstraints.weightx = HEAVYWEIGHT;
+                urlPanel.add(sizeDescriptionL, gridBagConstraints);
+            }
+            {
+                GridBagConstraints gridBagConstraints = new GridBagConstraints();
                 gridBagConstraints.gridx = MID;
                 gridBagConstraints.gridy = 0;
                 gridBagConstraints.anchor = GridBagConstraints.EAST;
@@ -2927,14 +2948,22 @@ class X3DViewer {
                 gridBagConstraints.weightx = HEAVYWEIGHT;
                 urlPanel.add(colorCorrectionDescriptionL, gridBagConstraints);
             }
+//            {
+//                // An empty label to have something on the left
+//                GridBagConstraints gridBagConstraints = new GridBagConstraints();
+//                gridBagConstraints.gridx = LEFT;
+//                gridBagConstraints.gridy = 0;
+//                gridBagConstraints.anchor = GridBagConstraints.WEST;
+//                gridBagConstraints.weightx = HEAVYWEIGHT;
+//                urlPanel.add(new JLabel(""), gridBagConstraints);
+//            }
             {
-                // An empty label to have something on the left
                 GridBagConstraints gridBagConstraints = new GridBagConstraints();
                 gridBagConstraints.gridx = LEFT;
-                gridBagConstraints.gridy = 0;
+                gridBagConstraints.gridy = 1;
                 gridBagConstraints.anchor = GridBagConstraints.WEST;
                 gridBagConstraints.weightx = HEAVYWEIGHT;
-                urlPanel.add(new JLabel(""), gridBagConstraints);
+                urlPanel.add(sizeDescriptionR, gridBagConstraints);
             }
             {
                 GridBagConstraints gridBagConstraints = new GridBagConstraints();
@@ -2968,6 +2997,8 @@ class X3DViewer {
                 fontCc = new Font(fontName, Font.PLAIN, fontCc.getSize());
                 colorCorrectionDescriptionL.setFont(fontCc);
                 colorCorrectionDescriptionR.setFont(fontCc);
+                sizeDescriptionL.setFont(fontCc);
+                sizeDescriptionR.setFont(fontCc);
             });
         }
         {
@@ -3567,10 +3598,10 @@ class X3DViewer {
                         "<br>" +
                         "When either of the images has the input focus: <br>" +
                         "<b>LEFT</b>, <b>RIGHT</b>, <b>UP</b>, <b>DOWN</b>: scroll both images<br>" +
-                        "<b>Ctrl =</b>, <b>Alt I</b>: zoom in +10%<br>" +
-                        "<b>Ctrl Shift +</b>, <b>Ctrl I</b>: zoom in +100%<br>" +
-                        "<b>Clrl -</b>, <b>Alt O</b>: zoom out -10%<br>" +
-                        "<b>Ctrl Shift _</b>, <b>Ctrl O</b>: zoom out -100%<br>" +
+                        "<b>Ctrl =</b>, <b>Alt I</b>: zoom in +10% &nbsp; &nbsp; &nbsp; &nbsp;" +
+                                                            "<b>Ctrl Shift +</b>, <b>Ctrl I</b>: zoom in +100%<br>" +
+                        "<b>Clrl -</b>, <b>Alt O</b>: zoom out -10% &nbsp; &nbsp; &nbsp; &nbsp;" +
+                                                            "<b>Ctrl Shift _</b>, <b>Ctrl O</b>: zoom out -100%<br>" +
                         "<b>Shift LEFT</b>, <b>Shift RIGHT</b>: change horizontal offset by 3<br>" +
                         "<b>Ctrl LEFT</b>, <b>Ctrl RIGHT</b>: change horizontal offset by 30<br>" +
                         "<b>Shift UP</b>, <b>Shift DOWN</b>: change vertical offset by 3<br>" +
@@ -3581,13 +3612,14 @@ class X3DViewer {
                         "<b>Ctrl U</b>: Swap the left and right images<br>" +
                         "<b>Alt R/Alt G/Alt T</b>: Set the red/green marks, show <b>distance measurement</b> panel; more options in the context menu<br>" +
                         "<b>Alt 1/Alt 2/Alt 3/Alt 4/Alt 5</b>: Set the marks 1-5, red/green/blue/cyan/magenta correspondingly<br>" +
+                        "<b>Ctrl 1/Ctrl 2</b>: Adjust offsets using the two red / the two green marks (either two will do)<br>" +
+                        "<b>Alt 0</b>: Show/hide all marks<br>" +
 //                        "<br>"+
                         "<b>Ctrl N</b>: New (empty) window<br>" +
-                        "<b>Ctrl S</b>: Save the stereo pair (saves a screenshot of this application plus <br>" +
-                        "a file that ends with <i>.source</i> and contains the URLs of images in the stereo pair)<br>" +
-                        "Note: it may be confusing but if you prefer the keyboard to the mouse,<br>" +
-                        "in Java dialogs the Enter key selects the default action rather than<br>" +
-                        "the currently selected one; please use Space to select the current action.<br>" +
+                        "<b>Ctrl S</b>: Save the stereo pair (saves a screenshot of this application plus a file that ends with <i>.source</i> and contains <br>" +
+                        "the URLs of images in the stereo pair)<br>" +
+                        "<b>Note:</b> it may be confusing but if you prefer the keyboard to the mouse, in Java dialogs the Enter key selects the default<br>" +
+                        "action rather than the currently selected one; please use Space to select the current action.<br>" +
                         "<b>F1</b>: this help<br>" +
                         "<b>Buttons + and -</b> in the zoom/offset/rotate controls may be pressed with the <b>Shift</b> key.<br>"+
                         "<br>"+
@@ -3773,12 +3805,20 @@ class X3DViewer {
             frameInputMap.put(KeyStroke.getKeyStroke("alt 3"), "markblue");
             frameInputMap.put(KeyStroke.getKeyStroke("alt 4"), "markcyan");
             frameInputMap.put(KeyStroke.getKeyStroke("alt 5"), "markmagenta");
+            frameInputMap.put(KeyStroke.getKeyStroke("alt 0"), "hidemarks");
             frameActionMap.put("markred", toAction(e->uiEventListener.setWaitingForPoint(1)));
             frameActionMap.put("markgreen", toAction(e->uiEventListener.setWaitingForPoint(2)));
             frameActionMap.put("markblue", toAction(e->uiEventListener.setWaitingForPoint(3)));
             frameActionMap.put("markcyan", toAction(e->uiEventListener.setWaitingForPoint(4)));
             frameActionMap.put("markmagenta", toAction(e->uiEventListener.setWaitingForPoint(5)));
+            frameActionMap.put("hidemarks", toAction(e->
+                uiEventListener.measurementShownChanged(!uiEventListener.getMeasurementStatus().measurementShown)
+            ));
             frameActionMap.put("measurementpanel", toAction(e->measurementPanel.showDialogIn(frame)));
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl 1"), "adjustred");
+            frameInputMap.put(KeyStroke.getKeyStroke("ctrl 2"), "adjustgreen");
+            frameActionMap.put("adjustred", toAction(e->uiEventListener.adjustOffsets(1)));
+            frameActionMap.put("adjustgreen", toAction(e->uiEventListener.adjustOffsets(2)));
             frameInputMap.put(KeyStroke.getKeyStroke("ESCAPE"), "escape");
             frameActionMap.put("escape", toAction(e->uiEventListener.escapePressed()));
         }
@@ -10145,17 +10185,14 @@ class MastcamPairFinder {
     //2893ML0151010021101295C00_DXXX.jpg
     //2893MR0151010021300210C00_DXXX.jpg
     final static int pairPrefixLength = "ssssMXjjjjjjppp".length();
-    private static int suffixLength = "C00_DXXX".length();
+    private final static int suffixLength = "C00_DXXX".length();
+    final static String prefixRegexR = "^\\d{4}MR\\d{9}.*";
+    final static String prefixRegexL = "^\\d{4}ML\\d{9}.*";
 
-    public static boolean areMrMlMatch(String url1, String url2) {
-        var fname1 = FileLocations.getFileName(url1);
-        var fname2 = FileLocations.getFileName(url2);
-        return fname1.length() > pairPrefixLength
-            && fname2.length() > pairPrefixLength
-            && fname1.substring(0, 4).equals(fname2.substring(0, 4))
-            && fname1.substring(4,6).equalsIgnoreCase("MR")
-            && fname2.substring(4,6).equalsIgnoreCase("ML")
-            && fname1.substring(6, pairPrefixLength).equals(fname2.substring(6, pairPrefixLength));
+    public static boolean areMrMlPair(String url1, String url2) {
+        var fname1 = FileLocations.splitAtSillyPrefix(FileLocations.getFileName(url1));
+        var fname2 = FileLocations.splitAtSillyPrefix(FileLocations.getFileName(url2));
+        return fname1[1].matches(prefixRegexR) && fname2[1].matches(prefixRegexL);
     }
     /**
      * Find the corresponding left/right mastcam image (a query to the NASA site is made).
@@ -14676,6 +14713,12 @@ class MyMath {
     public static double saturate01(double val) {
         return Math.max(0., Math.min(1., val));
     }
+//    public static int isaturate(int min, int max, int val) {
+//        return Math.max(min, Math.min(max, val));
+//    }
+//    public static int isaturate0_255(int val) {
+//        return Math.max(0, Math.min(255, val));
+//    }
 } // MyMath
 class MyOps {
     public static<T,TT> TT oAnd (T first, Supplier<TT> second) {
