@@ -2310,28 +2310,68 @@ class UiController implements UiEventListener {
         }
     }
     private boolean adjustZoomModel(boolean isRight) {
-        var diagL = Math.hypot(
-                measurementStatus.left.x1 - measurementStatus.left.x2,
-                measurementStatus.left.y1 - measurementStatus.left.y2
-        );
-        var diagR = Math.hypot(
-                measurementStatus.right.x1 - measurementStatus.right.x2,
-                measurementStatus.right.y1 - measurementStatus.right.y2
-        );
-        if (Double.isFinite(diagL) && Double.isFinite(diagR) && diagL > 2 && diagR > 2) {
+        var heightL = MyOps.run( () -> {
+            var diagL = Math.hypot(
+                    measurementStatus.left.y1 - measurementStatus.left.y2,
+                    measurementStatus.left.x1 - measurementStatus.left.x2
+            );
+            var thetaL = Math.atan2(
+                    measurementStatus.left.y1 - measurementStatus.left.y2,
+                    measurementStatus.left.x1 - measurementStatus.left.x2
+            );
+            var alphaL = Math.toRadians(displayParameters.angleL + displayParameters.angle);
+            var res = Math.abs(diagL * Math.sin(thetaL + alphaL));
+            System.out.println("left:  res="+res+"  diag="+diagL+"   angle="+Math.toDegrees(thetaL)+" + "+Math.toDegrees(alphaL));
+            return res;
+        });
+        var heightR = MyOps.run(() -> {
+            var diagR = Math.hypot(
+                    measurementStatus.right.y1 - measurementStatus.right.y2,
+                    measurementStatus.right.x1 - measurementStatus.right.x2
+            );
+            var thetaR = Math.atan2(
+                    measurementStatus.right.y1 - measurementStatus.right.y2,
+                    measurementStatus.right.x1 - measurementStatus.right.x2
+            );
+            var alphaR = Math.toRadians(displayParameters.angleR + displayParameters.angle);
+            var res = Math.abs(diagR * Math.sin(thetaR + alphaR));
+            System.out.println("right: res="+res+"  diag="+diagR+"   angle= "+Math.toDegrees(thetaR)+" + "+Math.toDegrees(alphaR));
+            return res;
+        });
+
+        if (Double.isFinite(heightL) && Double.isFinite(heightR) && heightL > 2 && heightR > 2) {
             if (isRight) {
-                rZoomChangedModel(diagL/diagR*displayParameters.zoomL);
+                rZoomChangedModel(heightL/heightR*displayParameters.zoomL);
             } else {
-                lZoomChangedModel(diagR/diagL*displayParameters.zoomR);
+                lZoomChangedModel(heightR/heightL*displayParameters.zoomR);
             }
             return true;
         }
         return false;
     }
+//    private boolean adjustZoomModelDiag(boolean isRight) {
+//        var diagL = Math.hypot(
+//                measurementStatus.left.x1 - measurementStatus.left.x2,
+//                measurementStatus.left.y1 - measurementStatus.left.y2
+//        );
+//        var diagR = Math.hypot(
+//                measurementStatus.right.x1 - measurementStatus.right.x2,
+//                measurementStatus.right.y1 - measurementStatus.right.y2
+//        );
+//        if (Double.isFinite(diagL) && Double.isFinite(diagR) && diagL > 2 && diagR > 2) {
+//            if (isRight) {
+//                rZoomChangedModel(diagL/diagR*displayParameters.zoomL);
+//            } else {
+//                lZoomChangedModel(diagR/diagL*displayParameters.zoomR);
+//            }
+//            return true;
+//        }
+//        return false;
+//    }
     @Override
     public void adjustZoomAngleOffsets(boolean isRight, int pointId) {
-        adjustZoomModel(isRight);
         adjustAngleModel(isRight);
+        adjustZoomModel(isRight);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
         adjustOffsetsModel(1);
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
@@ -14758,6 +14798,10 @@ class MyOps {
     public static<T> T also(T obj, Consumer<T> action) {
         action.accept(obj);
         return obj;
+    }
+    /** Kotlin-like run() as a non-extension function. Run the lambda, return the result. */
+    public static<T> T run(Supplier<T> block) {
+        return block.get();
     }
 } // MyOps
 interface ScopeFunctions {
