@@ -14114,6 +14114,7 @@ class ImageMerger
         System.out.println("filtered small images: "+idl);
         final int rowSize = idl.size() == 2 ? 2
                           : idl.size() == 4 ? 2
+                          : idl.size() == 8 ? 4
                           : idl.size() <= 9 ? 3 : 4;
 
         System.out.println("number of images: " + idl.size() + ", row size: " + rowSize);
