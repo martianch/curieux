@@ -5878,6 +5878,21 @@ class ScreenshotSaver extends SaverBase {
     public void takeAndSaveScreenshot(JFrame frame, JComponent leftC, JComponent rightC, RawData rawData, DisplayParameters displayParameters, BehavioralOptions behavioralOptions) {
         try {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
+            if (ScreenshotSaver.isAllBlack(bi)) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Cannot get a screenshot, the image is black.\n"
+                        + "It means that your Java is not compatible with your operating system.\n"
+                        + "Try to run this application with a newer or different JDK (Java Development Kit).\n"
+                        + "For example, this problem happens with OpenJDK <= 21 under Ubuntu 22.04 with Wayland,\n"
+                        + "but does not happen with Oracle JDK >= 21 or OpenJDK >= 23.\n"
+                        + "You are using Java VM: " + System.getProperty("java.vm.name")
+                        + "; version: " + System.getProperty("java.version")
+                        + "; vendor: " + System.getProperty("java.vendor")
+
+                );
+                return;
+            }
             showSaveDialog(
                     frame,
                     FileLocations.getSol(rawData.left.path).map(x -> String.format("%04d-",x)).orElse(""),
@@ -6025,6 +6040,15 @@ class ScreenshotSaver extends SaverBase {
         Rectangle appRect = new Rectangle(loc.x, loc.y, frame.getWidth(), frame.getHeight());
         BufferedImage bi = robot.createScreenCapture(appRect);
         return bi;
+    }
+    public static boolean isAllBlack(BufferedImage bi) {
+        boolean allZero = true;
+        for (int x = 0, w = bi.getWidth(); x < w && allZero; x++) {
+            for (int y = 0, h = bi.getHeight(); y < h && allZero; y++) {
+                allZero &= 0 == (bi.getRGB(x, y) & 0x00FF_FFFF);
+            }
+        }
+        return allZero;
     }
 }
 
