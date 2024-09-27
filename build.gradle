@@ -15,6 +15,7 @@ plugins {
 
     id 'com.palantir.git-version' version '0.12.3'
     id 'jacoco'
+    id "io.github.qux7.testnotrunerror" version "0.1.2"
 }
 
 repositories {
@@ -73,5 +74,10 @@ test {
 // ./build/reports/jacoco/test/html/com.github.martianch.curieux/index.html
 test.finalizedBy jacocoTestReport
 
+testnotrunerror.excludes {
+    test {
+        excludeClassNames = ['com.github.martianch.curieux.RS', 'com.github.martianch.curieux.TestCoverage']
+    }
+}
 
 
