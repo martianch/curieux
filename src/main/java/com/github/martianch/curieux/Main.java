@@ -5880,16 +5880,10 @@ class ScreenshotSaver extends SaverBase {
             BufferedImage bi = ScreenshotSaver.getScreenshot(frame);
             if (ScreenshotSaver.isAllBlack(bi)) {
                 JOptionPane.showMessageDialog(
-                    frame,
-                    "Cannot get a screenshot, the image is black.\n"
-                        + "It means that your Java is not compatible with your operating system.\n"
-                        + "Try to run this application with a newer or different JDK (Java Development Kit).\n"
-                        + "For example, this problem happens with OpenJDK <= 21 under Ubuntu 22.04 with Wayland,\n"
-                        + "but does not happen with Oracle JDK >= 21 or OpenJDK >= 23.\n"
-                        + "You are using Java VM: " + System.getProperty("java.vm.name")
-                        + "; version: " + System.getProperty("java.version")
-                        + "; vendor: " + System.getProperty("java.vendor")
-
+                        frame,
+                        ScreenshotSaver.composeScreenshotFailureErrorMessage(),
+                        "ERROR: Cannot take screenshot",
+                        JOptionPane.ERROR_MESSAGE
                 );
                 return;
             }
@@ -5933,6 +5927,24 @@ class ScreenshotSaver extends SaverBase {
         } catch (Exception exc) {
             exc.printStackTrace();
         }
+    }
+    private static String composeScreenshotFailureErrorMessage() {
+        return "Cannot take a screenshot, the resulting image is black.\n"
+            + "\n"
+            + "It looks like your Java (namely, the class java.awt.Robot) is not compatible with your operating\n"
+            + "system (this may happen when you have a new operating system and an old Java, because\n"
+            + "to take a screenshot, your Java needs to know how your operating system works).\n"
+            + "Try to run this application with a newer or different Java / JDK (Java Development Kit).\n"
+            + "For example, this problem happens with OpenJDK <= 21 under Ubuntu 22.04 with Wayland,\n"
+            + "but the problem does not happen with Oracle JDK >= 21 or OpenJDK >= 23.\n"
+            + "\n"
+            + "(Hint: the option is a bit hidden, but Gnome on Ubuntu supports both Wayland and Xorg sessions.)\n"
+            + "\n"
+            + "At the moment you are using:\n"
+            + "\n"
+            + "Java VM: " + System.getProperty("java.vm.name") + "\n"
+            + "version: " + System.getProperty("java.version") + "\n"
+            + "vendor: " + System.getProperty("java.vendor") + "\n";
     }
     static String toSuffixNumber(double f) {
         int i = (int) f;
