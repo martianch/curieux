@@ -4,5 +4,5 @@
 # run X3D Viewer using the latest Java
 # at the moment, the latest Java is 21
 
-/usr/lib/jvm/java-21-openjdk-amd64/bin/java -jar ../../build/libs/x3dview.jar
-
+#/usr/lib/jvm/java-21-openjdk-amd64/bin/java -jar ../../build/libs/x3dview.jar
+/usr/lib/jvm/jdk-23-oracle-x64/bin/java -jar ../../build/libs/x3dview.jar
