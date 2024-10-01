@@ -36,6 +36,7 @@ import javax.imageio.metadata.IIOMetadataNode;
 import javax.imageio.stream.FileImageOutputStream;
 import javax.imageio.stream.ImageOutputStream;
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 import javax.swing.event.DocumentEvent;
@@ -173,6 +174,9 @@ public class Main {
 
     public static int[] DEFAULT_TOOLTIP_DELAYS;
     public static int[] FREQ_GPAPH_TOOLTIP_DELAYS = {8000, 20, 20};
+    public static String LOOK_AND_FEEL_NAME;
+    public static Consumer<FlowLayout> SET_ROW_GAPS = fl -> { fl.setVgap(1); fl.setHgap(3); };
+    public static Consumer<FlowLayout> SET_ZOOM_GAPS = fl -> { fl.setVgap(0); fl.setHgap(2); };
 
     public static void main(String[] args) throws Exception {
         System.out.println("args: "+ Arrays.toString(args));
@@ -210,12 +214,16 @@ public class Main {
                 () -> {
                     MySwing.setToolTipDelays(6000, 200, 200);
                     DEFAULT_TOOLTIP_DELAYS = MySwing.getToolTipDelays();
+                    LOOK_AND_FEEL_NAME = UIManager.getLookAndFeel().getName();
                     uic.createAndShowViews();
                 }
         );
         paths = uic.unThumbnailIfNecessary(paths);
         NasaReader.cleanupReading(); // this is black magic. we read favicon
         uic.updateRawDataAsync(paths.get(0), paths.get(1));
+    }
+    public static boolean isMetalLookAndFeel() {
+        return "Metal".equals(LOOK_AND_FEEL_NAME);
     }
 }
 
@@ -3539,12 +3547,9 @@ class X3DViewer {
             gbl.setConstraints(componentR, gbc);
         }
 
-        JPanel statusPanel = new JPanel();
-        JPanel statusPanel2 = new JPanel();
+        JPanel statusPanel = new JPanel(MyOps.also(new FlowLayout(), Main.SET_ROW_GAPS));
+        JPanel statusPanel2 = new JPanel(MyOps.also(new FlowLayout(), Main.SET_ROW_GAPS));
         {
-            FlowLayout fl = new FlowLayout();
-            statusPanel.setLayout(fl);
-
             {
                 JButton saveButton = new JButton();
                 MySwing.loadButtonIcon(saveButton,"icons/save12.png","⤓"); //
@@ -3757,6 +3762,7 @@ class X3DViewer {
             }
             {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
+                dndToBothCheckox.setMargin(new Insets(0, 2, 0, 2));
                 dndToBothCheckox.setMnemonic(KeyEvent.VK_B);
                 dndToBothCheckox.setSelected(true);
                 dndToBothCheckox.addActionListener(
@@ -4207,7 +4213,7 @@ enum DebayerMode implements ImageEffect {
         return (algo >= 0 && (force || FileLocations.isBayered(path)));
     }
 }
-class DebayerModeChooser extends ComboBoxWithTooltips<DebayerMode> {
+class DebayerModeChooser extends LowComboBoxWithTooltips<DebayerMode> {
     static DebayerMode[] modes = DebayerMode.values();
     public DebayerModeChooser(Consumer<DebayerMode> valueListener) {
         super(modes, ImageEffect::uiEffectName);
@@ -4240,8 +4246,7 @@ class DigitalZoomControl<T, TT extends DigitalZoomControl.ValueWrapper<T>> exten
         valueWrapper = valueWrapper0;
         valueListener = valueListener0;
 
-        FlowLayout fl = new FlowLayout();
-        this.setLayout(fl);
+        Main.SET_ZOOM_GAPS.accept((FlowLayout) this.getLayout());
         {
             label = new JLabel(labelText);
             if (labelText != null) {
@@ -14518,17 +14523,22 @@ class ComboBoxWithTooltips<T> extends JComboBox<T> {
     final ComboboxToolTipRenderer toolTipRenderer;
 
     public ComboBoxWithTooltips(T[] items, Function<T,String> getTooltip) {
+        this(items, getTooltip, new ComboboxToolTipRenderer());
+    }
+
+    public ComboBoxWithTooltips(T[] items, Function<T,String> getTooltip, ComboboxToolTipRenderer listCellRenderer) {
         super(items);
-        this.toolTipRenderer = new ComboboxToolTipRenderer();
+        this.toolTipRenderer = listCellRenderer;
         this.setRenderer(toolTipRenderer);
         toolTipRenderer.setTooltips(
                 Arrays.stream(items)
-                        .map(getTooltip)
-                        .collect(Collectors.toList())
+                      .map(getTooltip)
+                      .collect(Collectors.toList())
         );
     }
 
-    class ComboboxToolTipRenderer extends DefaultListCellRenderer {
+
+    static class ComboboxToolTipRenderer extends DefaultListCellRenderer {
         //https://stackoverflow.com/a/4480209/755804
         List<String> tooltips;
 
@@ -14547,6 +14557,34 @@ class ComboBoxWithTooltips<T> extends JComboBox<T> {
 
         public void setTooltips(List<String> tooltips) {
             this.tooltips = tooltips;
+        }
+    }
+}
+class LowComboBoxWithTooltips<T> extends ComboBoxWithTooltips<T> {
+    public LowComboBoxWithTooltips(T[] items, Function<T, String> getTooltip, ComboBoxWithTooltips.ComboboxToolTipRenderer listCellRenderer) {
+        super(items, getTooltip, listCellRenderer);
+    }
+
+    public LowComboBoxWithTooltips(T[] items, Function<T, String> getTooltip) {
+        this(items, getTooltip, new LowComboboxToolTipRenderer());
+    }
+
+    static class LowComboboxToolTipRenderer extends ComboBoxWithTooltips.ComboboxToolTipRenderer {
+        private final EmptyBorder customBorderN = new EmptyBorder(-2, 1, -2, 1);
+        private final EmptyBorder customBorderP = new EmptyBorder(1, 1, 1, 1);
+
+        @Override
+        public Component getListCellRendererComponent(JList list, Object value,
+                                                      int index, boolean isSelected, boolean cellHasFocus) {
+            JComponent component = (JComponent) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            if (Main.isMetalLookAndFeel()) {
+                if (index < 0) {
+                    component.setBorder(customBorderN);
+                } else {
+                    component.setBorder(customBorderP);
+                }
+            }
+            return component;
         }
     }
 }
