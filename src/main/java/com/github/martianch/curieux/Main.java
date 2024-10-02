@@ -2917,6 +2917,8 @@ class X3DViewer {
             {
                 colorCorrectionDescriptionL.setText(dp.lColorCorrection.getShortDescription(rd.left.path, dp.getImageEffects(false)));
                 colorCorrectionDescriptionR.setText(dp.rColorCorrection.getShortDescription(rd.right.path, dp.getImageEffects(true)));
+                colorCorrectionDescriptionL.setToolTipText(dp.lColorCorrection.getFullHtmlDescription(rd.left.path, dp.getImageEffects(false)));
+                colorCorrectionDescriptionR.setToolTipText(dp.rColorCorrection.getFullHtmlDescription(rd.right.path, dp.getImageEffects(true)));
             }
             {
                 sizeDescriptionL.setText(""+rd.left.image.getWidth()+"x"+rd.left.image.getHeight());
@@ -7999,6 +8001,17 @@ class ColorCorrection {
                         .filter(x -> x.notNothingFor(path))
                         .map(ImageEffect::effectName)
                         .collect(Collectors.joining("; "));
+        return res;
+    }
+    public String getFullHtmlDescription(String path, ImageEffect... prefixes) {
+        String res =
+                Stream.concat(
+                                Stream.of(prefixes),
+                                algos.stream()
+                        )
+                        .filter(x -> x.notNothingFor(path))
+                        .map(ImageEffect::effectName)
+                        .collect(Collectors.joining("<br>", "<html>", "</html>"));
         return res;
     }
     BufferedImage doColorCorrection(BufferedImage image, Command command) {
