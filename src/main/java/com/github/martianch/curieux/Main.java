@@ -258,7 +258,7 @@ interface UiEventListener {
     void gotoImage(GoToImageOptions goToImageOptions, boolean isRight, Optional<Integer> sol);
     void newWindow();
     void setShowUrls(boolean visible);
-    void resetToDefaults();
+    void resetToDefaults(boolean allowFractional);
     void saveScreenshot();
     void navigate(boolean isRight, boolean isLeft, boolean forwardInTime, int byHowMany);
     void openInBrowser(SiteOpenCommand command, boolean isRight, WhichRover whichRover);
@@ -976,11 +976,17 @@ class DisplayParameters {
         ;
         lFisheyeCorrection = rFisheyeCorrection = FisheyeCorrection.defaultValue();
     }
-    void setDefaultsMrMl() {
+    void setDefaultsMrMl(boolean allowFractional) {
         setDefaults();
-        zoomR = 3.;
-        offsetX = -820;
-        offsetY = 20;
+        if (allowFractional) {
+            zoomR = 2.883;
+            offsetX = 420;
+            offsetY = 25;
+        } else {
+            zoomR = 3.;
+            offsetX = 425;
+            offsetY = 15;
+        }
     }
     private DisplayParameters(double zoom, double zoomL, double zoomR, int offsetX, int offsetY, double angle, double angleL, double angleR, DebayerMode debayerL, DebayerMode debayerR, ColorCorrectionAlgo preFilterL, ColorCorrectionAlgo preFilterR, ImageResamplingMode imageResamplingModeL, ImageResamplingMode imageResamplingModeR, ColorCorrection lColorCorrection, ColorCorrection rColorCorrection, FisheyeCorrection lFisheyeCorrection, FisheyeCorrection rFisheyeCorrection) {
         this.zoom = zoom;
@@ -1960,11 +1966,11 @@ class UiController implements UiEventListener {
     }
 
     @Override
-    public void resetToDefaults() {
+    public void resetToDefaults(boolean allowFractional) {
         System.out.println(rawData.left.path);
         System.out.println(rawData.right.path);
         if (MastcamPairFinder.areMrMlPair(rawData.left.path, rawData.right.path)) {
-            displayParameters.setDefaultsMrMl();
+            displayParameters.setDefaultsMrMl(allowFractional);
         } else {
             displayParameters.setDefaults();
         }
@@ -3563,8 +3569,12 @@ class X3DViewer {
             {
                 JButton resetAllControlsButton = new JButton();
                 MySwing.loadButtonIcon(resetAllControlsButton,"icons/clearAll25.png","xx"); // "<->" "<=>"
-                resetAllControlsButton.addActionListener(e -> uiEventListener.resetToDefaults());
-                resetAllControlsButton.setToolTipText("Reset All Controls (MR/ML pair: special case)");
+                resetAllControlsButton.addActionListener(e -> uiEventListener.resetToDefaults(!MySwing.isShiftPressed(e)));
+                resetAllControlsButton.setToolTipText("<html>"
+                                                    + "Reset All Controls<br>"
+                                                    + "(special case for Curiosity MR/ML pair:<br>"
+                                                    + "default: ML zoom x2.8; Shift: ML zoom x3)"
+                                                    + "</html>");
                 statusPanel.add(resetAllControlsButton);
             }
 
