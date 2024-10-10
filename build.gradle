@@ -13,9 +13,21 @@ plugins {
     // Apply the application plugin to add support for building a CLI application.
     id 'application'
 
+    // Let the application know its version.
+    // The version goes to the jar manifest as 'Implementation-Version'
+    // and is shown on the F1 help screen.
+    // (See the occurrence of ```gitVersion()``` in this file.)
     id 'com.palantir.git-version' version '0.12.3'
+
+    // Test coverage utility
     id 'jacoco'
+
+    // Report an error if some tests do not run
     id "io.github.qux7.testnotrunerror" version "0.1.2"
+
+    // Print the task dependency tree by running: ```./gradlew tiTree build```
+    // This plugin does not affect the build behaviour.
+    id 'org.barfuin.gradle.taskinfo' version '2.2.0'
 }
 
 repositories {
@@ -76,6 +88,7 @@ test.finalizedBy jacocoTestReport
 
 testnotrunerror.excludes {
     test {
+        // these classes are not tests, it's ok when they are not run as test suites
         excludeClassNames = ['com.github.martianch.curieux.RS', 'com.github.martianch.curieux.TestCoverage']
     }
 }
