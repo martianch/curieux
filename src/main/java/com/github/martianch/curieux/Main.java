@@ -36,7 +36,9 @@ import javax.imageio.metadata.IIOMetadataNode;
 import javax.imageio.stream.FileImageOutputStream;
 import javax.imageio.stream.ImageOutputStream;
 import javax.swing.*;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 import javax.swing.event.DocumentEvent;
@@ -58,6 +60,9 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.ComponentListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -290,6 +295,7 @@ interface UiEventListener {
     void setCustomStretchHsvParameters(CustomStretchHsvParameters customStretchHsvParameters, boolean isRight); //???
     void setSaveOptions(boolean saveGif, boolean saveLeftRIght);
     void setUseCustomCrosshairCursor(boolean useCustomCrosshairCursor);
+    void setGeometryIndicator(int position);
     void setFisheyeCorrection(boolean isRight, FisheyeCorrection fc);
     void setPreFilter(boolean isRight, boolean isOn);
     ParUiFacade getParUiFacade();
@@ -948,6 +954,7 @@ class BehavioralOptions {
     boolean saveGif = true;
     boolean saveLeftRightImages = true;
     boolean useCustomCrosshairCursor = true;
+    int sizerPosition = 7;
 }
 class DisplayParameters {
     double zoom, zoomL, zoomR;
@@ -2544,6 +2551,11 @@ class UiController implements UiEventListener {
         behavioralOptions.useCustomCrosshairCursor = useCustomCrosshairCursor;
         x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
     }
+    @Override
+    public void setGeometryIndicator(int position) {
+        behavioralOptions.sizerPosition = position;
+        x3dViewer.updateControls(displayParameters, measurementStatus, behavioralOptions);
+    }
     public void createAndShowViews() {
         x3dViewer.createViews(rawData, displayParameters, measurementStatus, this);
     }
@@ -2696,6 +2708,9 @@ class X3DViewer {
     JCheckBoxMenuItem showMeasurementCbMenuItem;
     JCheckBoxMenuItem subpixelPrecisionCbMenuItem;
     JFrame frame;
+    JLayeredPane layers;
+    JPanel frame0;
+    GeometryIndicatorLayer frame1;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoom;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomL;
     DigitalZoomControl<Double, ZoomFactorWrapper> dcZoomR;
@@ -2729,6 +2744,7 @@ class X3DViewer {
         subpixelPrecisionCbMenuItem.setState(ms.isSubpixelPrecision);
         measurementPanel.setControls(ms);
         settingsPanel.setControls(bo);
+        frame1.setIndicatorPosition(bo.sizerPosition);
     }
     void setCursor(Cursor cursor) {
         lblL.setCursor(cursor);
@@ -2940,6 +2956,17 @@ class X3DViewer {
         lblL=new JButton();
         lblR=new JButton();
         frame=new JFrame();
+        frame0=new JPanel();
+        frame1=new GeometryIndicatorLayer(frame);
+        layers=new FilledLayeredPane();
+        {
+            layers.add(frame0, JLayeredPane.DEFAULT_LAYER);
+            layers.add(frame1, JLayeredPane.POPUP_LAYER);
+        }
+        {
+            frame.add(layers);
+            frame.setSize(1366,800);
+        }
         urlPanel = new JPanel(new GridBagLayout());
         urlL = new JLabel("url1");
         urlR = new JLabel("url2");
@@ -3803,12 +3830,11 @@ class X3DViewer {
         }
 
         {
-            frame.setLayout(gbl);
-            frame.setSize(1366,800);
-            frame.add(componentR);
-            frame.add(componentL);
-            frame.add(statusPanel);
-            frame.add(statusPanel2);
+            frame0.setLayout(gbl);
+            frame0.add(componentR);
+            frame0.add(componentL);
+            frame0.add(statusPanel);
+            frame0.add(statusPanel2);
         }
         {
             // keyboard shortcuts
@@ -3911,7 +3937,7 @@ class X3DViewer {
     }
 
     void addUrlViews(boolean visible, boolean repaint) {
-        GridBagLayout gbl = (GridBagLayout) frame.getContentPane().getLayout();
+        GridBagLayout gbl = (GridBagLayout) frame0.getLayout();
         if (visible) {
             {
                 GridBagConstraints gbc = new GridBagConstraints();
@@ -3922,13 +3948,13 @@ class X3DViewer {
                 gbc.fill = GridBagConstraints.HORIZONTAL;
                 gbl.setConstraints(urlPanel, gbc);
             }
-            frame.add(urlPanel);
+            frame0.add(urlPanel);
         } else {
-            frame.remove(urlPanel);
+            frame0.remove(urlPanel);
         }
         if (repaint) {
-            frame.validate();
-            frame.repaint();
+            frame0.validate();
+            frame0.repaint();
         }
     }
     static Optional<String> findAnyFont(String... fontNames) {
@@ -13390,6 +13416,36 @@ class SettingsPanel extends JPanel {
     JCheckBox saveGifCheckbox;
     JCheckBox saveRightLeftCheckbox;
     JCheckBox customCrosshairCursorCheckbox;
+    enum GeometryIndicatorPosition {
+        NONE(-1),
+        TOP_LEFT(0),    TOP_CENTER(1),    TOP_RIGHT(2),
+        CENTER_LEFT(3), CENTER_CENTER(4), CENTER_RIGHT(5),
+        BOTTOM_LEFT(6), BOTTOM_CENTER(7), BOTTOM_RIGHT(8),
+        ;
+        GeometryIndicatorPosition(int pos) { position = pos; }
+        int position;
+    }
+    static class GeometryIndicatorPositionChooser extends JComboBox<GeometryIndicatorPosition> {
+        static GeometryIndicatorPosition[] modes = GeometryIndicatorPosition.values();
+
+        public GeometryIndicatorPositionChooser(IntConsumer valueListener) {
+            super(modes);
+            setValue(GeometryIndicatorPosition.BOTTOM_CENTER);
+            setMaximumRowCount(modes.length);
+            addItemListener(itemEvent -> {
+                if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                    valueListener.accept(((GeometryIndicatorPosition) itemEvent.getItem()).position);
+                }
+            });
+        }
+        public void setValue(GeometryIndicatorPosition pos) {
+            setSelectedItem(pos);
+        }
+        public void setValue(int pos) {
+            setSelectedItem(modes[pos + 1]);
+        }
+    }
+    GeometryIndicatorPositionChooser geometryIndicatorPositionChooser;
 
     public SettingsPanel(UiEventListener uiEventListener) {
         this.uiEventListener = uiEventListener;
@@ -13612,6 +13668,15 @@ class SettingsPanel extends JPanel {
                 customCrosshairCursorCheckbox.setToolTipText("You can use either the standard thick cross-hair cursor or a custom one");
                 box.add(customCrosshairCursorCheckbox);
             }
+            {
+                geometryIndicatorPositionChooser = new GeometryIndicatorPositionChooser(
+                        i -> uiEventListener.setGeometryIndicator(i)
+                );
+                box.add(MySwing.makeThinRow(
+                        new JLabel(" Geometry indication when moving/resizing:"),
+                        geometryIndicatorPositionChooser
+                ));
+            }
             rowWrapper.add(box);
             this.add(rowWrapper);
         }
@@ -13620,6 +13685,7 @@ class SettingsPanel extends JPanel {
         saveGifCheckbox.setSelected(bo.saveGif);
         saveRightLeftCheckbox.setSelected(bo.saveLeftRightImages);
         customCrosshairCursorCheckbox.setSelected(bo.useCustomCrosshairCursor);
+        geometryIndicatorPositionChooser.setValue(bo.sizerPosition);
     }
     void showDialogIn(JFrame mainFrame) {
         JOptionPane.showMessageDialog(mainFrame, this,"Settings", JOptionPane.PLAIN_MESSAGE);
@@ -15470,6 +15536,111 @@ class Par {
     } // Par.Configurator
 } // Par
 // ====== /parallelism ======
+
+class FilledLayeredPane extends JLayeredPane {
+    /**
+     * Layout each of the components in this JLayeredPane so that they all fill
+     * the entire extents of the layered pane -- from (0,0) to (getWidth(), getHeight())
+     */
+    @Override
+    public void doLayout() {
+        // Synchronizing on getTreeLock, because I see other layouts doing that.
+        // see BorderLayout::layoutContainer(Container)
+        synchronized(getTreeLock()) {
+            int w = getWidth();
+            int h = getHeight();
+            for(Component c : getComponents()) {
+                c.setBounds(0, 0, w, h);
+            }
+        }
+    }
+}
+class GeometryIndicatorLayer extends JPanel {
+    javax.swing.Timer timer;
+    JLabel label;
+    int labelPosition = 7;
+    JFrame frame;
+    SpringLayout layout;
+    ComponentListener componentListener;
+    public GeometryIndicatorLayer(JFrame frame) {
+        this.frame = frame;
+
+        this.setOpaque(false);
+        layout = new SpringLayout();
+        this.setLayout(layout);
+
+        label = MyOps.also(new JLabel(), l -> {
+            l.setOpaque(true);
+            int dx = 6;
+            int dy = 4;
+            l.setBorder(new CompoundBorder(
+                    new LineBorder(Color.DARK_GRAY, 2),
+                    new EmptyBorder(dy, dx, dy, dx))
+            );
+            l.setVisible(false);
+        });
+        this.add(label);
+        this.setIndicatorPosition(labelPosition);
+        timer = new javax.swing.Timer(700, (e) -> {
+            label.setVisible(false);
+        });
+        frame.addComponentListener(componentListener = new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                showIndicator();
+                timer.restart();
+            }
+            @Override
+            public void componentMoved(ComponentEvent e) {
+                showIndicator();
+                timer.restart();
+            }
+        });
+    }
+    static String labelText(JFrame frame) {
+        var at = frame.getLocationOnScreen();
+        return "" + frame.getWidth() + "x" + frame.getHeight()
+                + " @ (" + at.x + ", " + at.y + ")"
+                + " - (" + (at.x + frame.getWidth()) + ", " + (at.y + frame.getHeight()) + ")";
+    }
+    void showIndicator() {
+        label.setText(labelText(frame));
+        label.setVisible(labelPosition >= 0);
+    }
+    void setIndicatorPosition(int position) {
+        layout.removeLayoutComponent(label);
+        this.labelPosition = position;
+        if (position < 0) {
+        } else {
+            int pad = 2;
+            switch (position % 3) {
+                case 0:
+                    layout.putConstraint(SpringLayout.WEST, label, pad, SpringLayout.WEST, this);
+                    break;
+                case 1:
+                    layout.putConstraint(SpringLayout.HORIZONTAL_CENTER, label, 0, SpringLayout.HORIZONTAL_CENTER, this);
+                    break;
+                case 2:
+                    layout.putConstraint(SpringLayout.EAST, label, -pad, SpringLayout.EAST, this);
+                    break;
+            }
+            switch (position / 3) {
+                case 0:
+                    layout.putConstraint(SpringLayout.NORTH, label, pad, SpringLayout.NORTH, this);
+                    break;
+                case 1:
+                    layout.putConstraint(SpringLayout.SOUTH, label, pad, SpringLayout.VERTICAL_CENTER, this);
+                    break;
+                case 2:
+                    layout.putConstraint(SpringLayout.SOUTH, label, -pad, SpringLayout.SOUTH, this);
+                    break;
+            }
+        }
+    }
+    void unregisterFrameListener() {
+        frame.removeComponentListener(componentListener);
+    }
+}
 
 interface IntBiConsumer {
     void accept(int a, int b);
