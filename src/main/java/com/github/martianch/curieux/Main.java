@@ -15582,8 +15582,9 @@ class GeometryIndicatorLayer extends JPanel {
         this.add(label);
         this.setIndicatorPosition(labelPosition);
         timer = new javax.swing.Timer(700, (e) -> {
-            label.setVisible(false);
+            hideIndicator();
         });
+        timer.setRepeats(false);
         frame.addComponentListener(componentListener = new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -15597,6 +15598,11 @@ class GeometryIndicatorLayer extends JPanel {
             }
         });
     }
+    /** Tell the mouse there's nothing to click, always return false. */
+    @Override
+    public boolean contains(int x, int y) {
+        return false;
+    }
     static String labelText(JFrame frame) {
         var at = frame.getLocationOnScreen();
         return "" + frame.getWidth() + "x" + frame.getHeight()
@@ -15606,6 +15612,9 @@ class GeometryIndicatorLayer extends JPanel {
     void showIndicator() {
         label.setText(labelText(frame));
         label.setVisible(labelPosition >= 0);
+    }
+    void hideIndicator() {
+        label.setVisible(false);
     }
     void setIndicatorPosition(int position) {
         layout.removeLayoutComponent(label);
