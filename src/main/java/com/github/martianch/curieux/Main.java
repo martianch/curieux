@@ -232,6 +232,39 @@ public class Main {
     }
 }
 
+interface UiDefault {
+    interface Measurement {
+        boolean IS_SUBPIXEL_PRECISION = false;
+        boolean IS_MEASUREMENT_SHOWN = true;
+    }
+    interface CustomStretchRgb {
+        boolean IS_PER_CHANNEL = true;
+        boolean IS_SATURATED = true;
+        boolean IS_BLACK_SATURATED = false;
+    }
+
+    boolean SAVE_GIF = true;
+    boolean SAVE_LEFT_RIGHT_IMAGES = true;
+    boolean USE_CUSTOM_CROSSHAIR_CURSOR = true;
+    int SIZER_POSITION_CODE = 7;
+    boolean UNTHUMBNAIL = true;
+    boolean DND_TO_BOTH = true;
+    boolean SHOW_URLS = true;
+    // See also: getUiDefault() in different enum classes
+}
+interface UiSizes {
+    int ICON_SIZE = 12;
+
+    interface GeometryIndicatorConst {
+        int LABEL_BORDER_DX = 6;
+        int LABEL_BORDER_DY = 4;
+        int LABEL_PAD = 2;
+        int LABEL_BORDER_LINE_THICKNESS = 2;
+    }
+    interface ImageAndPathConst {
+        int DUMMY_SIZE = 15;
+    }
+}
 interface UiEventListener {
     void zoomChanged(double newZoom);
     void lZoomChanged(double newLZoom);
@@ -721,10 +754,20 @@ class CustomStretchRgbParameters {
         return new CustomStretchRgbParameters(rgbRange, isPerChannel, isSaturated, isBlackSaturated);
     }
     public static CustomStretchRgbParameters newEmpty() {
-        return new CustomStretchRgbParameters(RgbRange.newEmptyRange(), true, true, false);
+        return new CustomStretchRgbParameters(
+                RgbRange.newEmptyRange(),
+                UiDefault.CustomStretchRgb.IS_PER_CHANNEL,
+                UiDefault.CustomStretchRgb.IS_SATURATED,
+                UiDefault.CustomStretchRgb.IS_BLACK_SATURATED
+        );
     }
     public static CustomStretchRgbParameters newFullRange() {
-        return new CustomStretchRgbParameters(RgbRange.newFullRange(), true, true, false);
+        return new CustomStretchRgbParameters(
+                RgbRange.newFullRange(),
+                UiDefault.CustomStretchRgb.IS_PER_CHANNEL,
+                UiDefault.CustomStretchRgb.IS_SATURATED,
+                UiDefault.CustomStretchRgb.IS_BLACK_SATURATED
+        );
     }
     @Override
     public String toString() {
@@ -951,10 +994,10 @@ class CustomStretchHsvParameters {
     }
 }
 class BehavioralOptions {
-    boolean saveGif = true;
-    boolean saveLeftRightImages = true;
-    boolean useCustomCrosshairCursor = true;
-    int sizerPosition = 7;
+    boolean saveGif = UiDefault.SAVE_GIF;
+    boolean saveLeftRightImages = UiDefault.SAVE_LEFT_RIGHT_IMAGES;
+    boolean useCustomCrosshairCursor = UiDefault.USE_CUSTOM_CROSSHAIR_CURSOR;
+    int sizerPosition = UiDefault.SIZER_POSITION_CODE;
 }
 class DisplayParameters {
     double zoom, zoomL, zoomR;
@@ -1059,11 +1102,10 @@ class DisplayParameters {
         return zoom * (isRight ? zoomR : zoomL);
     }
 }
-class ImageAndPath {
+class ImageAndPath implements UiSizes.ImageAndPathConst {
     public static final String IN_PROGRESS_PATH = "..."; // pseudo-path, means "download in progress"
     public static final String NO_PATH = "-"; // pseudo-path, means "no path"
     public static final String ERROR_PATH = ""; // pseudo-path, means "error while loading path"
-    public static final int DUMMY_SIZE = 12;
     static final SuccessFailureCounter SUCCESS_FAILURE_COUNTER = new SuccessFailureCounter();
     final BufferedImage image;
     final String path;
@@ -1266,8 +1308,8 @@ class MeasurementStatus {
         this.right = right;
         isWaitingForPoint = false;
         pointIsWaitingFor = 0;
-        isSubpixelPrecision = false;
-        measurementShown = true;
+        isSubpixelPrecision = UiDefault.Measurement.IS_SUBPIXEL_PRECISION;
+        measurementShown = UiDefault.Measurement.IS_MEASUREMENT_SHOWN;
         measurementPointMark = MeasurementPointMark.getUiDefault();
         stereoPairParameters = StereoPairParameters.getUiDefault(); // TODO: find out from file name ???
     }
@@ -1608,8 +1650,8 @@ class UiController implements UiEventListener {
     BehavioralOptions behavioralOptions;
 
     final LRNavigator lrNavigator;
-    boolean dndOneToBoth = true;
-    boolean unthumbnail = true;
+    boolean dndOneToBoth = UiDefault.DND_TO_BOTH;
+    boolean unthumbnail = UiDefault.UNTHUMBNAIL;
     volatile long lastLoadTimestampL;
     volatile long lastLoadTimestampR;
     public UiController(X3DViewer xv, LRNavigator lrn, RawData rd, DisplayParameters dp, MeasurementStatus ms, BehavioralOptions bo) {
@@ -2150,7 +2192,7 @@ class UiController implements UiEventListener {
             case 17: measurementStatus.right.y4 = lrXy123; break;
             case 18: measurementStatus.right.x5 = lrXy123; break;
             case 19: measurementStatus.right.y5 = lrXy123; break;
-            default: throw new IllegalArgumentException("coordId="+coordId+" has no meaning, valid: [0..12)");
+            default: throw new IllegalArgumentException("coordId="+coordId+" has no meaning, valid: [0.20)");
         }
         x3dViewer.updateViews(rawData, displayParameters, measurementStatus);
     }
@@ -3803,7 +3845,7 @@ class X3DViewer {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
                 dndToBothCheckox.setMargin(new Insets(0, 2, 0, 2));
                 dndToBothCheckox.setMnemonic(KeyEvent.VK_B);
-                dndToBothCheckox.setSelected(true);
+                dndToBothCheckox.setSelected(UiDefault.DND_TO_BOTH);
                 dndToBothCheckox.addActionListener(
                     e -> uiEventListener.dndSingleToBothChanged(dndToBothCheckox.isSelected())
                 );
@@ -9406,14 +9448,13 @@ class ColorCorrectionPane extends JPanel {
                 gbc.gridy = rowNumber;
 
                 JTabbedPane tabbedPane = new JTabbedPane();
-                int iconSize = 12;
-                var rgbIcon = MySwing.loadAndScaleIcon("icons/rgb24.png", iconSize);
+                var rgbIcon = MySwing.loadAndScaleIcon("icons/rgb24.png", UiSizes.ICON_SIZE);
                 tabbedPane.addTab("Custom RGB Stretching", rgbIcon, (isLeft? lColorRangeChooser : rColorRangeChooser),
                         "sRGB3 stretches the ranges of Red, Green, Blue values to the maximal possible range, 0..255");
-                var hsvIcon = MySwing.loadAndScaleIcon("icons/hsv24.png", iconSize);
+                var hsvIcon = MySwing.loadAndScaleIcon("icons/hsv24.png", UiSizes.ICON_SIZE);
                 tabbedPane.addTab("Custom HSV Stretching", hsvIcon, (isLeft? lHsvRangeChooser : rHsvRangeChooser),
                         "sHSV3 stretches the ranges of Hue, Saturation, Volume values to the maximal possible range [0.0, 1.0]");
-                var statsIcon = MySwing.loadAndScaleIcon("icons/graphs12.png", iconSize);
+                var statsIcon = MySwing.loadAndScaleIcon("icons/graphs12.png", UiSizes.ICON_SIZE);
                 tabbedPane.addTab("Stats", statsIcon, (isLeft? lRgbHsvStatsPanel : rRgbHsvStatsPanel),
                         "Show distribution of Red, Green, Blue / Hue, Saturation, Volume values in the image");
                 gbl.setConstraints(tabbedPane, gbc);
@@ -13625,7 +13666,7 @@ class SettingsPanel extends JPanel {
             box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
             {
                 JCheckBox unThumbnailCheckox = new JCheckBox("Un-Thumbnail");
-                unThumbnailCheckox.setSelected(true);
+                unThumbnailCheckox.setSelected(UiDefault.UNTHUMBNAIL);
                 unThumbnailCheckox.addActionListener(
                         e -> uiEventListener.unthumbnailChanged(unThumbnailCheckox.isSelected())
                 );
@@ -13634,7 +13675,7 @@ class SettingsPanel extends JPanel {
             }
             {
                 showUrlsCheckbox = new JCheckBox("Show URLs");
-                showUrlsCheckbox.setSelected(true);
+                showUrlsCheckbox.setSelected(UiDefault.SHOW_URLS);
                 showUrlsCheckbox.addActionListener(
                         e -> uiEventListener.setShowUrls(showUrlsCheckbox.isSelected())
                 );
@@ -14800,7 +14841,8 @@ class MySwing {
     static void loadButtonIcon(JButton button, String resourcePath, String altText) {
         button.setMargin(new Insets(0, 0, 0, 0));
         try {
-            var icon = ImageIO.read(ClassLoader.getSystemResource(resourcePath)).getScaledInstance(12,12, Image.SCALE_SMOOTH);
+            var icon = ImageIO.read(ClassLoader.getSystemResource(resourcePath))
+                              .getScaledInstance(UiSizes.ICON_SIZE, UiSizes.ICON_SIZE, Image.SCALE_SMOOTH);
             button.setIcon(new ImageIcon(icon));
         } catch (Throwable e) {
             button.setText(altText);
@@ -15555,7 +15597,7 @@ class FilledLayeredPane extends JLayeredPane {
         }
     }
 }
-class GeometryIndicatorLayer extends JPanel {
+class GeometryIndicatorLayer extends JPanel implements UiSizes.GeometryIndicatorConst {
     javax.swing.Timer timer;
     JLabel label;
     int labelPosition = 7;
@@ -15571,11 +15613,9 @@ class GeometryIndicatorLayer extends JPanel {
 
         label = MyOps.also(new JLabel(), l -> {
             l.setOpaque(true);
-            int dx = 6;
-            int dy = 4;
             l.setBorder(new CompoundBorder(
-                    new LineBorder(Color.DARK_GRAY, 2),
-                    new EmptyBorder(dy, dx, dy, dx))
+                new LineBorder(Color.DARK_GRAY, LABEL_BORDER_LINE_THICKNESS),
+                new EmptyBorder(LABEL_BORDER_DY, LABEL_BORDER_DX, LABEL_BORDER_DY, LABEL_BORDER_DX))
             );
             l.setVisible(false);
         });
@@ -15621,27 +15661,27 @@ class GeometryIndicatorLayer extends JPanel {
         this.labelPosition = position;
         if (position < 0) {
         } else {
-            int pad = 2;
             switch (position % 3) {
                 case 0:
-                    layout.putConstraint(SpringLayout.WEST, label, pad, SpringLayout.WEST, this);
+                    layout.putConstraint(SpringLayout.WEST, label, LABEL_PAD, SpringLayout.WEST, this);
                     break;
                 case 1:
                     layout.putConstraint(SpringLayout.HORIZONTAL_CENTER, label, 0, SpringLayout.HORIZONTAL_CENTER, this);
                     break;
                 case 2:
-                    layout.putConstraint(SpringLayout.EAST, label, -pad, SpringLayout.EAST, this);
+                    layout.putConstraint(SpringLayout.EAST, label, -LABEL_PAD, SpringLayout.EAST, this);
                     break;
             }
             switch (position / 3) {
                 case 0:
-                    layout.putConstraint(SpringLayout.NORTH, label, pad, SpringLayout.NORTH, this);
+                    layout.putConstraint(SpringLayout.NORTH, label, LABEL_PAD, SpringLayout.NORTH, this);
                     break;
                 case 1:
-                    layout.putConstraint(SpringLayout.SOUTH, label, pad, SpringLayout.VERTICAL_CENTER, this);
+                    // pad<0 moves the label up, pad>0 moves the label down
+                    layout.putConstraint(SpringLayout.SOUTH, label, 0, SpringLayout.VERTICAL_CENTER, this);
                     break;
                 case 2:
-                    layout.putConstraint(SpringLayout.SOUTH, label, -pad, SpringLayout.SOUTH, this);
+                    layout.putConstraint(SpringLayout.SOUTH, label, -LABEL_PAD, SpringLayout.SOUTH, this);
                     break;
             }
         }
