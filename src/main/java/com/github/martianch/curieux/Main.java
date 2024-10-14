@@ -6029,7 +6029,11 @@ class ScreenshotSaver extends SaverBase {
             + "\n"
             + "Java VM: " + System.getProperty("java.vm.name") + "\n"
             + "version: " + System.getProperty("java.version") + "\n"
-            + "vendor: " + System.getProperty("java.vendor") + "\n";
+            + "of date: " + System.getProperty("java.version.date") + "\n"
+            + "vendor: " + System.getProperty("java.vendor") + "\n"
+            + Optional.ofNullable(MyOps.noExc(() -> System.getenv("XDG_SESSION_TYPE")))
+                        .map(s -> "\nCurrently your session type is: "+s+"\n")
+                        .orElse("");
     }
     static String toSuffixNumber(double f) {
         int i = (int) f;
@@ -15008,6 +15012,13 @@ class MyOps {
     /** Kotlin-like run() as a non-extension function. Run the lambda, return the result. */
     public static<T> T run(Supplier<T> block) {
         return block.get();
+    }
+    public static<T> T noExc(Supplier<T> lambda) {
+        try {
+            return lambda.get();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 } // MyOps
 interface ScopeFunctions {
