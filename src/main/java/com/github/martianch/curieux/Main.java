@@ -6574,7 +6574,7 @@ class LRNavigator {
         String newRightPath = rightPath;
         System.out.println("---");
         System.out.println("L "+newLeftPath+"\nR "+newRightPath+"\n");
-        if (isLeft) {
+        if (isLeft && !MyStrings.isBlankOrNull(leftPath)) {
             try {
                 left = newIfNotSuitable(left, newLeftPath);
                 for (int i = 0; i < byHowMany; i++) {
@@ -6588,7 +6588,7 @@ class LRNavigator {
                 left = newIfNotSuitable(left, newLeftPath);
             }
         }
-        if (isRight) {
+        if (isRight && !MyStrings.isBlankOrNull(rightPath)) {
             try {
                 right = newIfNotSuitable(right, newRightPath);
                 for (int i = 0; i < byHowMany; i++) {
@@ -14922,6 +14922,9 @@ class MyStrings {
             return null;
         }
         return s.substring(from, Math.min(s.length(), to));
+    }
+    static boolean isBlankOrNull(String s) {
+        return s == null || s.trim().isEmpty();
     }
     static String simpleToString(Object obj) {
         return obj != null
