@@ -3811,6 +3811,7 @@ class X3DViewer {
                 helpButton.addActionListener(e ->
                     JOptionPane.showMessageDialog(frame, helpText, "help", JOptionPane.PLAIN_MESSAGE)
                 );
+                helpButton.setToolTipText("Help (keyboard shortcuts, links to the tutorial and to the NASA site, about)");
                 statusPanel.add(helpButton);
             }
             {
@@ -3844,6 +3845,14 @@ class X3DViewer {
             {
                 JCheckBox dndToBothCheckox = new JCheckBox("DnD to Both");
                 dndToBothCheckox.setMargin(new Insets(0, 2, 0, 2));
+                dndToBothCheckox.setToolTipText(
+                        "<html>"
+                        + "When you <em>Drag-And-Drop</em> an image (or link) to this application,<br>"
+                        + "it can either (when this box is checked) automatically find a pair for the image,<br>"
+                        + "or (when this box is not checked) leave the other image as it is, so that you can make<br>"
+                        + "stereo pairs using images from different dates of different cameras, like MASTCAM-NAVCAM."
+                        + "</html>"
+                );
                 dndToBothCheckox.setMnemonic(KeyEvent.VK_B);
                 dndToBothCheckox.setSelected(UiDefault.DND_TO_BOTH);
                 dndToBothCheckox.addActionListener(
